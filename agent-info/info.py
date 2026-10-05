@@ -14,7 +14,10 @@ import re
 import shutil
 import subprocess
 import sys
+import select
+import termios
 import time
+import tty
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import monitor  # noqa: E402
@@ -105,6 +108,11 @@ def heartbeat(session_id):
     return path
 
 
+VIEW = {"tasks": True, "done": False, "subs": True, "git": True, "usage": True}
+KEYS = {"t": "tasks", "d": "done", "s": "subs", "g": "git", "u": "usage"}
+HELP = "t tâches · d faites · s subagents · g git · u conso · q fermer"
+
+
 def render(width):
     def cut(text, n=width - 4):
         text = safe(text)
@@ -113,7 +121,7 @@ def render(width):
     agent = target_agent()
     if not agent:
         return [f"{C['dim']}Aucune conversation dans cet onglet{C['r']}"], None
-    session = (agent.get("agent_session") or {}).get("value")
+    session = monitor.session_for(agent)
     kind = agent.get("agent", "")
     tokens = agent.get("tokens") or {}
     model, account = monitor.agent_info(kind, session, agent.get("cwd"))
@@ -139,14 +147,14 @@ def render(width):
     lines.append("")
 
     lines.append(f"{C['dir']}{cut(cwd.replace(monitor.HOME, '~'))}{C['r']}")
-    git = monitor.git_summary(cwd)
+    git = monitor.git_summary(cwd) if VIEW["git"] else None
     if git:
         color = C["ok"] if git.endswith("✓") else C["yel"]
         lines.append(f"{color}{cut(git)}{C['r']}")
         lines.append(f"{C['dim']}↑ à pousser ↓ à tirer + indexé ~ modifié ? non suivi{C['r']}")
     lines.append("")
 
-    for segment in footer.get("usage", []):
+    for segment in footer.get("usage", []) if VIEW["usage"] else []:
         lines.append(cut(segment))
     if footer.get("cost") is not None and monitor.is_billed(tokens):
         lines.append(f"{C['dim']}coût session{C['r']}  ${footer['cost']:.2f}")
@@ -156,7 +164,7 @@ def render(width):
     lines.append("")
 
     if session and kind == "claude":
-        subs = subagents_for(session)
+        subs = subagents_for(session) if VIEW["subs"] else []
         if subs:
             live = sum(r for r, _, _ in subs)
             lines.append(f"{C['b']}Subagents{C['r']} {C['dim']}{live} actifs / {len(subs)}{C['r']}")
@@ -166,10 +174,15 @@ def render(width):
             if len(subs) > SUBAGENT_MAX:
                 lines.append(f"{C['dim']}+{len(subs) - SUBAGENT_MAX} plus anciens{C['r']}")
             lines.append("")
-        tasks = tasks_for(session)
-        if tasks:
-            done = sum(t.get("status") == "completed" for t in tasks)
-            lines.append(f"{C['b']}Tâches{C['r']} {C['dim']}{done}/{len(tasks)}{C['r']}")
+        tasks = tasks_for(session) if VIEW["tasks"] else []
+        if not VIEW["done"]:
+            done_count = sum(t.get("status") == "completed" for t in tasks)
+            total = len(tasks)
+            tasks = [t for t in tasks if t.get("status") != "completed"]
+        if tasks or (VIEW["tasks"] and not VIEW["done"] and done_count):
+            done = done_count if not VIEW["done"] else sum(t.get("status") == "completed" for t in tasks)
+            total = total if not VIEW["done"] else len(tasks)
+            lines.append(f"{C['b']}Tâches{C['r']} {C['dim']}{done}/{total}{C['r']}")
             room = max(3, shutil.get_terminal_size((40, 40)).lines - len(lines) - 2)
             for t in tasks[:room]:
                 text = t.get("activeForm") if t.get("status") == "in_progress" else t.get("subject")
@@ -179,8 +192,18 @@ def render(width):
     return lines, session
 
 
+def read_key(timeout):
+    """One keypress within timeout seconds, or None."""
+    ready, _, _ = select.select([sys.stdin], [], [], timeout)
+    return sys.stdin.read(1) if ready else None
+
+
 def main():
     flag = None
+    interactive = sys.stdin.isatty()
+    saved = termios.tcgetattr(sys.stdin) if interactive else None
+    if interactive:
+        tty.setcbreak(sys.stdin)
     sys.stdout.write("\033[?25l")
     try:
         while True:
@@ -194,12 +217,20 @@ def main():
                     flag = heartbeat(session)
             except Exception as exc:  # keep the pane alive across server hiccups
                 lines = [f"{C['dim']}herdr indisponible: {safe(exc)}{C['r']}"]
+            rows = shutil.get_terminal_size((40, 20)).lines
+            lines = lines[: rows - 2] + ["", f"{C['dim']}{HELP}{C['r']}"]
             sys.stdout.write("\033[H\033[2J" + "\n".join(lines))
             sys.stdout.flush()
-            time.sleep(REFRESH_S)
+            key = read_key(REFRESH_S) if interactive else time.sleep(REFRESH_S)
+            if key == "q":
+                break
+            if key in KEYS:
+                VIEW[KEYS[key]] = not VIEW[KEYS[key]]
     except KeyboardInterrupt:
         pass
     finally:
+        if saved:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, saved)
         if flag and os.path.exists(flag):
             os.remove(flag)
         sys.stdout.write("\033[?25h")

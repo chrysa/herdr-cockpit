@@ -298,6 +298,24 @@ def git_summary(cwd):
     return " ".join(parts)
 
 
+def session_for(agent):
+    """Agent session id: herdr's, else the newest one the status line reported
+    from this pane (herdr sometimes loses track after a resume)."""
+    session = (agent.get("agent_session") or {}).get("value")
+    if session:
+        return session
+    best, best_ts = None, 0
+    for path in glob.glob(os.path.join(STATE_DIR, "status", "*.json")):
+        try:
+            with open(path) as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if data.get("pane") == agent.get("pane_id") and data.get("ts", 0) > best_ts:
+            best, best_ts = os.path.basename(path)[:-5], data["ts"]
+    return best
+
+
 def publish(pane_id, tokens):
     args = ["pane", "report-metadata", pane_id, "--source", SOURCE, "--ttl-ms", str(TTL_MS)]
     for name in TOKENS:
@@ -322,7 +340,7 @@ def tick(shown):
     for agent in agents:
         pane_id = agent["pane_id"]
         live.add(pane_id)
-        session = (agent.get("agent_session") or {}).get("value")
+        session = session_for(agent)
         kind = agent.get("agent", "")
         model, account = agent_info(kind, session, agent.get("cwd"))
         mark_billed(session, is_billed(agent.get("tokens") or {}))
