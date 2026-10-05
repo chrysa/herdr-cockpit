@@ -30,3 +30,8 @@ command = ["python3", "monitor.py", "ensure"]
 [[events]]
 on = "workspace.focused"
 command = ["python3", "monitor.py", "ensure"]
+
+# Start with the server so the sidebar is populated right after a restart.
+[[startup]]
+platforms = ["linux", "macos"]
+command = ["python3", "monitor.py", "ensure"]

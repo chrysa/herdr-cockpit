@@ -41,3 +41,8 @@ id = "toggle-info"
 title = "Info: toggle right pane"
 contexts = ["pane", "workspace"]
 command = ["sh", "toggle-info.sh"]
+
+# Start with the server so the sidebar is populated right after a restart.
+[[startup]]
+platforms = ["linux", "macos"]
+command = ["python3", "monitor.py", "ensure"]
