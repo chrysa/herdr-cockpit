@@ -224,7 +224,9 @@ def gather(cache):
 
 def render_space(info):
     """{token: text} for one space's chip + optional worktree list."""
-    tokens = {SP_VARIANTS[info["slot"]]: f"◉ {info['agents']}"}
+    n = info["agents"]
+    label = "aucun agent" if n == 0 else f"{n} agent{'s' if n > 1 else ''}"
+    tokens = {SP_VARIANTS[info["slot"]]: label}
     if info["worktrees"]:
         tokens["wt"] = "⑂" + " ".join(info["worktrees"])
     return tokens
