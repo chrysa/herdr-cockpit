@@ -27,7 +27,7 @@ SOURCE = f"plugin:{PLUGIN_ID}"
 POLL_S = 8
 TTL_MS = POLL_S * 20 * 1000
 TAIL_BYTES = 256 * 1024
-TOKENS = ("model", "account", "doing", "todo", "git")
+TOKENS = ("model", "account", "doing", "todo", "git", "subs")
 DOING_MAX = 34
 STATE_DIR = os.path.expanduser(f"~/.local/state/{PLUGIN_ID}")
 LOCK = os.path.join(STATE_DIR, "daemon.lock")
@@ -316,6 +316,22 @@ def session_for(agent):
     return best
 
 
+def subagents_live(session_id, live_s=20):
+    """"↳ 2 agents: security-auditor, explore" for subagents writing right now."""
+    names = []
+    for meta_path in [p for d in claude_dirs() for p in glob.glob(f"{d}/projects/*/{session_id}/subagents/*.meta.json")]:
+        try:
+            if time.time() - os.path.getmtime(meta_path.replace(".meta.json", ".jsonl")) > live_s:
+                continue
+            with open(meta_path) as fh:
+                names.append(re.sub(r"[\x00-\x1f\x7f-\x9f]", "", json.load(fh).get("agentType") or "agent"))
+        except (OSError, ValueError):
+            continue
+    if not names:
+        return None
+    return f"↳ {len(names)} subagent{'s' if len(names) > 1 else ''}: " + ", ".join(sorted(set(names)))[:40]
+
+
 def publish(pane_id, tokens):
     args = ["pane", "report-metadata", pane_id, "--source", SOURCE, "--ttl-ms", str(TTL_MS)]
     for name in TOKENS:
@@ -345,10 +361,12 @@ def tick(shown):
         model, account = agent_info(kind, session, agent.get("cwd"))
         mark_billed(session, is_billed(agent.get("tokens") or {}))
         doing = todo = None
+        subs = None
         if session and kind == "claude":
             doing, todo = claude_tasks(session)
+            subs = subagents_live(session)
         git = git_summary(agent.get("foreground_cwd") or agent.get("cwd"))
-        tokens = {"model": model, "account": account, "doing": doing, "todo": todo, "git": git}
+        tokens = {"model": model, "account": account, "doing": doing, "todo": todo, "git": git, "subs": subs}
         if shown.get(pane_id) != tokens:
             publish(pane_id, tokens)
             shown[pane_id] = tokens
