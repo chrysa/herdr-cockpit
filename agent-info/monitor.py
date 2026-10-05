@@ -27,7 +27,7 @@ SOURCE = f"plugin:{PLUGIN_ID}"
 POLL_S = 8
 TTL_MS = POLL_S * 20 * 1000
 TAIL_BYTES = 256 * 1024
-TOKENS = ("model", "account", "doing", "todo")
+TOKENS = ("model", "account", "doing", "todo", "git")
 DOING_MAX = 34
 STATE_DIR = os.path.expanduser(f"~/.local/state/{PLUGIN_ID}")
 LOCK = os.path.join(STATE_DIR, "daemon.lock")
@@ -262,6 +262,42 @@ def mark_billed(session, billed):
         os.remove(path)
 
 
+def git_summary(cwd):
+    """Compact git state: "⑂ main ↑2 ↓1 +3 ~2 ?1", or "⑂ main ✓" when clean."""
+    if not cwd:
+        return None
+    try:
+        out = subprocess.run(["git", "-C", cwd, "status", "--porcelain=v2", "--branch"],
+                             capture_output=True, text=True, timeout=3)
+    except Exception:
+        return None
+    if out.returncode != 0:
+        return None
+    branch, ahead, behind, staged, changed, untracked = "?", 0, 0, 0, 0, 0
+    for line in out.stdout.splitlines():
+        if line.startswith("# branch.head "):
+            branch = line.split(" ", 2)[2]
+        elif line.startswith("# branch.ab "):
+            a, b = line.split()[2:4]
+            ahead, behind = int(a), -int(b)
+        elif line.startswith(("1 ", "2 ", "u ")):
+            xy = line.split()[1]
+            staged += xy[0] != "."
+            changed += xy[1] != "."
+        elif line.startswith("? "):
+            untracked += 1
+    branch = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", branch)[:20]
+    parts = [f"⑂ {branch}"]
+    parts += [f"↑{ahead}"] if ahead else []
+    parts += [f"↓{behind}"] if behind else []
+    parts += [f"+{staged}"] if staged else []
+    parts += [f"~{changed}"] if changed else []
+    parts += [f"?{untracked}"] if untracked else []
+    if len(parts) == 1:
+        parts.append("✓")
+    return " ".join(parts)
+
+
 def publish(pane_id, tokens):
     args = ["pane", "report-metadata", pane_id, "--source", SOURCE, "--ttl-ms", str(TTL_MS)]
     for name in TOKENS:
@@ -293,7 +329,8 @@ def tick(shown):
         doing = todo = None
         if session and kind == "claude":
             doing, todo = claude_tasks(session)
-        tokens = {"model": model, "account": account, "doing": doing, "todo": todo}
+        git = git_summary(agent.get("foreground_cwd") or agent.get("cwd"))
+        tokens = {"model": model, "account": account, "doing": doing, "todo": todo, "git": git}
         if shown.get(pane_id) != tokens:
             publish(pane_id, tokens)
             shown[pane_id] = tokens

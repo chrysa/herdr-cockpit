@@ -139,10 +139,11 @@ def render(width):
     lines.append("")
 
     lines.append(f"{C['dir']}{cut(cwd.replace(monitor.HOME, '~'))}{C['r']}")
-    branch, dirty = git_state(cwd) if cwd else (None, 0)
-    if branch:
-        mark = f" {C['yel']}±{dirty}{C['r']}" if dirty else f" {C['ok']}✓{C['r']}"
-        lines.append(f"{C['mod']}⑂ {cut(branch)}{C['r']}{mark}")
+    git = monitor.git_summary(cwd)
+    if git:
+        color = C["ok"] if git.endswith("✓") else C["yel"]
+        lines.append(f"{color}{cut(git)}{C['r']}")
+        lines.append(f"{C['dim']}↑ à pousser ↓ à tirer + indexé ~ modifié ? non suivi{C['r']}")
     lines.append("")
 
     for segment in footer.get("usage", []):
