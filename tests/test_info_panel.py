@@ -79,3 +79,35 @@ def test_path_lines_show_root_and_subfolder(tmp_path):
 def test_path_lines_outside_repo_show_full_cwd(tmp_path):
     plain = [info.ANSI.sub("", line) for line in info.path_lines(info.cutter(200), 200, str(tmp_path))]
     assert plain == [str(tmp_path)]
+
+
+import sqlite3  # noqa: E402
+
+
+def make_rtk_db(path, rows):
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE commands (project_path TEXT, timestamp TEXT, input_tokens INT, saved_tokens INT)")
+    conn.executemany("INSERT INTO commands VALUES (?, ?, ?, ?)", rows)
+    conn.commit()
+    conn.close()
+
+
+def test_rtk_stats_counts_project_subtree_only(tmp_path):
+    db = str(tmp_path / "history.db")
+    make_rtk_db(db, [
+        ("/p/app", "2026-10-06T10:00:00+00:00", 100, 40),
+        ("/p/app/sub", "2026-10-06T11:00:00+00:00", 100, 60),
+        ("/p/application", "2026-10-06T11:00:00+00:00", 999, 999),
+    ])
+    assert info.rtk_stats("/p/app", db=db) == (2, 200, 100)
+    assert info.rtk_stats("/p/app", "2026-10-06T10:30:00+00:00", db=db) == (1, 100, 60)
+
+
+def test_rtk_stats_without_database(tmp_path):
+    assert info.rtk_stats("/p/app", db=str(tmp_path / "missing.db")) is None
+
+
+def test_human():
+    assert info.human(1_234) == "1.2K"
+    assert info.human(3_400_000) == "3.4M"
+    assert info.human(12) == "12"

@@ -12,11 +12,13 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import select
 import termios
 import time
+from datetime import datetime, timedelta, timezone
 import tty
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -137,13 +139,13 @@ def heartbeat(session_id):
     return path
 
 
-VIEW = {"tasks": True, "done": False, "subs": True, "git": True, "usage": True}
-KEYS = {"t": "tasks", "d": "done", "s": "subs", "g": "git", "u": "usage"}
+VIEW = {"tasks": True, "done": False, "subs": True, "git": True, "usage": True, "rtk": True}
+KEYS = {"t": "tasks", "d": "done", "s": "subs", "g": "git", "u": "usage", "r": "rtk"}
 STATE_ORDER = ("blocked", "working", "done", "idle")
 STATE_LABEL = {"blocked": "bloqués", "working": "en cours", "done": "terminés", "idle": "en attente"}
 UI = {"mode": "conv", "all_spaces": False, "collapsed": set()}
 UI_FILE = os.path.join(STATE, "panel.json")
-HELP = {"conv": "a agents · t tâches · d faites · s subagents · g git · u conso · q",
+HELP = {"conv": "a agents · t tâches · d faites · s subagents · g git · u conso · r rtk · q",
         "agents": "a conversation · A tous les spaces · 1-4 replier · q"}
 
 
@@ -303,6 +305,61 @@ def section_project(cut, width, cwd):
     return lines + [""]
 
 
+RTK_DB = os.path.expanduser("~/.local/share/rtk/history.db")
+
+
+def rtk_stats(root, since=None, db=RTK_DB):
+    """(commands, input_tokens, saved_tokens) RTK recorded under root, read-only."""
+    if not root or not os.path.exists(db):
+        return None
+    sql = ("SELECT COUNT(*), COALESCE(SUM(input_tokens), 0), COALESCE(SUM(saved_tokens), 0) "
+           "FROM commands WHERE (project_path = ? OR substr(project_path, 1, ?) = ?)")
+    params = [root, len(root) + 1, root + os.sep]
+    if since:
+        sql += " AND timestamp >= ?"
+        params.append(since)
+    try:
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+        try:
+            return conn.execute(sql, params).fetchone()
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return None
+
+
+def human(n):
+    for unit, size in (("M", 1_000_000), ("K", 1_000)):
+        if n >= size:
+            return f"{n / size:.1f}{unit}"
+    return str(n)
+
+
+def rtk_line(label, stats):
+    commands, sent, saved = stats
+    rate = saved / sent if sent else 0
+    color = level_color(1 - rate)
+    return (f"{C['dim']}{label:<6}{C['r']}{color}{rate:.0%}{C['r']} "
+            f"{C['dim']}· {human(saved)} économisés · {commands} cmd{C['r']}")
+
+
+def section_rtk(width, cwd):
+    """RTK savings for this project folder: last 24 h and since the beginning."""
+    if not VIEW["rtk"]:
+        return []
+    root = project_root(cwd) or cwd
+    total = rtk_stats(root)
+    if not total or not total[0]:
+        return []
+    since = (datetime.now(timezone.utc) - timedelta(hours=24)).replace(microsecond=0).isoformat()
+    day = rtk_stats(root, since)
+    lines = [header("RTK", width)]
+    if day and day[0]:
+        lines.append(rtk_line("24 h", day))
+    lines.append(rtk_line("total", total))
+    return lines + [""]
+
+
 def level_color(used_ratio):
     """green under 50 % used, yellow under 80 %, red beyond."""
     if used_ratio < 0.5:
@@ -407,6 +464,7 @@ def render_conversation(width):
     lines += section_account(cut, width, account, kind, model, tokens)
     lines += section_project(cut, width, cwd)
     lines += section_usage(cut, width, read_footer(session), tokens)
+    lines += section_rtk(width, cwd)
     if session and kind == "claude":
         lines += section_subagents(cut, width, session)
         lines += section_tasks(cut, width, session, len(lines))

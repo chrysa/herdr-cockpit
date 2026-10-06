@@ -28,8 +28,9 @@ Two views, toggled with `a`:
   branch, `↑ à pousser ↓ à tirer + indexés ~ modifiés ? non suivis`, diff stats
   `+12 -3 (4 fichiers)`), `Conso` (each metric colored on its own value: green
   < 50 % used, yellow < 80 %, red beyond; savings and cache the other way round),
+  `RTK` (savings recorded by RTK under the project folder: last 24 h and total),
   `Subagents`, `Tâches`. Cost appears only once usage is billed past the plan
-  quota. Keys: `t` tasks, `d` done tasks, `s` subagents, `g` git, `u` usage.
+  quota. Keys: `t` tasks, `d` done tasks, `s` subagents, `g` git, `u` usage, `r` RTK.
 - **Agents** (the space selected in herdr; `A` for all spaces): grouped
   `‼ bloqués`, `◐ en cours`, `✓ terminés`, `○ en attente`; `1`-`4` fold a group.
 
