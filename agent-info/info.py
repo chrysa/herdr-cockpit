@@ -139,17 +139,60 @@ def heartbeat(session_id):
 
 VIEW = {"tasks": True, "done": False, "subs": True, "git": True, "usage": True}
 KEYS = {"t": "tasks", "d": "done", "s": "subs", "g": "git", "u": "usage"}
-HELP = "t tâches · d faites · s subagents · g git · u conso · q fermer"
+STATE_ORDER = ("blocked", "working", "done", "idle")
+STATE_LABEL = {"blocked": "bloqués", "working": "en cours", "done": "terminés", "idle": "en attente"}
+UI = {"mode": "conv", "all_spaces": False, "collapsed": set()}
+UI_FILE = os.path.join(STATE, "panel.json")
+HELP = {"conv": "a agents · t tâches · d faites · s subagents · g git · u conso · q",
+        "agents": "a conversation · A tous les spaces · 1-4 replier · q"}
 
 
-def render(width):
+def load_ui():
+    try:
+        with open(UI_FILE) as fh:
+            data = json.load(fh)
+        UI["mode"] = data.get("mode", "conv")
+        UI["all_spaces"] = bool(data.get("all_spaces"))
+        UI["collapsed"] = set(data.get("collapsed", []))
+    except (OSError, ValueError):
+        pass
+
+
+def save_ui():
+    os.makedirs(STATE, exist_ok=True)
+    with open(UI_FILE, "w") as fh:
+        json.dump({"mode": UI["mode"], "all_spaces": UI["all_spaces"],
+                   "collapsed": sorted(UI["collapsed"])}, fh)
+
+
+def cutter(width):
     def cut(text, n=width - 4):
         text = safe(text)
         return text if len(text) <= n else text[:n - 1] + "…"
+    return cut
 
+
+def header(title, width, extra=""):
+    """"── Titre ── extra" filling the pane width."""
+    label = f"── {title} "
+    tail = f" {extra}" if extra else ""
+    return f"{C['b']}{label}{C['r']}{C['dim']}{'─' * max(2, width - len(label) - len(tail) - 1)}{tail}{C['r']}"
+
+
+def state_color(status):
+    return {"blocked": C["warn"], "working": C["ok"], "done": C["dir"]}.get(status, C["dim"])
+
+
+def render(width):
+    return render_agents(width) if UI["mode"] == "agents" else render_conversation(width)
+
+
+def render_conversation(width):
+    cut = cutter(width)
     agent = target_agent()
     if not agent:
-        return [f"{C['dim']}Aucune conversation dans cet onglet{C['r']}"], None
+        return [f"{C['dim']}Aucune conversation dans cet onglet{C['r']}",
+                f"{C['dim']}a : voir les agents du space{C['r']}"], None
     session = monitor.session_for(agent)
     kind = agent.get("agent", "")
     tokens = agent.get("tokens") or {}
@@ -164,61 +207,104 @@ def render(width):
         except (OSError, ValueError):
             pass
 
-    color = C["warn"] if status == "blocked" else C["ok"] if status == "working" else C["dim"]
-    lines = [f"{C['b']}{cut(agent.get('terminal_title_stripped') or kind)}{C['r']}",
-             f"{color}{ICON.get(status, status)}{C['r']}", ""]
+    lines = [f"{state_color(status)}{ICON.get(status, status)}{C['r']}  {C['b']}{cut(agent.get('terminal_title_stripped') or kind, width - 14)}{C['r']}",
+             f"{C['dim']}{safe(agent.get('name') or agent['pane_id'])}{C['r']}", ""]
 
+    lines.append(header("Compte", width))
     lines.append(f"{account_color(account)}● {safe(account or kind)}{C['r']}  {C['mod']}{safe(model or '?')}{C['r']}")
-    if tokens.get("limit"):
-        lines.append(f"  {C['dim']}{cut(tokens['limit'])}{C['r']}")
     if tokens.get("context"):
-        lines.append(f"  {C['dim']}plan · ctx  {cut(tokens['context'])}{C['r']}")
+        lines.append(f"{C['dim']}quota · contexte  {cut(tokens['context'], width - 20)}{C['r']}")
     lines.append("")
 
+    lines.append(header("Projet", width))
     lines.append(f"{C['dir']}{cut(cwd.replace(monitor.HOME, '~'))}{C['r']}")
     git = monitor.git_summary(cwd) if VIEW["git"] else None
     if git:
-        color = C["ok"] if git.endswith("✓") else C["yel"]
-        lines.append(f"{color}{cut(git)}{C['r']}")
-        lines.append(f"{C['dim']}↑ à pousser ↓ à tirer + indexé ~ modifié ? non suivi{C['r']}")
+        lines.append(f"{C['ok'] if git.endswith('✓') else C['yel']}{cut(git)}{C['r']}")
     lines.append("")
 
-    for segment in footer.get("usage", []) if VIEW["usage"] else []:
-        lines.append(cut(segment))
-    if footer.get("cost") is not None and monitor.is_billed(tokens):
-        lines.append(f"{C['dim']}coût session{C['r']}  ${footer['cost']:.2f}")
-    if footer.get("ts"):
-        age = int(time.time() - footer["ts"])
-        lines.append(f"{C['dim']}màj il y a {age}s{C['r']}")
-    lines.append("")
+    usage = footer.get("usage", []) if VIEW["usage"] else []
+    if usage:
+        age = int(time.time() - footer["ts"]) if footer.get("ts") else None
+        lines.append(header("Conso", width, f"{age}s" if age is not None and age > 30 else ""))
+        joined = "   ".join(usage)
+        lines += [cut(joined)] if len(joined) <= width - 2 else [cut(u) for u in usage]
+        if footer.get("cost") is not None and monitor.is_billed(tokens):
+            lines.append(f"{C['warn']}hors quota{C['r']}  ${footer['cost']:.2f}")
+        lines.append("")
 
     if session and kind == "claude":
         subs = subagents_for(session) if VIEW["subs"] else []
         if subs:
             live = sum(r for r, _, _ in subs)
-            lines.append(f"{C['b']}Subagents{C['r']} {C['dim']}{live} actifs / {len(subs)}{C['r']}")
+            lines.append(header("Subagents", width, f"{live} actifs / {len(subs)}"))
             for running, sub_kind, desc in subs[:SUBAGENT_MAX]:
-                mark = f"{C['ok']}◐" if running else f"{C['dim']}✓"
+                mark = f"{C['ok']}{SYM['working']}" if running else f"{C['dim']}{SYM['done']}"
                 lines.append(f"{mark} {cut(sub_kind + ' · ' + desc, width - 4)}{C['r']}")
             if len(subs) > SUBAGENT_MAX:
                 lines.append(f"{C['dim']}+{len(subs) - SUBAGENT_MAX} plus anciens{C['r']}")
             lines.append("")
-        tasks = tasks_for(session) if VIEW["tasks"] else []
-        if not VIEW["done"]:
-            done_count = sum(t.get("status") == "completed" for t in tasks)
-            total = len(tasks)
-            tasks = [t for t in tasks if t.get("status") != "completed"]
-        if tasks or (VIEW["tasks"] and not VIEW["done"] and done_count):
-            done = done_count if not VIEW["done"] else sum(t.get("status") == "completed" for t in tasks)
-            total = total if not VIEW["done"] else len(tasks)
-            lines.append(f"{C['b']}Tâches{C['r']} {C['dim']}{done}/{total}{C['r']}")
-            room = max(3, shutil.get_terminal_size((40, 40)).lines - len(lines) - 2)
+        all_tasks = tasks_for(session) if VIEW["tasks"] else []
+        done = sum(t.get("status") == "completed" for t in all_tasks)
+        tasks = all_tasks if VIEW["done"] else [t for t in all_tasks if t.get("status") != "completed"]
+        if all_tasks:
+            lines.append(header("Tâches", width, f"{done}/{len(all_tasks)}"))
+            room = max(3, shutil.get_terminal_size((40, 40)).lines - len(lines) - 3)
             for t in tasks[:room]:
                 text = t.get("activeForm") if t.get("status") == "in_progress" else t.get("subject")
                 lines.append(f"{TASK_ICON.get(t.get('status'), '·')} {cut(text, width - 4)}{C['r']}")
             if len(tasks) > room:
                 lines.append(f"{C['dim']}+{len(tasks) - room} autres{C['r']}")
+            if not tasks:
+                lines.append(f"{C['ok']}{SYM['done']} tout est fait{C['r']}")
     return lines, session
+
+
+def focused_workspace():
+    for w in monitor.herdr("workspace", "list").get("result", {}).get("workspaces", []):
+        if w.get("focused"):
+            return w["workspace_id"], w.get("label") or w["workspace_id"]
+    return os.environ.get("HERDR_WORKSPACE_ID"), ""
+
+
+def group_by_state(agents):
+    """{state: [agents]} in STATE_ORDER; unknown states count as idle."""
+    groups = {state: [] for state in STATE_ORDER}
+    for a in agents:
+        groups.get(a.get("agent_status"), groups["idle"]).append(a)
+    return groups
+
+
+def render_agents(width):
+    cut = cutter(width)
+    agents = monitor.herdr("agent", "list").get("result", {}).get("agents", [])
+    ws_id, label = focused_workspace()
+    if not UI["all_spaces"]:
+        agents = [a for a in agents if a.get("workspace_id") == ws_id]
+    title = "tous les spaces" if UI["all_spaces"] else (label or ws_id)
+    lines = [f"{C['b']}Agents · {safe(title)}{C['r']} {C['dim']}({len(agents)}){C['r']}", ""]
+    if not agents:
+        return lines + [f"{C['dim']}aucun agent{C['r']}"], None
+    for number, (state, members) in enumerate(group_by_state(agents).items(), start=1):
+        if not members:
+            continue
+        folded = state in UI["collapsed"]
+        arrow = "▸" if folded else "▾"
+        lines.append(f"{state_color(state)}{arrow} {SYM[state]} {STATE_LABEL[state]}{C['r']} "
+                     f"{C['dim']}{len(members)}  [{number}]{C['r']}")
+        if folded:
+            continue
+        for a in members:
+            tokens = a.get("tokens") or {}
+            account = tokens.get("account")
+            name = a.get("name") or a.get("terminal_title_stripped") or a["pane_id"]
+            acc = f" {account_color(account)}{safe(account)}{C['r']}" if account else ""
+            lines.append(f"  {cut(name, width - 4 - len(account or '') - 1)}{acc}")
+            detail = tokens.get("doing") or tokens.get("git")
+            if detail:
+                lines.append(f"    {C['dim']}{cut(detail, width - 6)}{C['r']}")
+        lines.append("")
+    return lines, None
 
 
 def read_key(timeout):
@@ -228,6 +314,7 @@ def read_key(timeout):
 
 
 def main():
+    load_ui()
     flag = None
     interactive = sys.stdin.isatty()
     saved = termios.tcgetattr(sys.stdin) if interactive else None
@@ -247,14 +334,23 @@ def main():
             except Exception as exc:  # keep the pane alive across server hiccups
                 lines = [f"{C['dim']}herdr indisponible: {safe(exc)}{C['r']}"]
             rows = shutil.get_terminal_size((40, 20)).lines
-            lines = lines[: rows - 2] + ["", f"{C['dim']}{HELP}{C['r']}"]
+            lines = lines[: rows - 2] + ["", f"{C['dim']}{HELP[UI['mode']]}{C['r']}"]
             sys.stdout.write("\033[H\033[2J" + "\n".join(lines))
             sys.stdout.flush()
             key = read_key(REFRESH_S) if interactive else time.sleep(REFRESH_S)
             if key == "q":
                 break
-            if key in KEYS:
+            if key == "a":
+                UI["mode"] = "agents" if UI["mode"] == "conv" else "conv"
+            elif key == "A":
+                UI["all_spaces"] = not UI["all_spaces"]
+            elif key in ("1", "2", "3", "4") and UI["mode"] == "agents":
+                UI["collapsed"] ^= {STATE_ORDER[int(key) - 1]}
+            elif key in KEYS and UI["mode"] == "conv":
                 VIEW[KEYS[key]] = not VIEW[KEYS[key]]
+            else:
+                continue
+            save_ui()
     except KeyboardInterrupt:
         pass
     finally:
