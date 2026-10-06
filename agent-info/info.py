@@ -272,8 +272,27 @@ def git_lines(cut, width, details):
     return lines
 
 
+def project_root(cwd):
+    """Absolute path of the git work tree holding cwd, or None."""
+    try:
+        out = subprocess.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, timeout=3)
+    except Exception:
+        return None
+    return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else None
+
+
+def path_lines(cut, width, cwd):
+    """Full local path of the project; the sub-folder too when the agent is not at its root."""
+    root = project_root(cwd) if cwd else None
+    lines = [f"{C['dir']}{cut(safe(root or cwd), width - 2)}{C['r']}"]
+    if root and os.path.realpath(cwd) != os.path.realpath(root):
+        lines.append(f"{C['dim']}  └ {cut(os.path.relpath(cwd, root), width - 6)}{C['r']}")
+    return lines
+
+
 def section_project(cut, width, cwd):
-    lines = [header("Projet", width), f"{C['dir']}{cut(cwd.replace(monitor.HOME, '~'))}{C['r']}"]
+    lines = [header("Projet", width)] + path_lines(cut, width, cwd)
     if VIEW["git"] and cwd:
         details = git_details(cwd)
         lines += git_lines(cut, width, details) if details else [f"{C['dim']}pas un dépôt git{C['r']}"]

@@ -66,3 +66,16 @@ def test_parse_shortstat():
     assert info.parse_shortstat(" 4 files changed, 12 insertions(+), 3 deletions(-)") == (4, 12, 3)
     assert info.parse_shortstat(" 1 file changed, 2 deletions(-)") == (1, 0, 2)
     assert info.parse_shortstat("") == (0, 0, 0)
+
+
+def test_path_lines_show_root_and_subfolder(tmp_path):
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    (tmp_path / "src").mkdir()
+    plain = [info.ANSI.sub("", line) for line in info.path_lines(info.cutter(200), 200, str(tmp_path / "src"))]
+    assert plain[0] == str(tmp_path)
+    assert plain[1].strip() == "└ src"
+
+
+def test_path_lines_outside_repo_show_full_cwd(tmp_path):
+    plain = [info.ANSI.sub("", line) for line in info.path_lines(info.cutter(200), 200, str(tmp_path))]
+    assert plain == [str(tmp_path)]
