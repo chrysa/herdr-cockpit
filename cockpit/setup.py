@@ -25,6 +25,7 @@ import render  # noqa: E402
 ROOT = os.path.dirname(os.path.abspath(__file__))
 HOME = os.path.expanduser("~")
 CONFIG = "config.toml"
+DOT_CONFIG = ".config"
 PLUGINS = ("chrysa.spaces", "chrysa.agent-info")
 UNITS = ("herdr-config-reload.path", "herdr-config-reload.service",
          "herdr-logrotate.service", "herdr-logrotate.timer")
@@ -37,8 +38,8 @@ class Paths:
         self.state = os.path.join(home, ".local", "state", "chrysa.cockpit")
         self.rendered = os.path.join(self.state, "rendered")
         self.bin = os.path.join(self.state, "bin")
-        self.herdr_config = os.path.join(home, ".config", "herdr", CONFIG)
-        self.units = os.path.join(home, ".config", "systemd", "user")
+        self.herdr_config = os.path.join(home, DOT_CONFIG, "herdr", CONFIG)
+        self.units = os.path.join(home, DOT_CONFIG, "systemd", "user")
         self.backups = os.path.join(self.state, "backups", time.strftime("%Y%m%d-%H%M%S"))
 
     def claude_dirs(self):
@@ -144,7 +145,7 @@ class Setup:
 
     def install_opencode_theme(self):
         """Link the rendered theme into opencode and select it in tui.json(c)."""
-        config_dir = os.path.join(self.p.home, ".config", "opencode")
+        config_dir = os.path.join(self.p.home, DOT_CONFIG, "opencode")
         if not os.path.isdir(config_dir):
             return
         self.link(os.path.join(config_dir, "themes", "chrysa-cockpit.json"),
