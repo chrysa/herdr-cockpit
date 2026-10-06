@@ -205,6 +205,18 @@ def section_account(cut, width, account, kind, model, tokens):
     return lines + [""]
 
 
+def parse_shortstat(text):
+    """" 4 files changed, 12 insertions(+), 3 deletions(-)" -> (4, 12, 3)."""
+    values = {"file": 0, "insertion": 0, "deletion": 0}
+    for part in text.split(","):
+        words = part.split()
+        if len(words) >= 2 and words[0].isdigit():
+            for key in values:
+                if words[1].startswith(key):
+                    values[key] = int(words[0])
+    return values["file"], values["insertion"], values["deletion"]
+
+
 def git_details(cwd):
     """(branch, counts, shortstat) or None outside a repo.
 
@@ -233,9 +245,7 @@ def git_details(cwd):
             counts["changed"] += xy[1] != "."
         elif line.startswith("? "):
             counts["untracked"] += 1
-    files = int(re.search(r"(\d+) file", diff).group(1)) if "file" in diff else 0
-    added = int(re.search(r"(\d+) insertion", diff).group(1)) if "insertion" in diff else 0
-    removed = int(re.search(r"(\d+) deletion", diff).group(1)) if "deletion" in diff else 0
+    files, added, removed = parse_shortstat(diff)
     shortstat = f"+{added} -{removed} ({files} fichier{'s' if files > 1 else ''})" if files else ""
     return safe(branch), counts, shortstat
 
@@ -244,47 +254,66 @@ GIT_LABELS = (("ahead", "↑", "à pousser"), ("behind", "↓", "à tirer"), ("s
               ("changed", "~", "modifiés"), ("untracked", "?", "non suivis"))
 
 
+def git_lines(cut, width, details):
+    branch, counts, shortstat = details
+    clean = not any(counts.values())
+    state = f"  {C['ok']}{SYM['done']} propre{C['r']}" if clean else ""
+    lines = [f"{C['mod']}{SYM.get('branch', '⑂')} {cut(branch, width - 4)}{C['r']}{state}"]
+    for key, symbol, label in GIT_LABELS:
+        if counts[key]:
+            color = C["warn"] if key == "behind" else C["yel"]
+            lines.append(f"  {color}{symbol}{counts[key]}{C['r']} {C['dim']}{label}{C['r']}")
+    if shortstat:
+        added, removed, rest = shortstat.split(" ", 2)
+        lines.append(f"  {C['ok']}{added}{C['r']} {C['warn']}{removed}{C['r']} {C['dim']}{rest}{C['r']}")
+    return lines
+
+
 def section_project(cut, width, cwd):
     lines = [header("Projet", width), f"{C['dir']}{cut(cwd.replace(monitor.HOME, '~'))}{C['r']}"]
-    details = git_details(cwd) if VIEW["git"] and cwd else None
-    if VIEW["git"] and cwd and details is None:
-        lines.append(f"{C['dim']}pas un dépôt git{C['r']}")
-    if details:
-        branch, counts, shortstat = details
-        clean = not any(counts.values())
-        lines.append(f"{C['mod']}{SYM.get('branch', '⑂')} {cut(branch, width - 4)}{C['r']}"
-                     + (f"  {C['ok']}{SYM['done']} propre{C['r']}" if clean else ""))
-        for key, symbol, label in GIT_LABELS:
-            if counts[key]:
-                color = C["warn"] if key == "behind" else C["yel"]
-                lines.append(f"  {color}{symbol}{counts[key]}{C['r']} {C['dim']}{label}{C['r']}")
-        if shortstat:
-            lines.append(f"  {C['ok']}{shortstat.split()[0]}{C['r']} {C['warn']}{shortstat.split()[1]}{C['r']} "
-                         f"{C['dim']}{' '.join(shortstat.split()[2:])}{C['r']}")
+    if VIEW["git"] and cwd:
+        details = git_details(cwd)
+        lines += git_lines(cut, width, details) if details else [f"{C['dim']}pas un dépôt git{C['r']}"]
     return lines + [""]
 
 
 def level_color(used_ratio):
     """green under 50 % used, yellow under 80 %, red beyond."""
-    return C["ok"] if used_ratio < 0.5 else C["yel"] if used_ratio < 0.8 else C["warn"]
+    if used_ratio < 0.5:
+        return C["ok"]
+    if used_ratio < 0.8:
+        return C["yel"]
+    return C["warn"]
 
 
-def color_usage(segment):
-    """Colour one llmtrim segment by how close it is to a limit.
+def percent(text):
+    """First "NN%" in text as an int, or None (no regex: input comes from agents)."""
+    for word in text.replace("·", " ").split():
+        if word.endswith("%") and word[:-1].isdigit():
+            return int(word[:-1])
+    return None
 
-    Context bar: share of filled blocks. Quota windows ("◔ 48m·21% · 2d·91%"):
-    the worst percentage used. Savings and cache ("✂", "♻"): higher is better.
+
+def color_metric(text):
+    """One metric, coloured by its own value.
+
+    Context bar: share of filled blocks. Savings and cache ("✂", "♻"): higher is
+    better. Anything else with a percentage (quota windows): higher is worse.
     """
-    text = safe(segment)
     filled, empty = text.count("▓"), text.count("░")
     if filled + empty:
         return level_color(filled / (filled + empty)) + text + C["r"]
-    percents = [int(p) for p in re.findall(r"(\d+)%", text)]
-    if not percents:
+    value = percent(text)
+    if value is None:
         return C["dim"] + text + C["r"]
-    if text.startswith(("✂", "♻")):
-        return level_color(1 - max(percents) / 100) + text + C["r"]
-    return level_color(max(percents) / 100) + text + C["r"]
+    good_when_high = text.lstrip().startswith(("✂", "♻"))
+    return level_color(1 - value / 100 if good_when_high else value / 100) + text + C["r"]
+
+
+def color_usage(segment):
+    """Colour each metric of a segment independently ("◔ 5h·20% · 7d·85%" = two metrics)."""
+    parts = safe(segment).split(" · ")
+    return f"{C['dim']} · {C['r']}".join(color_metric(part) for part in parts)
 
 
 def section_usage(cut, width, footer, tokens):

@@ -28,7 +28,7 @@ import pytest  # noqa: E402
     ("▓▓░░░░░░ 80k", "ok"),
     ("▓▓▓▓▓░░░ 200k", "yel"),
     ("▓▓▓▓▓▓▓░ 350k", "warn"),
-    ("◔ 5h·20% · 7d·85%", "warn"),
+    ("◔ 5h·20% · 7d·85%", "ok"),
     ("♻ 99% cached", "ok"),
     ("✂ 10%", "warn"),
 ])
@@ -54,3 +54,15 @@ def test_git_details(tmp_path):
 
 def test_git_details_outside_repo(tmp_path):
     assert info.git_details(str(tmp_path)) is None
+
+
+def test_each_quota_window_has_its_own_color():
+    rendered = info.color_usage("◔ 5h·20% · 7d·85%")
+    assert info.C["ok"] + "◔ 5h·20%" in rendered
+    assert info.C["warn"] + "7d·85%" in rendered
+
+
+def test_parse_shortstat():
+    assert info.parse_shortstat(" 4 files changed, 12 insertions(+), 3 deletions(-)") == (4, 12, 3)
+    assert info.parse_shortstat(" 1 file changed, 2 deletions(-)") == (1, 0, 2)
+    assert info.parse_shortstat("") == (0, 0, 0)
