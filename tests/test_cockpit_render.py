@@ -25,8 +25,15 @@ def test_template_has_no_hardcoded_palette_color():
 
 
 def test_unknown_placeholder_fails():
+    palette = render.load_palette()
     with pytest.raises(KeyError):
-        render.render("{{colors.nope}}", render.load_palette())
+        render.render("{{colors.nope}}", palette)
+
+
+@pytest.mark.parametrize("name", ["../palette.toml", "/etc/passwd", "missing.toml"])
+def test_render_file_rejects_unknown_templates(name):
+    with pytest.raises(ValueError):
+        render.render_file(name)
 
 
 def test_palette_slots_reference_known_colors():
