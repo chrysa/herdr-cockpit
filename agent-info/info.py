@@ -285,7 +285,11 @@ def project_root(cwd):
 def path_lines(cut, width, cwd):
     """Full local path of the project; the sub-folder too when the agent is not at its root."""
     root = project_root(cwd) if cwd else None
-    lines = [f"{C['dir']}{cut(safe(root or cwd), width - 2)}{C['r']}"]
+    path = safe(root or cwd)
+    room = width - 2
+    if len(path) > room:  # keep the end: the project name matters more than /home/…
+        path = "…" + path[-(room - 1):]
+    lines = [f"{C['dir']}{path}{C['r']}"]
     if root and os.path.realpath(cwd) != os.path.realpath(root):
         lines.append(f"{C['dim']}  └ {cut(os.path.relpath(cwd, root), width - 6)}{C['r']}")
     return lines
