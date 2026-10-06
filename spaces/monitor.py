@@ -22,6 +22,7 @@ Commands:
 """
 import fcntl
 import json
+import re
 import os
 import signal
 import shutil
@@ -39,6 +40,10 @@ TTL_MS = POLL_S * 20 * 1000  # tokens outlive a few failed reads, then expire
 REFRESH_S = TTL_MS / 1000 / 3  # republish unchanged tokens well before they expire
 
 SP_VARIANTS = tuple(f"sp{i}" for i in range(PALETTE_SLOTS))
+# Account chips: one pre-styled token per known account (cockpit palette),
+# "acc_other" for anything else. Account names come from chrysa.agent-info.
+KNOWN_ACCOUNTS = ("perso", "pro", "codex")
+ACC_VARIANTS = tuple(f"acc_{a}" for a in KNOWN_ACCOUNTS) + ("acc_other",)
 AG_VARIANTS = tuple(f"ag{i}" for i in range(PALETTE_SLOTS))
 
 
@@ -200,10 +205,15 @@ def gather(cache):
             cwds_by_ws.setdefault(pane["workspace_id"], []).append(cwd)
 
     agent_count = {}
+    accounts = {}  # ws_id -> {account: agents}
     pane_slot = {}  # pane_id -> color slot, for the agent panel
     for agent in agents:
         ws_id = agent["workspace_id"]
         agent_count[ws_id] = agent_count.get(ws_id, 0) + 1
+        account = (agent.get("tokens") or {}).get("account")
+        if account:
+            per_ws = accounts.setdefault(ws_id, {})
+            per_ws[account] = per_ws.get(account, 0) + 1
         pane_slot[agent["pane_id"]] = color_slot(ws_id)
 
     spaces = {}
@@ -212,21 +222,39 @@ def gather(cache):
             "slot": color_slot(ws_id),
             "agents": agent_count.get(ws_id, 0),
             "worktrees": worktrees_for(cwds, cache),
+            "accounts": accounts.get(ws_id, {}),
         }
     # spaces with panes but no agents still deserve their (0-agent) chip
     for ws_id in agent_count:
         spaces.setdefault(ws_id, {"slot": color_slot(ws_id),
-                                  "agents": agent_count[ws_id], "worktrees": []})
+                                  "agents": agent_count[ws_id], "worktrees": [],
+                                  "accounts": accounts.get(ws_id, {})})
     return spaces, pane_slot
 
 
 # --------------------------------------------------------------- rendering --
+
+def render_accounts(accounts):
+    """{acc_<name>: name} for each account in the space; unknown ones share acc_other."""
+    tokens = {}
+    other = []
+    for name in sorted(accounts, key=lambda a: (-accounts[a], a)):
+        clean = re.sub(r"[^A-Za-z0-9_.:-]", "", name)[:16]
+        if name in KNOWN_ACCOUNTS:
+            tokens[f"acc_{name}"] = clean
+        elif clean:
+            other.append(clean)
+    if other:
+        tokens["acc_other"] = " ".join(other)
+    return tokens
+
 
 def render_space(info):
     """{token: text} for one space's chip + optional worktree list."""
     n = info["agents"]
     label = "aucun agent" if n == 0 else f"{n} agent{'s' if n > 1 else ''}"
     tokens = {SP_VARIANTS[info["slot"]]: label}
+    tokens.update(render_accounts(info.get("accounts", {})))
     if info["worktrees"]:
         tokens["wt"] = "⑂" + " ".join(info["worktrees"])
     return tokens
@@ -247,7 +275,7 @@ def report(scope, target_id, tokens, all_variants, extra_clear=()):
 
 
 def clear_space(ws_id):
-    report("workspace", ws_id, {}, SP_VARIANTS, extra_clear=("wt",))
+    report("workspace", ws_id, {}, SP_VARIANTS, extra_clear=("wt",) + ACC_VARIANTS)
 
 
 def clear_pane(pane_id):
@@ -270,7 +298,7 @@ def publish_round(state):
     for ws_id, info in spaces.items():
         tokens = render_space(info)
         if state["ws"].get(ws_id) != tokens:
-            report("workspace", ws_id, tokens, SP_VARIANTS, extra_clear=("wt",))
+            report("workspace", ws_id, tokens, SP_VARIANTS, extra_clear=("wt",) + ACC_VARIANTS)
             state["ws"][ws_id] = tokens
     for ws_id in list(state["ws"]):
         if ws_id not in seen_ws:

@@ -58,8 +58,8 @@ pane_history = true
 [ui.sidebar.spaces]
 row_gap = 1
 rows = [
-  # nom du space + nombre d'agents (pastille = couleur du projet)
-  ["state_icon", "workspace", { token = "$sp0", fg = "#89b4fa", bold = true }, { token = "$sp1", fg = "#a6e3a1", bold = true }, { token = "$sp2", fg = "#f9e2af", bold = true }, { token = "$sp3", fg = "#f38ba8", bold = true }, { token = "$sp4", fg = "#cba6f7", bold = true }, { token = "$sp5", fg = "#fab387", bold = true }, { token = "$sp6", fg = "#94e2d5", bold = true }, { token = "$sp7", fg = "#f5c2e7", bold = true }],
+  # nom du space · nombre d'agents (couleur du projet) · comptes utilisés (couleur par compte)
+  ["state_icon", "workspace", { token = "$sp0", fg = "#89b4fa", bold = true }, { token = "$sp1", fg = "#a6e3a1", bold = true }, { token = "$sp2", fg = "#f9e2af", bold = true }, { token = "$sp3", fg = "#f38ba8", bold = true }, { token = "$sp4", fg = "#cba6f7", bold = true }, { token = "$sp5", fg = "#fab387", bold = true }, { token = "$sp6", fg = "#94e2d5", bold = true }, { token = "$sp7", fg = "#f5c2e7", bold = true }, { token = "$acc_perso", fg = "#f9e2af" }, { token = "$acc_pro", fg = "#89dceb" }, { token = "$acc_codex", fg = "#a6e3a1" }, { token = "$acc_other", fg = "#9399b2" }],
   # branche git du space
   ["branch", "git_status"],
 ]

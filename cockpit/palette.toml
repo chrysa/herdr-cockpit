@@ -16,6 +16,13 @@ overlay = "#9399b2"
 # Project color slots, in order (chrysa.spaces assigns one per ecosystem).
 slots = ["blue", "green", "yellow", "red", "mauve", "peach", "teal", "pink"]
 
+# One fixed color per account, everywhere an account is shown.
+[accounts]
+perso = "#f9e2af"
+pro = "#89dceb"
+codex = "#a6e3a1"
+other = "#9399b2"
+
 [roles]
 done = "green"
 subagents = "sky"
