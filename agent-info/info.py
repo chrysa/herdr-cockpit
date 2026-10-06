@@ -205,12 +205,86 @@ def section_account(cut, width, account, kind, model, tokens):
     return lines + [""]
 
 
+def git_details(cwd):
+    """(branch, counts, shortstat) or None outside a repo.
+
+    counts: ahead, behind, staged, changed, untracked; shortstat: "+12 -3 (4 fichiers)"
+    for the working tree against HEAD.
+    """
+    try:
+        out = subprocess.run(["git", "-C", cwd, "status", "--porcelain=v2", "--branch"],
+                             capture_output=True, text=True, timeout=3)
+        if out.returncode != 0:
+            return None
+        diff = subprocess.run(["git", "-C", cwd, "diff", "HEAD", "--shortstat"],
+                              capture_output=True, text=True, timeout=3).stdout
+    except Exception:
+        return None
+    branch, counts = "?", {"ahead": 0, "behind": 0, "staged": 0, "changed": 0, "untracked": 0}
+    for line in out.stdout.splitlines():
+        if line.startswith("# branch.head "):
+            branch = line.split(" ", 2)[2]
+        elif line.startswith("# branch.ab "):
+            a, b = line.split()[2:4]
+            counts["ahead"], counts["behind"] = int(a), -int(b)
+        elif line.startswith(("1 ", "2 ", "u ")):
+            xy = line.split()[1]
+            counts["staged"] += xy[0] != "."
+            counts["changed"] += xy[1] != "."
+        elif line.startswith("? "):
+            counts["untracked"] += 1
+    files = int(re.search(r"(\d+) file", diff).group(1)) if "file" in diff else 0
+    added = int(re.search(r"(\d+) insertion", diff).group(1)) if "insertion" in diff else 0
+    removed = int(re.search(r"(\d+) deletion", diff).group(1)) if "deletion" in diff else 0
+    shortstat = f"+{added} -{removed} ({files} fichier{'s' if files > 1 else ''})" if files else ""
+    return safe(branch), counts, shortstat
+
+
+GIT_LABELS = (("ahead", "↑", "à pousser"), ("behind", "↓", "à tirer"), ("staged", "+", "indexés"),
+              ("changed", "~", "modifiés"), ("untracked", "?", "non suivis"))
+
+
 def section_project(cut, width, cwd):
     lines = [header("Projet", width), f"{C['dir']}{cut(cwd.replace(monitor.HOME, '~'))}{C['r']}"]
-    git = monitor.git_summary(cwd) if VIEW["git"] else None
-    if git:
-        lines.append(f"{C['ok'] if git.endswith('✓') else C['yel']}{cut(git)}{C['r']}")
+    details = git_details(cwd) if VIEW["git"] and cwd else None
+    if VIEW["git"] and cwd and details is None:
+        lines.append(f"{C['dim']}pas un dépôt git{C['r']}")
+    if details:
+        branch, counts, shortstat = details
+        clean = not any(counts.values())
+        lines.append(f"{C['mod']}{SYM.get('branch', '⑂')} {cut(branch, width - 4)}{C['r']}"
+                     + (f"  {C['ok']}{SYM['done']} propre{C['r']}" if clean else ""))
+        for key, symbol, label in GIT_LABELS:
+            if counts[key]:
+                color = C["warn"] if key == "behind" else C["yel"]
+                lines.append(f"  {color}{symbol}{counts[key]}{C['r']} {C['dim']}{label}{C['r']}")
+        if shortstat:
+            lines.append(f"  {C['ok']}{shortstat.split()[0]}{C['r']} {C['warn']}{shortstat.split()[1]}{C['r']} "
+                         f"{C['dim']}{' '.join(shortstat.split()[2:])}{C['r']}")
     return lines + [""]
+
+
+def level_color(used_ratio):
+    """green under 50 % used, yellow under 80 %, red beyond."""
+    return C["ok"] if used_ratio < 0.5 else C["yel"] if used_ratio < 0.8 else C["warn"]
+
+
+def color_usage(segment):
+    """Colour one llmtrim segment by how close it is to a limit.
+
+    Context bar: share of filled blocks. Quota windows ("◔ 48m·21% · 2d·91%"):
+    the worst percentage used. Savings and cache ("✂", "♻"): higher is better.
+    """
+    text = safe(segment)
+    filled, empty = text.count("▓"), text.count("░")
+    if filled + empty:
+        return level_color(filled / (filled + empty)) + text + C["r"]
+    percents = [int(p) for p in re.findall(r"(\d+)%", text)]
+    if not percents:
+        return C["dim"] + text + C["r"]
+    if text.startswith(("✂", "♻")):
+        return level_color(1 - max(percents) / 100) + text + C["r"]
+    return level_color(max(percents) / 100) + text + C["r"]
 
 
 def section_usage(cut, width, footer, tokens):
@@ -219,8 +293,10 @@ def section_usage(cut, width, footer, tokens):
         return []
     age = int(time.time() - footer["ts"]) if footer.get("ts") else 0
     lines = [header("Conso", width, f"{age}s" if age > 30 else "")]
-    joined = "   ".join(usage)
-    lines += [cut(joined)] if len(joined) <= width - 2 else [cut(u) for u in usage]
+    if sum(len(safe(u)) for u in usage) + 3 * (len(usage) - 1) <= width - 2:
+        lines.append("   ".join(color_usage(u) for u in usage))
+    else:
+        lines += [color_usage(cut(u)) for u in usage]
     if footer.get("cost") is not None and monitor.is_billed(tokens):
         lines.append(f"{C['warn']}hors quota{C['r']}  ${footer['cost']:.2f}")
     return lines + [""]
