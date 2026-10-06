@@ -246,7 +246,10 @@ def git_details(cwd):
         elif line.startswith("? "):
             counts["untracked"] += 1
     files, added, removed = parse_shortstat(diff)
-    shortstat = f"+{added} -{removed} ({files} fichier{'s' if files > 1 else ''})" if files else ""
+    shortstat = ""
+    if files:
+        plural = "s" if files > 1 else ""
+        shortstat = f"+{added} -{removed} ({files} fichier{plural})"
     return safe(branch), counts, shortstat
 
 
