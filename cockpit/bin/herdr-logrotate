@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# Keep herdr logs bounded: truncate in place (the server keeps its fd open) past 10 MB.
+for f in "$HOME/.config/herdr/herdr-server.log" "$HOME/.config/herdr/herdr-client.log"; do
+  [ -f "$f" ] && [ "$(stat -c %s "$f")" -gt 10485760 ] && tail -c 2097152 "$f" > "$f.tmp" && cat "$f.tmp" > "$f" && rm -f "$f.tmp"
+done
+exit 0

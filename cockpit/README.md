@@ -6,6 +6,13 @@ Source of truth for the herdr setup (see `work/specs/2026-10-06-cockpit-design.m
 - `templates/`: files rendered from the palette with `{{section.key}}` placeholders.
 - `render.py <template>`: prints a rendered template.
 
-Today `templates/config.toml` renders the current herdr config byte for byte
-(`tests/test_cockpit_render.py`). `setup` (write + reload) and `status` (drift
-report) are the next steps of the plan.
+## Actions
+
+- **Cockpit: setup** (`python3 setup.py [--dry-run]`): renders templates into
+  `~/.local/state/chrysa.cockpit/`, links `~/.config/herdr/config.toml` to the
+  rendered config, points every Claude account's status line at the rendered
+  script, installs the systemd user units, enables the cockpit plugins and
+  reloads herdr. Everything it replaces is saved under `backups/<timestamp>/`.
+  A second run prints `nothing to do`.
+- **Cockpit: status** (`python3 status.py`): read-only drift report, exit 1 on
+  any drift.

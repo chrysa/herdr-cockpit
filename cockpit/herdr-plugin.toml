@@ -10,3 +10,9 @@ id = "status"
 title = "Cockpit: status (drift report)"
 contexts = ["workspace"]
 command = ["sh", "-c", "python3 status.py | ${PAGER:-less -R}"]
+
+[[actions]]
+id = "setup"
+title = "Cockpit: setup (install or repair)"
+contexts = ["workspace"]
+command = ["sh", "-c", "python3 setup.py | ${PAGER:-less -R}"]
