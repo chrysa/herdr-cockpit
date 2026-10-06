@@ -24,7 +24,7 @@ a name you set by hand is kept.
 Two views, toggled with `a`:
 
 - **Conversation** (the tab's agent): state and title, then sections
-  `Compte` (account in its color, model, quota/context), `Projet` (folder,
+  `Compte` (account in its color, model, quota/context), `Projet` (full local path of the git root, sub-folder if any,
   branch, `↑ à pousser ↓ à tirer + indexés ~ modifiés ? non suivis`, diff stats
   `+12 -3 (4 fichiers)`), `Conso` (each metric colored on its own value: green
   < 50 % used, yellow < 80 %, red beyond; savings and cache the other way round),
