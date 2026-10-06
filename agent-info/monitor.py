@@ -332,6 +332,37 @@ def subagents_live(session_id, live_s=20):
     return f"↳ {len(names)} subagent{'s' if len(names) > 1 else ''}: " + ", ".join(sorted(set(names)))[:40]
 
 
+def blocked_transitions(agents, previous):
+    """Agents that just entered "blocked" (not already blocked last tick).
+
+    previous maps pane_id -> last seen status and is updated in place; agents
+    seen for the first time never notify, so a daemon restart stays quiet.
+    """
+    fresh = []
+    for agent in agents:
+        pane_id, status = agent["pane_id"], agent.get("agent_status")
+        before = previous.get(pane_id)
+        previous[pane_id] = status
+        if status == "blocked" and before is not None and before != "blocked":
+            fresh.append(agent)
+    for gone in set(previous) - {a["pane_id"] for a in agents}:
+        del previous[gone]
+    return fresh
+
+
+def notify_blocked(agent, labels, run=subprocess.run):
+    """One desktop notification; herdr's own toast when notify-send is missing."""
+    name = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", agent.get("name") or agent["pane_id"])
+    space = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", labels.get(agent["workspace_id"]) or "")
+    title, body = f"‼ {name} attend une réponse", f"space {space}" if space else ""
+    try:
+        run(["notify-send", "--app-name=herdr", "--urgency=critical", title, body],
+            check=True, capture_output=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        run([HERDR, "notification", "show", title, "--body", body, "--sound", "request"],
+            check=False, capture_output=True, timeout=5)
+
+
 def publish(pane_id, tokens):
     args = ["pane", "report-metadata", pane_id, "--source", SOURCE, "--ttl-ms", str(TTL_MS)]
     for name in TOKENS:
@@ -346,12 +377,18 @@ def tick(shown):
     if time.monotonic() - shown.get("_refreshed", 0) > TTL_MS / 1000 / 3:
         # unchanged tokens are not re-sent each round, so force one round
         # before TTL_MS lets herdr drop them
-        named = shown.get("_named", {})
+        named, status = shown.get("_named", {}), shown.get("_status", {})
         shown.clear()
-        shown["_named"] = named
+        shown["_named"], shown["_status"] = named, status
         shown["_refreshed"] = time.monotonic()
     agents = herdr("agent", "list").get("result", {}).get("agents", [])
     auto_rename(agents, shown.setdefault("_named", load_named()))
+    fresh = blocked_transitions(agents, shown.setdefault("_status", {}))
+    if fresh:
+        labels = {w["workspace_id"]: w.get("label") for w in
+                  herdr("workspace", "list").get("result", {}).get("workspaces", [])}
+        for agent in fresh:
+            notify_blocked(agent, labels)
     live = set()
     for agent in agents:
         pane_id = agent["pane_id"]
@@ -370,7 +407,7 @@ def tick(shown):
         if shown.get(pane_id) != tokens:
             publish(pane_id, tokens)
             shown[pane_id] = tokens
-    for gone in set(shown) - live - {"_refreshed", "_named"}:
+    for gone in set(shown) - live - {"_refreshed", "_named", "_status"}:
         shown.pop(gone, None)
 
 

@@ -40,3 +40,11 @@ cockpit palette when `chrysa.cockpit` is set up.
 
 While the panel is open, the Claude Code status line hides itself (it reports
 its data to the panel instead).
+
+## Blocked-agent notification
+
+When an agent enters `blocked` (waiting for an approval or an answer), one
+desktop notification names it and its space (`notify-send`, herdr's own toast
+as fallback). Nothing for other states, and nothing for agents already blocked
+when the monitor starts. `chrysa.cockpit` setup disables `jyasha11.in-your-face`,
+which this replaces.
