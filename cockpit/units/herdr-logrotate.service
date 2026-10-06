@@ -1,0 +1,6 @@
+[Unit]
+Description=Trim herdr logs
+
+[Service]
+Type=oneshot
+ExecStart={{paths.bin}}/herdr-logrotate

@@ -1,0 +1,6 @@
+[Unit]
+Description=Validate and reload herdr config
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c '%h/.local/bin/herdr config check && %h/.local/bin/herdr server reload-config'

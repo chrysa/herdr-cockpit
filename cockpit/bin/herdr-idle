@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# List idle/done agents so stale ones can be closed by hand.
+herdr agent list | python3 -c '
+import json, sys
+for a in json.load(sys.stdin)["result"]["agents"]:
+    if a["agent_status"] in ("idle", "done"):
+        print(a["pane_id"].ljust(12), a["agent_status"].ljust(5), a.get("terminal_title_stripped", "")[:50])
+'
