@@ -1,1 +1,11 @@
 __pycache__/
+
+# prism-ai-lint: keep secrets and local config out of git
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+.claude/settings.local.json
+CLAUDE.local.md
