@@ -42,7 +42,8 @@ def test_theme_name_falls_back_to_folder_on_generic_title():
 
 def test_theme_name_is_valid_herdr_name():
     name = monitor.theme_name(agent("123 ### tâche très très longue avec beaucoup de mots"), "9lives")
-    assert len(name) <= 32 and name[0].isalpha()
+    assert len(name) <= 32
+    assert name[0].isalpha()
 
 
 @pytest.mark.parametrize("tokens, billed", [
