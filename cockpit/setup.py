@@ -142,6 +142,30 @@ class Setup:
             if not active and self.change(f"enable {unit}"):
                 self.run(["systemctl", "--user", "enable", "--now", unit], check=False)
 
+    def install_opencode_theme(self):
+        """Link the rendered theme into opencode and select it in tui.json(c)."""
+        config_dir = os.path.join(self.p.home, ".config", "opencode")
+        if not os.path.isdir(config_dir):
+            return
+        self.link(os.path.join(config_dir, "themes", "chrysa-cockpit.json"),
+                  os.path.join(self.p.rendered, "opencode-theme.json"))
+        for name in ("tui.json", "tui.jsonc"):
+            path = os.path.join(config_dir, name)
+            if not os.path.exists(path):
+                continue
+            try:
+                with open(path) as fh:
+                    tui = json.load(fh)
+            except ValueError:
+                return  # comments or trailing commas: leave the user's file alone
+            if tui.get("theme") != "chrysa-cockpit" and self.change(f"opencode theme in {path}"):
+                self.backup(path)
+                tui["theme"] = "chrysa-cockpit"
+                with open(path, "w") as fh:
+                    json.dump(tui, fh, indent=2)
+                    fh.write("\n")
+            return
+
     def enable_plugins(self):
         out = self.run(["herdr", "plugin", "list", "--json"], capture_output=True, text=True, check=False)
         data = json.loads(out.stdout or "{}")
@@ -158,6 +182,7 @@ class Setup:
         self.install_config()
         self.install_statusline()
         self.install_units(palette)
+        self.install_opencode_theme()
         self.enable_plugins()
         if self.changes and not self.dry_run:
             self.run(["herdr", "server", "reload-config"], check=False, capture_output=True)

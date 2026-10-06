@@ -1,0 +1,5 @@
+{
+  "rgb": {"blue": "{{rgb.blue}}", "green": "{{rgb.green}}", "yellow": "{{rgb.yellow}}", "red": "{{rgb.red}}", "mauve": "{{rgb.mauve}}", "overlay": "{{rgb.overlay}}"},
+  "accounts": {"perso": "{{acc_rgb.perso}}", "pro": "{{acc_rgb.pro}}", "codex": "{{acc_rgb.codex}}", "other": "{{acc_rgb.other}}"},
+  "symbols": {"working": "{{symbols.working}}", "blocked": "{{symbols.blocked}}", "done": "{{symbols.done}}", "idle": "{{symbols.idle}}"}
+}

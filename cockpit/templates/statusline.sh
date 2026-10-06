@@ -10,14 +10,39 @@ segments=()
 # Account = Claude config dir in use (~/.claude-perso -> perso, ~/.claude-pro -> pro).
 config_dir=$(readlink -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}")
 account=$(basename "$config_dir" | sed 's/^\.claude-\{0,1\}//')
-segments+=("$(printf '\033[1;38;2;249;226;175m● %s\033[0m' "${account:-default}")")
+case "$account" in
+  perso) acc_rgb="{{acc_rgb.perso}}" ;;
+  pro) acc_rgb="{{acc_rgb.pro}}" ;;
+  codex) acc_rgb="{{acc_rgb.codex}}" ;;
+  *) acc_rgb="{{acc_rgb.other}}" ;;
+esac
+segments+=("$(printf '\033[1;38;2;%sm● %s\033[0m' "$acc_rgb" "${account:-default}")")
 if [[ -n "$dir" ]]; then
   name=${dir/#$HOME/\~}
-  segments+=("$(printf '\033[38;2;137;180;250m%s\033[0m' "$name")")
-  if branch=$(git -C "$dir" symbolic-ref --short -q HEAD 2>/dev/null); then
-    dirty=$(git -C "$dir" status --porcelain 2>/dev/null | wc -l)
-    mark=$([[ "$dirty" -gt 0 ]] && printf ' \033[33m±%s\033[0m' "$dirty")
-    segments+=("$(printf '\033[38;2;203;166;247m⑂ %s\033[0m%s' "$branch" "$mark")")
+  segments+=("$(printf '\033[38;2;{{rgb.blue}}m%s\033[0m' "$name")")
+  # Same symbols as the herdr agent rows (chrysa.agent-info): ↑ ahead ↓ behind + staged ~ changed ? untracked
+  git_line=$(git -C "$dir" status --porcelain=v2 --branch 2>/dev/null | awk '
+    /^# branch.head / { b = $3 }
+    /^# branch.ab /   { a = substr($3, 2); d = substr($4, 2) }
+    /^[12u] /         { if (substr($2,1,1) != ".") s++; if (substr($2,2,1) != ".") c++ }
+    /^\? /            { u++ }
+    END {
+      if (b == "") exit
+      out = "{{symbols.branch}} " b
+      if (a > 0) out = out " {{symbols.ahead}}" a
+      if (d > 0) out = out " {{symbols.behind}}" d
+      if (s > 0) out = out " {{symbols.staged}}" s
+      if (c > 0) out = out " {{symbols.changed}}" c
+      if (u > 0) out = out " {{symbols.untracked}}" u
+      print out
+    }')
+  if [[ -n "$git_line" ]]; then
+    if [[ "$git_line" == *" "*" "* ]]; then  # anything after "⑂ branch" means work to do
+      git_rgb="{{rgb.yellow}}"
+    else
+      git_rgb="{{rgb.green}}"; git_line="$git_line {{symbols.done}}"
+    fi
+    segments+=("$(printf '\033[38;2;%sm%s\033[0m' "$git_rgb" "$git_line")")
   fi
 fi
 
