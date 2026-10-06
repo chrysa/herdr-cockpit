@@ -24,6 +24,7 @@ import render  # noqa: E402
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 HOME = os.path.expanduser("~")
+CONFIG = "config.toml"
 PLUGINS = ("chrysa.spaces", "chrysa.agent-info")
 UNITS = ("herdr-config-reload.path", "herdr-config-reload.service",
          "herdr-logrotate.service", "herdr-logrotate.timer")
@@ -36,7 +37,7 @@ class Paths:
         self.state = os.path.join(home, ".local", "state", "chrysa.cockpit")
         self.rendered = os.path.join(self.state, "rendered")
         self.bin = os.path.join(self.state, "bin")
-        self.herdr_config = os.path.join(home, ".config", "herdr", "config.toml")
+        self.herdr_config = os.path.join(home, ".config", "herdr", CONFIG)
         self.units = os.path.join(home, ".config", "systemd", "user")
         self.backups = os.path.join(self.state, "backups", time.strftime("%Y%m%d-%H%M%S"))
 
@@ -94,7 +95,7 @@ class Setup:
 
     def palette(self):
         palette = render.load_palette()
-        palette["paths"] = {"config": os.path.join(self.p.rendered, "config.toml"), "bin": self.p.bin}
+        palette["paths"] = {"config": os.path.join(self.p.rendered, CONFIG), "bin": self.p.bin}
         return palette
 
     def render_templates(self, palette):
@@ -106,7 +107,7 @@ class Setup:
                 self.write(os.path.join(self.p.bin, name), fh.read(), 0o755)
 
     def install_config(self):
-        self.link(self.p.herdr_config, os.path.join(self.p.rendered, "config.toml"))
+        self.link(self.p.herdr_config, os.path.join(self.p.rendered, CONFIG))
 
     def install_statusline(self):
         script = os.path.join(self.p.rendered, "statusline.sh")
