@@ -1,0 +1,183 @@
+# ──────────────────────────────────────────────
+#  herdr config.toml — Linux · zsh · Claude Code + Codex
+#  Généré le 31/07/2026
+# ──────────────────────────────────────────────
+
+# Skip le first-run onboarding
+onboarding = false
+
+# ── Terminal ──
+[terminal]
+default_shell = "zsh"
+
+# ── Raccourcis (préfixe tmux-style) ──
+[keys]
+prefix = "ctrl+b"
+
+# Navigation agent : file d'attention (agent_panel_sort = "priority")
+focus_agent = "prefix+alt+1..9"
+next_agent = "prefix+shift+j"
+previous_agent = "prefix+shift+k"
+switch_workspace = "prefix+shift+1..9"
+
+# ── Thème : bascule clair/sombre selon le terminal ──
+[theme]
+auto_switch = true
+
+# ── UI / Sidebar ──
+[ui]
+# Agents groupés sous leur space (natif) : c'est le filtre par space de herdr.
+agent_panel_sort = "spaces"
+show_agent_labels_on_pane_borders = false
+confirm_close = true
+
+# ── Notifications bureau ──
+status_indicators = "symbols"
+[ui.toast]
+delivery = "terminal"
+
+# ── Session : reprend les agents après redémarrage ──
+[session]
+resume_agents_on_restore = true
+
+# ── Avancé : scrollback 50 Mo (les agents produisent beaucoup de sortie) ──
+[advanced]
+scrollback_limit_bytes = 52428800
+
+# ── Sons : coupés (notifications = toast système uniquement) ──
+[ui.sound]
+enabled = false
+
+# ── Expérimental : conserve l'historique pane à travers un restart serveur
+#    (les agents peignent en alternate screen → sinon sortie perdue) ──
+[experimental]
+pane_history = true
+
+# ── Sidebar spaces : économies RTK (chrysa.rtk-savings).
+#    (jauges conso Claude déplacées vers usagebar → voir [ui.sidebar.agents]) ──
+[ui.sidebar.spaces]
+row_gap = 1
+rows = [
+  # nom du space + nombre d'agents (pastille = couleur du projet)
+  ["state_icon", "workspace", { token = "$sp0", fg = "{{colors.blue}}", bold = true }, { token = "$sp1", fg = "{{colors.green}}", bold = true }, { token = "$sp2", fg = "{{colors.yellow}}", bold = true }, { token = "$sp3", fg = "{{colors.red}}", bold = true }, { token = "$sp4", fg = "{{colors.mauve}}", bold = true }, { token = "$sp5", fg = "{{colors.peach}}", bold = true }, { token = "$sp6", fg = "{{colors.teal}}", bold = true }, { token = "$sp7", fg = "{{colors.pink}}", bold = true }],
+  # branche git du space
+  ["branch", "git_status"],
+]
+
+[ui.sidebar.agents]
+row_gap = 0
+rows = [
+  # 1. état · pastille du space · tâche. Compte : footer Claude Code. Modèle, limites, contexte et liste
+  #    de tâches : panneau info à droite (prefix+ctrl+g, chrysa.agent-info).
+  ["state_icon", { token = "$ag0", fg = "{{colors.blue}}", bold = true }, { token = "$ag1", fg = "{{colors.green}}", bold = true }, { token = "$ag2", fg = "{{colors.yellow}}", bold = true }, { token = "$ag3", fg = "{{colors.red}}", bold = true }, { token = "$ag4", fg = "{{colors.mauve}}", bold = true }, { token = "$ag5", fg = "{{colors.peach}}", bold = true }, { token = "$ag6", fg = "{{colors.teal}}", bold = true }, { token = "$ag7", fg = "{{colors.pink}}", bold = true }, "$title"],
+  # 2. état git du dossier de l'agent (chrysa.agent-info) · action en cours
+  [{ token = "$git", fg = "{{colors.overlay}}" }, { token = "$doing", fg = "{{colors.green}}" }],
+  # subagents en train de tourner (chrysa.agent-info), vide sinon
+  [{ token = "$subs", fg = "{{colors.sky}}" }],
+]
+
+# prefix+r est pris par resize_mode (builtin) → déplacé sur prefix+ctrl+r (alt évité : envoie ESC en xterm)
+[[keys.command]]
+key = "prefix+ctrl+r"
+type = "shell"
+command = '"$HERDR_BIN_PATH" plugin pane open --plugin chrysa.rtk-savings --entrypoint savings'
+
+# usagebar : pane limites (5h/7d/30d par compte) + refresh manuel
+[[keys.command]]
+key = "ctrl+shift+u"
+type = "plugin_action"
+command = "usagebar.open-limits"
+description = "Agent Usage: open limits pane"
+
+[[keys.command]]
+key = "ctrl+shift+m"
+type = "plugin_action"
+command = "usagebar.refresh"
+description = "Agent Usage: refresh sidebar meters"
+
+# ── Plugins review/fichiers (ajout 2026-09-12) ──
+[[keys.command]]
+key = "prefix+shift+r"
+type = "plugin_action"
+command = "persiyanov.reviewr.toggle"
+description = "reviewr: toggle diff/review sidebar"
+
+[[keys.command]]
+key = "prefix+shift+f"
+type = "plugin_action"
+command = "herdr-file-viewer.open-file-viewer"
+description = "file-viewer: split pane"
+
+[[keys.command]]
+key = "prefix+ctrl+f"
+type = "plugin_action"
+command = "herdr-file-viewer.open-file-viewer-tab"
+description = "file-viewer: onglet dédié"
+
+# ── Multi-agents ──
+
+[[keys.command]]
+key = "prefix+shift+n"
+type = "plugin_action"
+command = "herdr-navigator.open"
+description = "navigator: fuzzy jump"
+
+[[keys.command]]
+key = "prefix+ctrl+n"
+type = "plugin_action"
+command = "herdr-navigator.open-side"
+description = "navigator: side pane"
+
+[[keys.command]]
+key = "prefix+ctrl+o"
+type = "plugin_action"
+command = "herdr-navigator.jump-back"
+description = "navigator: jump back"
+
+# ── Worktrees ──
+[[keys.command]]
+key = "prefix+shift+w"
+type = "plugin_action"
+command = "worktrunk.open"
+description = "worktrunk: switch/create worktree"
+
+[[keys.command]]
+key = "prefix+ctrl+w"
+type = "plugin_action"
+command = "worktrunk.remove"
+description = "worktrunk: remove worktree"
+
+# ── Transcripts ──
+[[keys.command]]
+key = "prefix+shift+m"
+type = "plugin_action"
+command = "nicosuave.memex.palette"
+description = "memex: session palette (search transcripts)"
+
+[[keys.command]]
+key = "prefix+ctrl+e"
+type = "plugin_action"
+command = "nicosuave.memex.toggle"
+description = "memex: toggle sidebar"
+
+# ── Reviewer : split + agent codex qui revoit le diff courant (ajout 2026-10-04) ──
+[[keys.command]]
+key = "prefix+ctrl+v"
+type = "shell"
+command = '''n="rev-$(date +%H%M%S)"; p=$("$HERDR_BIN_PATH" pane split --current --direction right --no-focus | python3 -c "import json,sys;print(json.load(sys.stdin)['result']['pane']['pane_id'])") && "$HERDR_BIN_PATH" agent start "$n" --kind codex --pane "$p" && "$HERDR_BIN_PATH" agent prompt "$n" "Review the current git diff and report only actionable findings."'''
+description = "reviewer: codex revoit le diff dans un split"
+
+
+# ── Panneau info à droite : compte, modèle, limites, contexte, tâches ──
+[[keys.command]]
+key = "prefix+ctrl+g"
+type = "plugin_action"
+command = "chrysa.agent-info.toggle-info"
+description = "info : panneau agents à droite"
+
+# ── Agents : bascule du tri file d'attention (priority) / groupé par space (spaces) ──
+[[keys.command]]
+key = "prefix+ctrl+s"
+type = "shell"
+command = '''c="${HERDR_CONFIG_PATH:-$HOME/.config/herdr/config.toml}"; if grep -q '^agent_panel_sort = "priority"' "$c"; then sed -i --follow-symlinks 's/^agent_panel_sort = "priority"/agent_panel_sort = "spaces"/' "$c"; else sed -i --follow-symlinks 's/^agent_panel_sort = "spaces"/agent_panel_sort = "priority"/' "$c"; fi; "$HERDR_BIN_PATH" server reload-config >/dev/null'''
+description = "agents : tri priorité / par space"
