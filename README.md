@@ -4,7 +4,7 @@ Herdr plugins that make a multi-agent session readable at a glance.
 
 | Plugin | Id | What it does |
 |---|---|---|
-| [`spaces`](spaces/) | `chrysa.spaces` | Space rows: agent count in the project color, accounts used (one color per account), worktrees |
+| [`spaces`](spaces/) | `chrysa.spaces` | Space rows: agent count in the project color, agents waiting for you (`‼ 2 attendent`, `✓ 1 terminé`), accounts used (one color per account), worktrees |
 | [`cockpit`](cockpit/) | `chrysa.cockpit` | Palette and templates for the whole herdr setup (`setup` installs, `status` reports drift) |
 | [`agent-info`](agent-info/) | `chrysa.agent-info` | Sidebar tokens per agent (account, model, git, task, subagents), auto-naming `<space>-<topic>`, right-hand info panel with conversation and agents views |
 

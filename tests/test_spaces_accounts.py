@@ -25,3 +25,14 @@ def test_space_row_includes_accounts():
     tokens = spaces.render_space(info)
     assert tokens["sp0"] == "2 agents"
     assert tokens["acc_perso"] == "perso"
+
+
+def test_attention_tokens():
+    assert spaces.render_attention({"blocked": 2, "done": 1}) == {"attn": "‼ 2 attendent", "fresh": "✓ 1 terminé"}
+    assert spaces.render_attention({"blocked": 1}) == {"attn": "‼ 1 attend"}
+    assert spaces.render_attention({}) == {}
+
+
+def test_space_row_includes_attention():
+    info = {"slot": 1, "agents": 3, "worktrees": [], "accounts": {}, "attention": {"blocked": 1, "done": 0}}
+    assert spaces.render_space(info)["attn"] == "‼ 1 attend"
