@@ -187,6 +187,77 @@ def render(width):
     return render_agents(width) if UI["mode"] == "agents" else render_conversation(width)
 
 
+def read_footer(session):
+    if not session:
+        return {}
+    try:
+        with open(os.path.join(STATUS_DIR, f"{session}.json")) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {}
+
+
+def section_account(cut, width, account, kind, model, tokens):
+    lines = [header("Compte", width),
+             f"{account_color(account)}● {safe(account or kind)}{C['r']}  {C['mod']}{safe(model or '?')}{C['r']}"]
+    if tokens.get("context"):
+        lines.append(f"{C['dim']}quota · contexte  {cut(tokens['context'], width - 20)}{C['r']}")
+    return lines + [""]
+
+
+def section_project(cut, width, cwd):
+    lines = [header("Projet", width), f"{C['dir']}{cut(cwd.replace(monitor.HOME, '~'))}{C['r']}"]
+    git = monitor.git_summary(cwd) if VIEW["git"] else None
+    if git:
+        lines.append(f"{C['ok'] if git.endswith('✓') else C['yel']}{cut(git)}{C['r']}")
+    return lines + [""]
+
+
+def section_usage(cut, width, footer, tokens):
+    usage = footer.get("usage", []) if VIEW["usage"] else []
+    if not usage:
+        return []
+    age = int(time.time() - footer["ts"]) if footer.get("ts") else 0
+    lines = [header("Conso", width, f"{age}s" if age > 30 else "")]
+    joined = "   ".join(usage)
+    lines += [cut(joined)] if len(joined) <= width - 2 else [cut(u) for u in usage]
+    if footer.get("cost") is not None and monitor.is_billed(tokens):
+        lines.append(f"{C['warn']}hors quota{C['r']}  ${footer['cost']:.2f}")
+    return lines + [""]
+
+
+def section_subagents(cut, width, session):
+    subs = subagents_for(session) if VIEW["subs"] else []
+    if not subs:
+        return []
+    live = sum(r for r, _, _ in subs)
+    lines = [header("Subagents", width, f"{live} actifs / {len(subs)}")]
+    for running, sub_kind, desc in subs[:SUBAGENT_MAX]:
+        mark = f"{C['ok']}{SYM['working']}" if running else f"{C['dim']}{SYM['done']}"
+        lines.append(f"{mark} {cut(sub_kind + ' · ' + desc, width - 4)}{C['r']}")
+    if len(subs) > SUBAGENT_MAX:
+        lines.append(f"{C['dim']}+{len(subs) - SUBAGENT_MAX} plus anciens{C['r']}")
+    return lines + [""]
+
+
+def section_tasks(cut, width, session, used):
+    all_tasks = tasks_for(session) if VIEW["tasks"] else []
+    if not all_tasks:
+        return []
+    done = sum(t.get("status") == "completed" for t in all_tasks)
+    tasks = all_tasks if VIEW["done"] else [t for t in all_tasks if t.get("status") != "completed"]
+    lines = [header("Tâches", width, f"{done}/{len(all_tasks)}")]
+    room = max(3, shutil.get_terminal_size((40, 40)).lines - used - 3)
+    for t in tasks[:room]:
+        text = t.get("activeForm") if t.get("status") == "in_progress" else t.get("subject")
+        lines.append(f"{TASK_ICON.get(t.get('status'), '·')} {cut(text, width - 4)}{C['r']}")
+    if len(tasks) > room:
+        lines.append(f"{C['dim']}+{len(tasks) - room} autres{C['r']}")
+    if not tasks:
+        lines.append(f"{C['ok']}{SYM['done']} tout est fait{C['r']}")
+    return lines
+
+
 def render_conversation(width):
     cut = cutter(width)
     agent = target_agent()
@@ -199,64 +270,15 @@ def render_conversation(width):
     model, account = monitor.agent_info(kind, session, agent.get("cwd"))
     status = agent.get("agent_status", "")
     cwd = agent.get("foreground_cwd") or agent.get("cwd") or ""
-    footer = {}
-    if session:
-        try:
-            with open(os.path.join(STATUS_DIR, f"{session}.json")) as fh:
-                footer = json.load(fh)
-        except (OSError, ValueError):
-            pass
-
-    lines = [f"{state_color(status)}{ICON.get(status, status)}{C['r']}  {C['b']}{cut(agent.get('terminal_title_stripped') or kind, width - 14)}{C['r']}",
+    title = cut(agent.get("terminal_title_stripped") or kind, width - 14)
+    lines = [f"{state_color(status)}{ICON.get(status, status)}{C['r']}  {C['b']}{title}{C['r']}",
              f"{C['dim']}{safe(agent.get('name') or agent['pane_id'])}{C['r']}", ""]
-
-    lines.append(header("Compte", width))
-    lines.append(f"{account_color(account)}● {safe(account or kind)}{C['r']}  {C['mod']}{safe(model or '?')}{C['r']}")
-    if tokens.get("context"):
-        lines.append(f"{C['dim']}quota · contexte  {cut(tokens['context'], width - 20)}{C['r']}")
-    lines.append("")
-
-    lines.append(header("Projet", width))
-    lines.append(f"{C['dir']}{cut(cwd.replace(monitor.HOME, '~'))}{C['r']}")
-    git = monitor.git_summary(cwd) if VIEW["git"] else None
-    if git:
-        lines.append(f"{C['ok'] if git.endswith('✓') else C['yel']}{cut(git)}{C['r']}")
-    lines.append("")
-
-    usage = footer.get("usage", []) if VIEW["usage"] else []
-    if usage:
-        age = int(time.time() - footer["ts"]) if footer.get("ts") else None
-        lines.append(header("Conso", width, f"{age}s" if age is not None and age > 30 else ""))
-        joined = "   ".join(usage)
-        lines += [cut(joined)] if len(joined) <= width - 2 else [cut(u) for u in usage]
-        if footer.get("cost") is not None and monitor.is_billed(tokens):
-            lines.append(f"{C['warn']}hors quota{C['r']}  ${footer['cost']:.2f}")
-        lines.append("")
-
+    lines += section_account(cut, width, account, kind, model, tokens)
+    lines += section_project(cut, width, cwd)
+    lines += section_usage(cut, width, read_footer(session), tokens)
     if session and kind == "claude":
-        subs = subagents_for(session) if VIEW["subs"] else []
-        if subs:
-            live = sum(r for r, _, _ in subs)
-            lines.append(header("Subagents", width, f"{live} actifs / {len(subs)}"))
-            for running, sub_kind, desc in subs[:SUBAGENT_MAX]:
-                mark = f"{C['ok']}{SYM['working']}" if running else f"{C['dim']}{SYM['done']}"
-                lines.append(f"{mark} {cut(sub_kind + ' · ' + desc, width - 4)}{C['r']}")
-            if len(subs) > SUBAGENT_MAX:
-                lines.append(f"{C['dim']}+{len(subs) - SUBAGENT_MAX} plus anciens{C['r']}")
-            lines.append("")
-        all_tasks = tasks_for(session) if VIEW["tasks"] else []
-        done = sum(t.get("status") == "completed" for t in all_tasks)
-        tasks = all_tasks if VIEW["done"] else [t for t in all_tasks if t.get("status") != "completed"]
-        if all_tasks:
-            lines.append(header("Tâches", width, f"{done}/{len(all_tasks)}"))
-            room = max(3, shutil.get_terminal_size((40, 40)).lines - len(lines) - 3)
-            for t in tasks[:room]:
-                text = t.get("activeForm") if t.get("status") == "in_progress" else t.get("subject")
-                lines.append(f"{TASK_ICON.get(t.get('status'), '·')} {cut(text, width - 4)}{C['r']}")
-            if len(tasks) > room:
-                lines.append(f"{C['dim']}+{len(tasks) - room} autres{C['r']}")
-            if not tasks:
-                lines.append(f"{C['ok']}{SYM['done']} tout est fait{C['r']}")
+        lines += section_subagents(cut, width, session)
+        lines += section_tasks(cut, width, session, len(lines))
     return lines, session
 
 
@@ -275,6 +297,28 @@ def group_by_state(agents):
     return groups
 
 
+def agent_lines(cut, width, agent):
+    tokens = agent.get("tokens") or {}
+    account = tokens.get("account")
+    name = agent.get("name") or agent.get("terminal_title_stripped") or agent["pane_id"]
+    acc = f" {account_color(account)}{safe(account)}{C['r']}" if account else ""
+    lines = [f"  {cut(name, width - 4 - len(account or '') - 1)}{acc}"]
+    detail = tokens.get("doing") or tokens.get("git")
+    if detail:
+        lines.append(f"    {C['dim']}{cut(detail, width - 6)}{C['r']}")
+    return lines
+
+
+def group_lines(cut, width, number, state, members):
+    folded = state in UI["collapsed"]
+    lines = [f"{state_color(state)}{'▸' if folded else '▾'} {SYM[state]} {STATE_LABEL[state]}{C['r']} "
+             f"{C['dim']}{len(members)}  [{number}]{C['r']}"]
+    if not folded:
+        for agent in members:
+            lines += agent_lines(cut, width, agent)
+    return lines + [""]
+
+
 def render_agents(width):
     cut = cutter(width)
     agents = monitor.herdr("agent", "list").get("result", {}).get("agents", [])
@@ -286,24 +330,8 @@ def render_agents(width):
     if not agents:
         return lines + [f"{C['dim']}aucun agent{C['r']}"], None
     for number, (state, members) in enumerate(group_by_state(agents).items(), start=1):
-        if not members:
-            continue
-        folded = state in UI["collapsed"]
-        arrow = "▸" if folded else "▾"
-        lines.append(f"{state_color(state)}{arrow} {SYM[state]} {STATE_LABEL[state]}{C['r']} "
-                     f"{C['dim']}{len(members)}  [{number}]{C['r']}")
-        if folded:
-            continue
-        for a in members:
-            tokens = a.get("tokens") or {}
-            account = tokens.get("account")
-            name = a.get("name") or a.get("terminal_title_stripped") or a["pane_id"]
-            acc = f" {account_color(account)}{safe(account)}{C['r']}" if account else ""
-            lines.append(f"  {cut(name, width - 4 - len(account or '') - 1)}{acc}")
-            detail = tokens.get("doing") or tokens.get("git")
-            if detail:
-                lines.append(f"    {C['dim']}{cut(detail, width - 6)}{C['r']}")
-        lines.append("")
+        if members:
+            lines += group_lines(cut, width, number, state, members)
     return lines, None
 
 
