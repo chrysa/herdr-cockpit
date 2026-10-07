@@ -109,6 +109,9 @@ def subagents_for(session_id):
 
 
 def git_state(cwd):
+    cwd = safe_dir(cwd)
+    if not cwd:
+        return None, 0
     try:
         branch = subprocess.run(["git", "-C", cwd, "symbolic-ref", "--short", "-q", "HEAD"],
                                 capture_output=True, text=True, timeout=2).stdout.strip()
@@ -189,6 +192,19 @@ def render(width):
     return render_agents(width) if UI["mode"] == "agents" else render_conversation(width)
 
 
+def safe_dir(path):
+    """Absolute, normalised, existing directory, or "".
+
+    Paths come from files other processes write (status line state) and end
+    up as `git -C <path>`: reject relative paths, control characters and
+    anything git could read as an option, and return the resolved path.
+    """
+    if not isinstance(path, str) or not path.startswith("/") or CONTROL.search(path):
+        return ""
+    resolved = os.path.realpath(path)
+    return resolved if os.path.isdir(resolved) else ""
+
+
 def conversation_dir(agent, footer):
     """Where the conversation actually works.
 
@@ -196,10 +212,9 @@ def conversation_dir(agent, footer):
     ~); Claude Code's status line reports the session's real working directory,
     so it wins when present and still exists.
     """
-    reported = footer.get("dir") or ""
-    if reported and os.path.isdir(reported):
-        return reported
-    return agent.get("foreground_cwd") or agent.get("cwd") or ""
+    return (safe_dir(footer.get("dir"))
+            or safe_dir(agent.get("foreground_cwd"))
+            or safe_dir(agent.get("cwd")))
 
 
 def read_footer(session):
@@ -233,11 +248,14 @@ def parse_shortstat(text):
 
 
 def git_details(cwd):
-    """(branch, counts, shortstat) or None outside a repo.
+    """(branch, counts, shortstat) or None outside a repo (or for an unsafe path).
 
     counts: ahead, behind, staged, changed, untracked; shortstat: "+12 -3 (4 fichiers)"
     for the working tree against HEAD.
     """
+    cwd = safe_dir(cwd)
+    if not cwd:
+        return None
     try:
         out = subprocess.run(["git", "-C", cwd, "status", "--porcelain=v2", "--branch"],
                              capture_output=True, text=True, timeout=3)
@@ -289,6 +307,9 @@ def git_lines(cut, width, details):
 
 def project_root(cwd):
     """Absolute path of the git work tree holding cwd, or None."""
+    cwd = safe_dir(cwd)
+    if not cwd:
+        return None
     try:
         out = subprocess.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"],
                              capture_output=True, text=True, timeout=3)

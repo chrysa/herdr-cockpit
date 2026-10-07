@@ -126,3 +126,17 @@ def test_conversation_dir_prefers_status_line(tmp_path):
     assert info.conversation_dir(agent, {"dir": str(tmp_path)}) == str(tmp_path)
     assert info.conversation_dir(agent, {"dir": "/does/not/exist"}) == "/home/x"
     assert info.conversation_dir(agent, {}) == "/home/x"
+
+
+def test_safe_dir_rejects_option_like_and_relative_paths(tmp_path):
+    assert info.safe_dir(str(tmp_path)) == str(tmp_path.resolve())
+    assert info.safe_dir("--output=/etc/passwd") == ""
+    assert info.safe_dir("relative/dir") == ""
+    assert info.safe_dir(str(tmp_path) + "\x1b[2J") == ""
+    assert info.safe_dir("/does/not/exist") == ""
+    assert info.safe_dir(None) == ""
+
+
+def test_git_helpers_refuse_unsafe_paths():
+    assert info.git_details("-c core.pager=evil") is None
+    assert info.project_root("--help") is None
