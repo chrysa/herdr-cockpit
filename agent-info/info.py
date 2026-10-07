@@ -189,6 +189,19 @@ def render(width):
     return render_agents(width) if UI["mode"] == "agents" else render_conversation(width)
 
 
+def conversation_dir(agent, footer):
+    """Where the conversation actually works.
+
+    herdr reports the pane's shell cwd (often where the pane was opened, e.g.
+    ~); Claude Code's status line reports the session's real working directory,
+    so it wins when present and still exists.
+    """
+    reported = footer.get("dir") or ""
+    if reported and os.path.isdir(reported):
+        return reported
+    return agent.get("foreground_cwd") or agent.get("cwd") or ""
+
+
 def read_footer(session):
     if not session:
         return {}
@@ -284,14 +297,21 @@ def project_root(cwd):
     return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else None
 
 
+def wrap_path(path, width):
+    """Full path over several lines, broken after a "/" when possible, never truncated."""
+    room = max(10, width - 2)
+    lines = []
+    while len(path) > room:
+        cut_at = path.rfind("/", 0, room) + 1 or room
+        lines.append(path[:cut_at])
+        path = path[cut_at:]
+    return lines + [path]
+
+
 def path_lines(cut, width, cwd):
     """Full local path of the project; the sub-folder too when the agent is not at its root."""
     root = project_root(cwd) if cwd else None
-    path = safe(root or cwd)
-    room = width - 2
-    if len(path) > room:  # keep the end: the project name matters more than /home/…
-        path = "…" + path[-(room - 1):]
-    lines = [f"{C['dir']}{path}{C['r']}"]
+    lines = [f"{C['dir']}{part}{C['r']}" for part in wrap_path(safe(root or cwd), width)]
     if root and os.path.realpath(cwd) != os.path.realpath(root):
         lines.append(f"{C['dim']}  └ {cut(os.path.relpath(cwd, root), width - 6)}{C['r']}")
     return lines
@@ -457,13 +477,14 @@ def render_conversation(width):
     tokens = agent.get("tokens") or {}
     model, account = monitor.agent_info(kind, session, agent.get("cwd"))
     status = agent.get("agent_status", "")
-    cwd = agent.get("foreground_cwd") or agent.get("cwd") or ""
+    footer = read_footer(session)
+    cwd = conversation_dir(agent, footer)
     title = cut(agent.get("terminal_title_stripped") or kind, width - 14)
     lines = [f"{state_color(status)}{ICON.get(status, status)}{C['r']}  {C['b']}{title}{C['r']}",
              f"{C['dim']}{safe(agent.get('name') or agent['pane_id'])}{C['r']}", ""]
     lines += section_account(cut, width, account, kind, model, tokens)
     lines += section_project(cut, width, cwd)
-    lines += section_usage(cut, width, read_footer(session), tokens)
+    lines += section_usage(cut, width, footer, tokens)
     lines += section_rtk(width, cwd)
     if session and kind == "claude":
         lines += section_subagents(cut, width, session)

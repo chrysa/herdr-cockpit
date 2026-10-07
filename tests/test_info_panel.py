@@ -111,3 +111,18 @@ def test_human():
     assert info.human(1_234) == "1.2K"
     assert info.human(3_400_000) == "3.4M"
     assert info.human(12) == "12"
+
+
+def test_wrap_path_keeps_every_character():
+    path = "/home/anthony/Documents/perso/projects/chrysa/herdr-cockpit"
+    parts = info.wrap_path(path, 22)
+    assert "".join(parts) == path
+    assert all(len(p) <= 20 for p in parts)
+    assert parts[0].endswith("/")
+
+
+def test_conversation_dir_prefers_status_line(tmp_path):
+    agent = {"cwd": "/home/x", "foreground_cwd": "/home/x"}
+    assert info.conversation_dir(agent, {"dir": str(tmp_path)}) == str(tmp_path)
+    assert info.conversation_dir(agent, {"dir": "/does/not/exist"}) == "/home/x"
+    assert info.conversation_dir(agent, {}) == "/home/x"

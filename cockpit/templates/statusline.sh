@@ -66,8 +66,8 @@ state="$HOME/.local/state/chrysa.agent-info"
 if [[ -n "$session" ]] && [[ "$session" =~ ^[A-Za-z0-9-]+$ ]]; then
   mkdir -p "$state/status"
   usage=$(sed 's/\x1b\[[0-9;]*m//g' <<<"$trimmed" | perl -pe 's/   /\n/g' | jq -R . | jq -sc .)
-  jq -n --argjson usage "${usage:-[]}" --arg cost "$cost" --arg pane "${HERDR_PANE_ID:-}" \
-    '{usage: $usage, cost: (if $cost == "" then null else ($cost | tonumber) end), pane: $pane, ts: now}' \
+  jq -n --argjson usage "${usage:-[]}" --arg cost "$cost" --arg pane "${HERDR_PANE_ID:-}" --arg dir "$dir" \
+    '{usage: $usage, cost: (if $cost == "" then null else ($cost | tonumber) end), pane: $pane, dir: $dir, ts: now}' \
     > "$state/status/$session.json.tmp" && mv "$state/status/$session.json.tmp" "$state/status/$session.json"
   # The info bar heartbeats every second while open: then it carries all of this.
   flag="$state/visible/$session"
