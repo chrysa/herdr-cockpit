@@ -23,6 +23,7 @@ import tty
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import monitor  # noqa: E402
+import services  # noqa: E402
 
 REFRESH_S = 1
 SUBAGENT_LIVE_S = 20
@@ -142,13 +143,13 @@ def heartbeat(session_id):
     return path
 
 
-VIEW = {"tasks": True, "done": False, "subs": True, "git": True, "usage": True, "rtk": True}
-KEYS = {"t": "tasks", "d": "done", "s": "subs", "g": "git", "u": "usage", "r": "rtk"}
+VIEW = {"tasks": True, "done": False, "subs": True, "git": True, "usage": True, "rtk": True, "services": True}
+KEYS = {"t": "tasks", "d": "done", "s": "subs", "g": "git", "u": "usage", "r": "rtk", "w": "services"}
 STATE_ORDER = ("blocked", "working", "done", "idle")
 STATE_LABEL = {"blocked": "bloqués", "working": "en cours", "done": "terminés", "idle": "en attente"}
 UI = {"mode": "conv", "all_spaces": False, "collapsed": set()}
 UI_FILE = os.path.join(STATE, "panel.json")
-HELP = {"conv": "a agents · t tâches · d faites · s subagents · g git · u conso · r rtk · q",
+HELP = {"conv": "a agents · t tâches · d faites · s subagents · g git · u conso · r rtk · w services · q",
         "agents": "a conversation · A tous les spaces · 1-4 replier · q"}
 
 
@@ -340,11 +341,11 @@ def wrap_path(path, width):
 
 
 def path_lines(cut, width, cwd):
-    """Full local path of the project; the sub-folder too when the agent is not at its root."""
+    """The conversation's current directory, in full; the git root it belongs to as a note."""
+    lines = [f"{C['dir']}{part}{C['r']}" for part in wrap_path(safe(cwd), width)]
     root = project_root(cwd) if cwd else None
-    lines = [f"{C['dir']}{part}{C['r']}" for part in wrap_path(safe(root or cwd), width)]
     if root and os.path.realpath(cwd) != os.path.realpath(root):
-        lines.append(f"{C['dim']}  └ {cut(os.path.relpath(cwd, root), width - 6)}{C['r']}")
+        lines.append(f"{C['dim']}  dépôt {cut(os.path.basename(root), width - 10)}{C['r']}")
     return lines
 
 
@@ -392,6 +393,98 @@ def rtk_line(label, stats):
     color = level_color(1 - rate)
     return (f"{C['dim']}{label:<6}{C['r']}{color}{rate:.0%}{C['r']} "
             f"{C['dim']}· {human(saved)} économisés · {commands} cmd{C['r']}")
+
+
+STATE_STYLE = {"running": "ok", "restarting": "yel", "paused": "yel", "created": "dim",
+               "exited": "warn", "dead": "warn"}
+
+
+def worktrees(cwd):
+    """[(path, branch, is_current)] for the git work trees of cwd's repository."""
+    cwd = safe_dir(cwd)
+    if not cwd:
+        return []
+    try:
+        out = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "worktree", "list", "--porcelain"],
+                             capture_output=True, text=True, timeout=3)
+    except Exception:
+        return []
+    if out.returncode != 0:
+        return []
+    here = os.path.realpath(project_root(cwd) or cwd)
+    found, path, branch = [], None, ""
+    for line in out.stdout.splitlines() + [""]:
+        if line.startswith("worktree "):
+            path = line[len("worktree "):]
+        elif line.startswith("branch "):
+            branch = line[len("branch "):].removeprefix("refs/heads/")
+        elif line == "detached":
+            branch = "(détaché)"
+        elif not line and path:
+            found.append((safe(path), safe(branch), os.path.realpath(path) == here))
+            path, branch = None, ""
+    return found
+
+
+def agents_by_worktree(trees, agents, labels):
+    """{worktree path: ["agent-name (space)", ...]} using each agent's directory."""
+    by_tree = {path: [] for path, _, _ in trees}
+    for agent in agents:
+        where = safe_dir(agent.get("foreground_cwd") or agent.get("cwd") or "")
+        for path in sorted(by_tree, key=len, reverse=True):
+            if where and (where == path or where.startswith(path + os.sep)):
+                name = safe(agent.get("name") or agent.get("pane_id", "?"))
+                space = safe(labels.get(agent.get("workspace_id"), ""))
+                by_tree[path].append(f"{name} ({space})" if space and not name.startswith(space) else name)
+                break
+    return by_tree
+
+
+def section_worktrees(cut, width, cwd):
+    """Every work tree of the repository, the current one highlighted (only when there are several)."""
+    if not VIEW["git"]:
+        return []
+    trees = worktrees(cwd)
+    if len(trees) < 2:
+        return []
+    try:
+        agents = monitor.herdr("agent", "list").get("result", {}).get("agents", [])
+        labels = {w["workspace_id"]: w.get("label") for w in
+                  monitor.herdr("workspace", "list").get("result", {}).get("workspaces", [])}
+    except Exception:
+        agents, labels = [], {}
+    busy = agents_by_worktree(trees, agents, labels)
+    lines = [header("Worktrees", width, str(len(trees)))]
+    for path, branch, current in trees:
+        mark, color = ("▶", C["ok"]) if current else (" ", C["dim"])
+        lines.append(f"{color}{mark} {cut(branch or '?', width - 4)}{C['r']}")
+        lines.append(f"{C['dim']}  {cut(path.replace(monitor.HOME, '~'), width - 4)}{C['r']}")
+        for who in busy.get(path, []):
+            lines.append(f"  {C['mod']}◐ {cut(who, width - 6)}{C['r']}")
+    return lines + [""]
+
+
+def section_services(cut, width, cwd):
+    """Containers and listening processes of this project, with their URLs."""
+    if not VIEW["services"]:
+        return []
+    root = project_root(cwd) or safe_dir(cwd)
+    boxes, procs = services.services(root)
+    if not boxes and not procs:
+        return []
+    running = sum(b["state"] == "running" for b in boxes) + len(procs)
+    lines = [header("Services", width, f"{running} actifs")]
+    for box in boxes:
+        color = C[STATE_STYLE.get(box["state"], "dim")]
+        health = "" if box["health"] in ("none", "") else f" · {safe(box['health'])}"
+        lines.append(f"{color}● {cut(box['name'], width - 22)}{C['r']} "
+                     f"{C['dim']}{safe(box['status'])}{health}{C['r']}")
+        for url in box["urls"]:
+            lines.append(f"  {C['dir']}{cut(url, width - 4)}{C['r']}")
+    for proc in procs:
+        lines.append(f"{C['ok']}● {cut(proc['name'], width - 12)}{C['r']} {C['dim']}pid {proc['pid']}{C['r']}")
+        lines.append(f"  {C['dir']}{cut(proc['url'], width - 4)}{C['r']}")
+    return lines + [""]
 
 
 def section_rtk(width, cwd):
@@ -515,6 +608,8 @@ def render_conversation(width):
              f"{C['dim']}{safe(agent.get('name') or agent['pane_id'])}{C['r']}", ""]
     lines += section_account(cut, width, account, kind, model, tokens)
     lines += section_project(cut, width, cwd)
+    lines += section_worktrees(cut, width, cwd)
+    lines += section_services(cut, width, cwd)
     lines += section_usage(cut, width, footer, tokens)
     lines += section_rtk(width, cwd)
     if session and kind == "claude":
