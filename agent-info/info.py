@@ -109,12 +109,15 @@ def subagents_for(session_id):
 
 
 def git_state(cwd):
+    cwd = safe_dir(cwd)
+    if not cwd:
+        return None, 0
     try:
-        branch = subprocess.run(["git", "-C", cwd, "symbolic-ref", "--short", "-q", "HEAD"],
+        branch = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "symbolic-ref", "--short", "-q", "HEAD"],
                                 capture_output=True, text=True, timeout=2).stdout.strip()
         if not branch:
             return None, 0
-        dirty = subprocess.run(["git", "-C", cwd, "status", "--porcelain"],
+        dirty = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "status", "--porcelain"],
                                capture_output=True, text=True, timeout=2).stdout.count("\n")
         return branch, dirty
     except Exception:
@@ -189,6 +192,41 @@ def render(width):
     return render_agents(width) if UI["mode"] == "agents" else render_conversation(width)
 
 
+ALLOWED_ROOTS = (os.path.normpath(os.path.expanduser("~")),)
+
+
+def safe_dir(path):
+    """Absolute, normalised, existing directory, or "".
+
+    Paths come from files other processes write (status line state) and end
+    up as `git -C <path>`: only absolute paths under the home directory,
+    without control characters, are accepted (so nothing git could
+    read as an option, and no probing of the rest of the filesystem).
+    """
+    if not isinstance(path, str) or not path.startswith("/") or CONTROL.search(path):
+        return ""
+    normalised = os.path.normpath(path)
+    allowed = next((base for base in ALLOWED_ROOTS
+                    if normalised == base or normalised.startswith(base + os.sep)), None)
+    if allowed is None:
+        return ""
+    rel = os.path.relpath(normalised, allowed)
+    candidate = allowed if rel == "." else os.path.join(allowed, rel)
+    return candidate if os.path.isdir(candidate) else ""
+
+
+def conversation_dir(agent, footer):
+    """Where the conversation actually works.
+
+    herdr reports the pane's shell cwd (often where the pane was opened, e.g.
+    ~); Claude Code's status line reports the session's real working directory,
+    so it wins when present and still exists.
+    """
+    return (safe_dir(footer.get("dir"))
+            or safe_dir(agent.get("foreground_cwd"))
+            or safe_dir(agent.get("cwd")))
+
+
 def read_footer(session):
     if not session:
         return {}
@@ -220,17 +258,20 @@ def parse_shortstat(text):
 
 
 def git_details(cwd):
-    """(branch, counts, shortstat) or None outside a repo.
+    """(branch, counts, shortstat) or None outside a repo (or for an unsafe path).
 
     counts: ahead, behind, staged, changed, untracked; shortstat: "+12 -3 (4 fichiers)"
     for the working tree against HEAD.
     """
+    cwd = safe_dir(cwd)
+    if not cwd:
+        return None
     try:
-        out = subprocess.run(["git", "-C", cwd, "status", "--porcelain=v2", "--branch"],
+        out = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "status", "--porcelain=v2", "--branch"],
                              capture_output=True, text=True, timeout=3)
         if out.returncode != 0:
             return None
-        diff = subprocess.run(["git", "-C", cwd, "diff", "HEAD", "--shortstat"],
+        diff = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "diff", "HEAD", "--shortstat"],
                               capture_output=True, text=True, timeout=3).stdout
     except Exception:
         return None
@@ -276,22 +317,32 @@ def git_lines(cut, width, details):
 
 def project_root(cwd):
     """Absolute path of the git work tree holding cwd, or None."""
+    cwd = safe_dir(cwd)
+    if not cwd:
+        return None
     try:
-        out = subprocess.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"],
+        out = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "rev-parse", "--show-toplevel"],
                              capture_output=True, text=True, timeout=3)
     except Exception:
         return None
     return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else None
 
 
+def wrap_path(path, width):
+    """Full path over several lines, broken after a "/" when possible, never truncated."""
+    room = max(10, width - 2)
+    lines = []
+    while len(path) > room:
+        cut_at = path.rfind("/", 0, room) + 1 or room
+        lines.append(path[:cut_at])
+        path = path[cut_at:]
+    return lines + [path]
+
+
 def path_lines(cut, width, cwd):
     """Full local path of the project; the sub-folder too when the agent is not at its root."""
     root = project_root(cwd) if cwd else None
-    path = safe(root or cwd)
-    room = width - 2
-    if len(path) > room:  # keep the end: the project name matters more than /home/…
-        path = "…" + path[-(room - 1):]
-    lines = [f"{C['dir']}{path}{C['r']}"]
+    lines = [f"{C['dir']}{part}{C['r']}" for part in wrap_path(safe(root or cwd), width)]
     if root and os.path.realpath(cwd) != os.path.realpath(root):
         lines.append(f"{C['dim']}  └ {cut(os.path.relpath(cwd, root), width - 6)}{C['r']}")
     return lines
@@ -457,13 +508,14 @@ def render_conversation(width):
     tokens = agent.get("tokens") or {}
     model, account = monitor.agent_info(kind, session, agent.get("cwd"))
     status = agent.get("agent_status", "")
-    cwd = agent.get("foreground_cwd") or agent.get("cwd") or ""
+    footer = read_footer(session)
+    cwd = conversation_dir(agent, footer)
     title = cut(agent.get("terminal_title_stripped") or kind, width - 14)
     lines = [f"{state_color(status)}{ICON.get(status, status)}{C['r']}  {C['b']}{title}{C['r']}",
              f"{C['dim']}{safe(agent.get('name') or agent['pane_id'])}{C['r']}", ""]
     lines += section_account(cut, width, account, kind, model, tokens)
     lines += section_project(cut, width, cwd)
-    lines += section_usage(cut, width, read_footer(session), tokens)
+    lines += section_usage(cut, width, footer, tokens)
     lines += section_rtk(width, cwd)
     if session and kind == "claude":
         lines += section_subagents(cut, width, session)
@@ -530,8 +582,19 @@ def read_key(timeout):
     return sys.stdin.read(1) if ready else None
 
 
+SOURCES = [os.path.abspath(__file__), os.path.abspath(monitor.__file__)]
+
+
+def sources_mtime():
+    try:
+        return max(os.path.getmtime(path) for path in SOURCES)
+    except OSError:
+        return 0
+
+
 def main():
     load_ui()
+    started = sources_mtime()
     flag = None
     interactive = sys.stdin.isatty()
     saved = termios.tcgetattr(sys.stdin) if interactive else None
@@ -555,6 +618,11 @@ def main():
             sys.stdout.write("\033[H\033[2J" + "\n".join(lines))
             sys.stdout.flush()
             key = read_key(REFRESH_S) if interactive else time.sleep(REFRESH_S)
+            if sources_mtime() > started:
+                # code updated (git pull, cockpit setup): restart in place to pick it up
+                if saved:
+                    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, saved)
+                os.execv(sys.executable, [sys.executable, os.path.abspath(__file__)])
             if key == "q":
                 break
             if key == "a":

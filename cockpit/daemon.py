@@ -75,8 +75,22 @@ def daemon():
     shown = {}
     renderers = [("spaces", lambda snap: spaces.publish_round(spaces_state, snap)),
                  ("agent-info", lambda snap: agent_info.tick(shown, snap))]
+    sources = [os.path.abspath(__file__), os.path.join(ROOT, "spaces", "monitor.py"),
+               os.path.join(ROOT, "agent-info", "monitor.py")]
+
+    def mtime():
+        try:
+            return max(os.path.getmtime(path) for path in sources)
+        except OSError:
+            return 0
+
+    started = mtime()
     misses = 0
     while True:
+        if mtime() > started:
+            # code updated: restart in place (the lock is released by exec's close-on-exec fd)
+            lock.close()
+            os.execv(sys.executable, [sys.executable, os.path.abspath(__file__), "daemon"])
         try:
             snap = spaces.snapshot()
             misses = 0
