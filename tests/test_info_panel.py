@@ -122,10 +122,13 @@ def test_wrap_path_keeps_every_character():
 
 
 def test_conversation_dir_prefers_status_line(tmp_path):
-    agent = {"cwd": "/home/x", "foreground_cwd": "/home/x"}
-    assert info.conversation_dir(agent, {"dir": str(tmp_path)}) == str(tmp_path)
-    assert info.conversation_dir(agent, {"dir": "/does/not/exist"}) == "/home/x"
-    assert info.conversation_dir(agent, {}) == "/home/x"
+    real, pane = tmp_path / "real", tmp_path / "pane"
+    real.mkdir()
+    pane.mkdir()
+    agent = {"cwd": str(pane), "foreground_cwd": str(pane)}
+    assert info.conversation_dir(agent, {"dir": str(real)}) == str(real.resolve())
+    assert info.conversation_dir(agent, {"dir": "/does/not/exist"}) == str(pane.resolve())
+    assert info.conversation_dir(agent, {}) == str(pane.resolve())
 
 
 def test_safe_dir_rejects_option_like_and_relative_paths(tmp_path):
