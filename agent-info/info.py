@@ -483,7 +483,11 @@ def section_services(cut, width, cwd):
     """Containers and listening processes of this project, with their URLs."""
     if not VIEW["services"]:
         return []
-    root = project_root(cwd) or safe_dir(cwd)
+    # Only the current project: a git work tree. Outside one (e.g. ~ or a folder of
+    # projects) there is no single project to attribute services to, so show none.
+    root = project_root(cwd)
+    if not root:
+        return []
     boxes, procs = services.services(root)
     if not boxes and not procs:
         return []
