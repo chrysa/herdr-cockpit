@@ -25,3 +25,10 @@ agents, workspaces) and hands the snapshot to `chrysa.spaces` and
 start, and any already running exits at its next tick (their startup hooks race
 with this one when the server starts). A renderer that fails does not stop the
 others.
+
+## Claude Code status line
+
+`templates/statusline.sh`: account (colored), model, folder, git state (same
+symbols as the sidebar), llmtrim context/savings/cache, cost only once billed
+past the quota, and a `⌃b ⌃g panel` hint inside herdr. It hides itself while
+the herdr info panel is open, since the panel shows all of it.

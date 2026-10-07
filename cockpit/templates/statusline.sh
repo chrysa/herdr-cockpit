@@ -17,6 +17,9 @@ case "$account" in
   *) acc_rgb="{{acc_rgb.other}}" ;;
 esac
 segments+=("$(printf '\033[1;38;2;%sm● %s\033[0m' "$acc_rgb" "${account:-default}")")
+# Model: shown here only while the herdr info panel is closed (it carries the model when open).
+model=$(jq -r '.model.display_name // .model.id // empty' <<<"$input" | tr -d '\000-\037')
+[[ -n "$model" ]] && segments+=("$(printf '\033[38;2;{{rgb.mauve}}m%s\033[0m' "$model")")
 if [[ -n "$dir" ]]; then
   name=${dir/#$HOME/\~}
   segments+=("$(printf '\033[38;2;{{rgb.blue}}m%s\033[0m' "$name")")
@@ -72,6 +75,9 @@ if [[ -n "$session" ]] && [[ "$session" =~ ^[A-Za-z0-9-]+$ ]]; then
     exit 0
   fi
 fi
+
+# Hint for the info panel that replaces this line (herdr only).
+[[ -n "${HERDR_ENV:-}" ]] && segments+=("$(printf '\033[2m⌃b ⌃g panel\033[0m')")
 
 out=""
 for s in "${segments[@]}"; do out+="${out:+   }$s"; done
