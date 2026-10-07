@@ -25,27 +25,39 @@ def installed(run=subprocess.run):
     return data.get("plugins", data) if isinstance(data, dict) else data
 
 
+def missing_actions(want):
+    """Install at the pinned ref, then disable if the manifest says so."""
+    install = ["plugin", "install", want["source"], "--yes"]
+    if want.get("ref"):
+        install[3:3] = ["--ref", want["ref"]]
+    return [install] + ([] if want.get("enabled", True) else [["plugin", "disable", want["id"]]])
+
+
+def compare(want, current):
+    """(actions, drift) for a plugin that is installed."""
+    actions, drift = [], []
+    enabled = want.get("enabled", True)
+    if bool(current.get("enabled", True)) != bool(enabled):
+        actions.append(["plugin", "enable" if enabled else "disable", want["id"]])
+    source = current.get("source") or {}
+    pinned, actual = want.get("ref"), source.get("resolved_commit")
+    if pinned and source.get("kind") == "github" and actual and actual != pinned:
+        drift.append(f"{want['id']}: installed {actual[:8]}, manifest pins {pinned[:8]}")
+    return actions, drift
+
+
 def diff(manifest, listing):
     """(actions, drift): actions are argv lists for `herdr`, drift is human-readable lines."""
     have = {p["plugin_id"]: p for p in listing}
     actions, drift = [], []
     for want in manifest:
-        pid, enabled = want["id"], want.get("enabled", True)
-        current = have.get(pid)
+        current = have.get(want["id"])
         if current is None:
-            install = ["plugin", "install", want["source"], "--yes"]
-            if want.get("ref"):
-                install[3:3] = ["--ref", want["ref"]]
-            actions.append(install)
-            if not enabled:
-                actions.append(["plugin", "disable", pid])
+            actions += missing_actions(want)
             continue
-        if bool(current.get("enabled", True)) != bool(enabled):
-            actions.append(["plugin", "enable" if enabled else "disable", pid])
-        source = current.get("source") or {}
-        pinned, actual = want.get("ref"), source.get("resolved_commit")
-        if pinned and source.get("kind") == "github" and actual and actual != pinned:
-            drift.append(f"{pid}: installed {actual[:8]}, manifest pins {pinned[:8]}")
+        more_actions, more_drift = compare(want, current)
+        actions += more_actions
+        drift += more_drift
     known = {w["id"] for w in manifest}
     drift += [f"{pid}: installed but not in plugins.toml" for pid in sorted(have) if pid not in known]
     return actions, drift

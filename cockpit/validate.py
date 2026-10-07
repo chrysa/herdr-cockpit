@@ -22,6 +22,7 @@ import tomllib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import render  # noqa: E402
 
+HERDR_CONFIG = "config.toml"
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
@@ -70,7 +71,7 @@ def check_herdr(config_text, herdr=None):
     if not herdr:
         return [], "herdr not installed: `herdr config check` skipped"
     with tempfile.TemporaryDirectory() as tmp:
-        path = os.path.join(tmp, "config.toml")
+        path = os.path.join(tmp, HERDR_CONFIG)
         with open(path, "w") as fh:
             fh.write(config_text)
         out = subprocess.run([herdr, "config", "check"], capture_output=True, text=True,
@@ -88,8 +89,8 @@ def main():
     template_errors, rendered = check_templates(palette)
     errors += template_errors
     notes = []
-    if "config.toml" in rendered:
-        herdr_errors, note = check_herdr(rendered["config.toml"])
+    if HERDR_CONFIG in rendered:
+        herdr_errors, note = check_herdr(rendered[HERDR_CONFIG])
         errors += herdr_errors
         notes.append(note)
     for note in filter(None, notes):
