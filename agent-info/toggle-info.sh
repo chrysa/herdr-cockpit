@@ -10,3 +10,7 @@ mkdir -p "$(dirname "$state")"
 "$herdr" plugin pane open --plugin chrysa.agent-info --entrypoint info \
   --placement split --direction right --no-focus \
   | grep -oE '"pane_id":"[^"]*"' | head -1 | cut -d'"' -f4 > "$state"
+# The split opens at half the width; give the panel a quarter of the screen.
+pane=$(cat "$state")
+[ -n "$pane" ] && "$herdr" pane resize --pane "$pane" --direction right --amount 0.25 >/dev/null 2>&1
+exit 0

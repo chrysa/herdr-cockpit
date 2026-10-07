@@ -69,13 +69,13 @@ def test_parse_shortstat():
     assert info.parse_shortstat("") == (0, 0, 0)
 
 
-def test_path_lines_show_root_and_subfolder(tmp_path, monkeypatch):
+def test_path_lines_show_current_dir_and_repo(tmp_path, monkeypatch):
     monkeypatch.setattr(info, "ALLOWED_ROOTS", (str(tmp_path),))
     subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
     (tmp_path / "src").mkdir()
     plain = [info.ANSI.sub("", line) for line in info.path_lines(info.cutter(200), 200, str(tmp_path / "src"))]
-    assert plain[0] == str(tmp_path)
-    assert plain[1].strip() == "└ src"
+    assert plain[0] == str(tmp_path / "src")
+    assert plain[1].strip() == f"dépôt {tmp_path.name}"
 
 
 def test_path_lines_outside_repo_show_full_cwd(tmp_path):
@@ -148,3 +148,29 @@ def test_safe_dir_rejects_option_like_and_relative_paths(tmp_path, monkeypatch):
 def test_git_helpers_refuse_unsafe_paths():
     assert info.git_details("-c core.pager=evil") is None
     assert info.project_root("--help") is None
+
+
+def test_worktrees_lists_every_tree_and_marks_the_current_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(info, "ALLOWED_ROOTS", (str(tmp_path),))
+    main = tmp_path / "main"
+    main.mkdir()
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(main), *args], check=True, capture_output=True)
+    git("init", "-q", "-b", "main")
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init")
+    git("worktree", "add", "-q", "-b", "feat", str(tmp_path / "feat"))
+    trees = info.worktrees(str(tmp_path / "feat"))
+    assert [(b, cur) for _, b, cur in trees] == [("main", False), ("feat", True)]
+
+
+def test_agents_by_worktree(tmp_path, monkeypatch):
+    monkeypatch.setattr(info, "ALLOWED_ROOTS", (str(tmp_path),))
+    main, feat = tmp_path / "app", tmp_path / "app-feat"
+    (main / "src").mkdir(parents=True)
+    feat.mkdir()
+    trees = [(str(main), "main", True), (str(feat), "feat", False)]
+    agents = [{"name": "padam-av-x", "cwd": str(main / "src"), "workspace_id": "w1"},
+              {"name": "other", "cwd": str(feat), "workspace_id": "w2"}]
+    busy = info.agents_by_worktree(trees, agents, {"w1": "padam-av", "w2": "chrysa"})
+    assert busy == {str(main): ["padam-av-x"], str(feat): ["other (chrysa)"]}
