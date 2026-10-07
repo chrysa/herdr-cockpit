@@ -1,0 +1,31 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: uv sync --locked --no-build
+      - run: uv run --locked --no-build pytest
+      - run: uv run --locked --no-build python cockpit/validate.py
+      - name: Check plugin versions match the tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for manifest in cockpit/herdr-plugin.toml spaces/herdr-plugin.toml agent-info/herdr-plugin.toml; do
+            grep -q "^version = \"$tag\"" "$manifest" || { echo "$manifest is not at version $tag"; exit 1; }
+          done
+      - name: Release notes from commits since the previous tag
+        run: |
+          prev=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          range="${prev:+$prev..}${GITHUB_REF_NAME}"
+          git log --no-merges --format='- %s' "$range" > notes.md
+      - run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}

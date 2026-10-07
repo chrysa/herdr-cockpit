@@ -19,12 +19,18 @@ uv run pytest
 
 Specs and plans live in `work/` (`work/specs`, `work/plans`).
 
+Release: bump `version` in the three `herdr-plugin.toml`, merge, then push a
+`vX.Y.Z` tag; the release workflow runs tests and `validate`, checks the
+versions match the tag, and publishes notes built from the commits.
+
 ## Install
 
+Pin a released version (tags `vX.Y.Z`, see Releases) so another machine stays stable:
+
 ```sh
-herdr plugin install chrysa/herdr-cockpit/cockpit
-herdr plugin install chrysa/herdr-cockpit/spaces
-herdr plugin install chrysa/herdr-cockpit/agent-info
+herdr plugin install chrysa/herdr-cockpit/cockpit --ref v0.2.0
+herdr plugin install chrysa/herdr-cockpit/spaces --ref v0.2.0
+herdr plugin install chrysa/herdr-cockpit/agent-info --ref v0.2.0
 # then, in herdr: action "Cockpit: setup" (or python3 <cockpit root>/setup.py)
 ```
 

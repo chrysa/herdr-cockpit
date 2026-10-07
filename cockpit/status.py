@@ -8,6 +8,7 @@ import difflib
 import glob
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -74,8 +75,55 @@ def check_units(is_active=None):
     return ("missing", ", ".join(inactive)) if inactive else ("ok", ", ".join(SYSTEMD_UNITS))
 
 
+MIN_HERDR = (0, 9, 0)
+TOOLS = ("git", "docker", "ss", "jq", "notify-send")
+
+
+def check_daemon(pidfile=os.path.join(HOME, ".local", "state", "chrysa.cockpit", "daemon.pid")):
+    """The shared cockpit daemon (sidebar tokens, auto-naming, notifications) is running."""
+    try:
+        with open(pidfile) as fh:
+            pid = int(fh.read().strip())
+        os.kill(pid, 0)
+    except (OSError, ValueError):
+        return "missing", "cockpit daemon not running (python3 cockpit/daemon.py ensure)"
+    return "ok", f"cockpit daemon pid {pid}"
+
+
+def parse_version(text):
+    """"herdr 0.9.1" -> (0, 9, 1); None when unreadable."""
+    for word in text.split():
+        parts = word.lstrip("v").split(".")
+        if len(parts) >= 2 and all(p.isdigit() for p in parts[:3]):
+            return tuple(int(p) for p in parts[:3])
+    return None
+
+
+def check_herdr_version(run=subprocess.run):
+    try:
+        out = run(["herdr", "--version"], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return "missing", "herdr not found"
+    version = parse_version(out)
+    if version is None:
+        return "drift", f"unreadable herdr version: {out.strip()!r}"
+    wanted = ".".join(map(str, MIN_HERDR))
+    if version < MIN_HERDR:
+        return "drift", f"herdr {'.'.join(map(str, version))} < {wanted}"
+    return "ok", f"herdr {'.'.join(map(str, version))} (>= {wanted})"
+
+
+def check_tools(which=shutil.which):
+    """External tools the panel and status line rely on."""
+    missing = [tool for tool in TOOLS if not which(tool)]
+    if missing:
+        return "drift", "missing: " + ", ".join(missing) + " (related panel sections stay empty)"
+    return "ok", ", ".join(TOOLS)
+
+
 CHECKS = {"config": check_config, "statusline": check_statusline,
-          "plugins": check_plugins, "units": check_units}
+          "plugins": check_plugins, "units": check_units,
+          "daemon": check_daemon, "herdr": check_herdr_version, "tools": check_tools}
 
 
 def main():

@@ -70,3 +70,29 @@ def test_units_states():
     state, detail = status.check_units(lambda unit: unit.endswith(".timer"))
     assert state == "missing"
     assert "herdr-config-reload.path" in detail
+
+
+def test_parse_version():
+    assert status.parse_version("herdr 0.9.1") == (0, 9, 1)
+    assert status.parse_version("v1.2") == (1, 2)
+    assert status.parse_version("nope") is None
+
+
+def test_daemon_check(tmp_path):
+    pidfile = tmp_path / "daemon.pid"
+    assert status.check_daemon(str(pidfile))[0] == "missing"
+    pidfile.write_text(str(os.getpid()))
+    assert status.check_daemon(str(pidfile))[0] == "ok"
+
+
+def test_tools_check():
+    assert status.check_tools(lambda tool: "/usr/bin/" + tool)[0] == "ok"
+    state, detail = status.check_tools(lambda tool: None if tool == "docker" else "/x")
+    assert state == "drift"
+    assert "docker" in detail
+
+
+def test_herdr_version_too_old():
+    import subprocess as sp
+    old = lambda *a, **k: sp.CompletedProcess(a, 0, stdout="herdr 0.8.4\n")
+    assert status.check_herdr_version(old)[0] == "drift"
