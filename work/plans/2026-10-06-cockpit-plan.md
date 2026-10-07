@@ -14,7 +14,7 @@ before the next starts. "Done" = tests green in CI and checked on this machine.
 | 7 | Unified palette: status line, info bar, opencode theme generated | §4.2 | same symbols and colors on all three |
 | 8 | Info bar agents mode, follows selected space | §4.3 | selecting a space updates the list within 1 s |
 | 9 | Group by state, collapsible sections | §4.4 | `1`–`4` collapse, state survives restart |
-| 10 | Single daemon, rtk renderer vendored | §4.6, D7 | one poller process; herdr API calls ÷3 |
+| 10 | Single daemon (rtk-savings stays a separate repo and daemon for now) | §4.6, D7 | one poller process; herdr API calls ÷3 |
 | 11 | Blocked-only notification, drop in-your-face | §4.7 | one notification per blocked transition |
 
 Order rationale: tests first so later refactors are safe; status before setup

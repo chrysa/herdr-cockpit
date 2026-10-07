@@ -1,0 +1,8 @@
+[Unit]
+Description=Reload herdr when the cockpit-rendered config changes
+
+[Path]
+PathChanged={{paths.config}}
+
+[Install]
+WantedBy=default.target

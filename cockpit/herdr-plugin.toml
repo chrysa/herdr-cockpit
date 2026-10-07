@@ -1,0 +1,27 @@
+id = "chrysa.cockpit"
+name = "Cockpit"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Owns the herdr configuration: one palette rendered into herdr, Claude Code and opencode surfaces. setup and status arrive in the next releases."
+platforms = ["macos", "linux"]
+
+[[actions]]
+id = "status"
+title = "Cockpit: status (drift report)"
+contexts = ["workspace"]
+command = ["sh", "-c", "python3 status.py | ${PAGER:-less -R}"]
+
+[[actions]]
+id = "setup"
+title = "Cockpit: setup (install or repair)"
+contexts = ["workspace"]
+command = ["sh", "-c", "python3 setup.py | ${PAGER:-less -R}"]
+
+# One poller for spaces + agent-info (chrysa.cockpit daemon).
+[[startup]]
+platforms = ["linux", "macos"]
+command = ["python3", "daemon.py", "ensure"]
+
+[[events]]
+on = "workspace.focused"
+command = ["python3", "daemon.py", "ensure"]

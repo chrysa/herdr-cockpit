@@ -22,6 +22,7 @@ Commands:
 """
 import fcntl
 import json
+import re
 import os
 import signal
 import shutil
@@ -39,6 +40,10 @@ TTL_MS = POLL_S * 20 * 1000  # tokens outlive a few failed reads, then expire
 REFRESH_S = TTL_MS / 1000 / 3  # republish unchanged tokens well before they expire
 
 SP_VARIANTS = tuple(f"sp{i}" for i in range(PALETTE_SLOTS))
+# Account chips: one pre-styled token per known account (cockpit palette),
+# "acc_other" for anything else. Account names come from chrysa.agent-info.
+KNOWN_ACCOUNTS = ("perso", "pro", "codex")
+ACC_VARIANTS = tuple(f"acc_{a}" for a in KNOWN_ACCOUNTS) + ("acc_other",)
 AG_VARIANTS = tuple(f"ag{i}" for i in range(PALETTE_SLOTS))
 
 
@@ -184,11 +189,18 @@ def worktrees_for(cwds, cache):
     return labels
 
 
-def gather(cache):
+def snapshot():
+    """One read of herdr state: panes, agents, workspaces."""
+    return {"panes": herdr_json("pane", "list", key="panes"),
+            "agents": herdr_json("agent", "list", key="agents"),
+            "workspaces": herdr_json("workspace", "list", key="workspaces")}
+
+
+def gather(cache, snap=None):
     """workspace_id -> {slot, agents, worktrees[]} plus pane_slot per agent pane."""
-    panes = herdr_json("pane", "list", key="panes")
-    agents = herdr_json("agent", "list", key="agents")
-    slots = color_slots(herdr_json("workspace", "list", key="workspaces"))
+    snap = snap or snapshot()
+    panes, agents = snap["panes"], snap["agents"]
+    slots = color_slots(snap["workspaces"])
 
     def color_slot(ws_id):
         return slots.get(ws_id, zlib.crc32(ws_id.encode()) % PALETTE_SLOTS)
@@ -200,10 +212,20 @@ def gather(cache):
             cwds_by_ws.setdefault(pane["workspace_id"], []).append(cwd)
 
     agent_count = {}
+    accounts = {}  # ws_id -> {account: agents}
+    attention = {}  # ws_id -> {"blocked": n, "done": n}
     pane_slot = {}  # pane_id -> color slot, for the agent panel
     for agent in agents:
         ws_id = agent["workspace_id"]
         agent_count[ws_id] = agent_count.get(ws_id, 0) + 1
+        status = agent.get("agent_status")
+        if status in ("blocked", "done"):
+            per_ws = attention.setdefault(ws_id, {"blocked": 0, "done": 0})
+            per_ws[status] += 1
+        account = (agent.get("tokens") or {}).get("account")
+        if account:
+            per_ws = accounts.setdefault(ws_id, {})
+            per_ws[account] = per_ws.get(account, 0) + 1
         pane_slot[agent["pane_id"]] = color_slot(ws_id)
 
     spaces = {}
@@ -212,21 +234,53 @@ def gather(cache):
             "slot": color_slot(ws_id),
             "agents": agent_count.get(ws_id, 0),
             "worktrees": worktrees_for(cwds, cache),
+            "accounts": accounts.get(ws_id, {}),
+            "attention": attention.get(ws_id, {}),
         }
     # spaces with panes but no agents still deserve their (0-agent) chip
     for ws_id in agent_count:
         spaces.setdefault(ws_id, {"slot": color_slot(ws_id),
-                                  "agents": agent_count[ws_id], "worktrees": []})
+                                  "agents": agent_count[ws_id], "worktrees": [],
+                                  "accounts": accounts.get(ws_id, {}),
+                                  "attention": attention.get(ws_id, {})})
     return spaces, pane_slot
 
 
 # --------------------------------------------------------------- rendering --
+
+def render_accounts(accounts):
+    """{acc_<name>: name} for each account in the space; unknown ones share acc_other."""
+    tokens = {}
+    other = []
+    for name in sorted(accounts, key=lambda a: (-accounts[a], a)):
+        clean = re.sub(r"[^A-Za-z0-9_.:-]", "", name)[:16]
+        if name in KNOWN_ACCOUNTS:
+            tokens[f"acc_{name}"] = clean
+        elif clean:
+            other.append(clean)
+    if other:
+        tokens["acc_other"] = " ".join(other)
+    return tokens
+
+
+def render_attention(counts):
+    """Agents that need the user: blocked ones waiting for input, done ones not yet seen."""
+    tokens = {}
+    blocked, done = counts.get("blocked", 0), counts.get("done", 0)
+    if blocked:
+        tokens["attn"] = f"‼ {blocked} attend{'ent' if blocked > 1 else ''}"
+    if done:
+        tokens["fresh"] = f"✓ {done} terminé{'s' if done > 1 else ''}"
+    return tokens
+
 
 def render_space(info):
     """{token: text} for one space's chip + optional worktree list."""
     n = info["agents"]
     label = "aucun agent" if n == 0 else f"{n} agent{'s' if n > 1 else ''}"
     tokens = {SP_VARIANTS[info["slot"]]: label}
+    tokens.update(render_attention(info.get("attention", {})))
+    tokens.update(render_accounts(info.get("accounts", {})))
     if info["worktrees"]:
         tokens["wt"] = "⑂" + " ".join(info["worktrees"])
     return tokens
@@ -247,16 +301,16 @@ def report(scope, target_id, tokens, all_variants, extra_clear=()):
 
 
 def clear_space(ws_id):
-    report("workspace", ws_id, {}, SP_VARIANTS, extra_clear=("wt",))
+    report("workspace", ws_id, {}, SP_VARIANTS, extra_clear=("wt", "attn", "fresh") + ACC_VARIANTS)
 
 
 def clear_pane(pane_id):
     report("pane", pane_id, {}, AG_VARIANTS)
 
 
-def publish_round(state):
+def publish_round(state, snap=None):
     """One refresh pass. state carries what each target currently shows."""
-    spaces, pane_slot = gather(state["cache"])
+    spaces, pane_slot = gather(state["cache"], snap)
     if time.monotonic() - state.get("refreshed", 0) > REFRESH_S:
         # unchanged tokens are not re-sent each round, so force one round
         # before TTL_MS lets herdr drop them
@@ -270,7 +324,7 @@ def publish_round(state):
     for ws_id, info in spaces.items():
         tokens = render_space(info)
         if state["ws"].get(ws_id) != tokens:
-            report("workspace", ws_id, tokens, SP_VARIANTS, extra_clear=("wt",))
+            report("workspace", ws_id, tokens, SP_VARIANTS, extra_clear=("wt", "attn", "fresh") + ACC_VARIANTS)
             state["ws"][ws_id] = tokens
     for ws_id in list(state["ws"]):
         if ws_id not in seen_ws:
@@ -328,8 +382,22 @@ def claim_pidfile():
     return handle
 
 
+def cockpit_daemon_alive():
+    """chrysa.cockpit's shared daemon renders spaces itself when it runs."""
+    lock = os.path.expanduser("~/.local/state/chrysa.cockpit/daemon.lock")
+    if not os.path.exists(lock):
+        return False
+    try:
+        with open(lock, "a+") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(handle, fcntl.LOCK_UN)
+        return False
+    except OSError:
+        return True
+
+
 def cmd_ensure():
-    if daemon_alive():
+    if daemon_alive() or cockpit_daemon_alive():
         return
     os.makedirs(STATE_DIR, exist_ok=True)
     subprocess.Popen(
@@ -339,31 +407,37 @@ def cmd_ensure():
     )
 
 
-def cmd_daemon():
-    lock = claim_pidfile()
-    if not lock:
-        return
-    state = {"ws": {}, "pane": {}, "cache": {}}
-    failures = 0
-    socket_misses = 0
+def run_loop(state):
+    """Publish rounds until the server goes away, errors repeat, or the
+    shared cockpit daemon takes over."""
+    failures = socket_misses = 0
     while True:
         if SOCKET_PATH and not os.path.exists(SOCKET_PATH):
             socket_misses += 1
             if socket_misses >= 3:
-                break
+                return
             time.sleep(10)
             continue
         socket_misses = 0
+        if cockpit_daemon_alive():
+            return  # the shared cockpit daemon renders spaces now
         try:
             publish_round(state)
             failures = 0
         except Exception:
             failures += 1
             if failures >= 3:
-                break
+                return
             time.sleep(10)
             continue
         time.sleep(POLL_S)
+
+
+def cmd_daemon():
+    lock = claim_pidfile()
+    if not lock:
+        return
+    run_loop({"ws": {}, "pane": {}, "cache": {}})
     lock.close()
     try:
         os.remove(PIDFILE)

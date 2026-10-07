@@ -1,0 +1,51 @@
+# Single source of colors for every cockpit surface (herdr sidebar, info bar,
+# Claude Code status line, opencode theme). Catppuccin Mocha.
+
+[colors]
+blue = "#89b4fa"
+green = "#a6e3a1"
+yellow = "#f9e2af"
+red = "#f38ba8"
+mauve = "#cba6f7"
+peach = "#fab387"
+teal = "#94e2d5"
+pink = "#f5c2e7"
+sky = "#89dceb"
+overlay = "#9399b2"
+
+# Neutral surfaces (opencode theme, info bar text).
+text = "#cdd6f4"
+subtext = "#a6adc8"
+surface = "#313244"
+surface_high = "#45475a"
+base = "#1e1e2e"
+mantle = "#181825"
+crust = "#11111b"
+
+# Project color slots, in order (chrysa.spaces assigns one per ecosystem).
+slots = ["blue", "green", "yellow", "red", "mauve", "peach", "teal", "pink"]
+
+# One fixed color per account, everywhere an account is shown.
+[accounts]
+perso = "#f9e2af"
+pro = "#89dceb"
+codex = "#a6e3a1"
+other = "#9399b2"
+
+[roles]
+done = "green"
+subagents = "sky"
+muted = "overlay"
+
+# One symbol set for every surface.
+[symbols]
+working = "◐"
+blocked = "‼"
+done = "✓"
+idle = "○"
+branch = "⑂"
+ahead = "↑"
+behind = "↓"
+staged = "+"
+changed = "~"
+untracked = "?"

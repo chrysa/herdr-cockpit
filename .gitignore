@@ -1,4 +1,6 @@
 __pycache__/
+.pytest_cache/
+.venv/
 
 # prism-ai-lint: keep secrets and local config out of git
 .env
