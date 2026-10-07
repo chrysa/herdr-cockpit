@@ -36,7 +36,8 @@ def test_color_usage(segment, color):
     assert info.color_usage(segment).startswith(info.C[color])
 
 
-def test_git_details(tmp_path):
+def test_git_details(tmp_path, monkeypatch):
+    monkeypatch.setattr(info, "ALLOWED_ROOTS", (str(tmp_path),))
     def git(*args):
         subprocess.run(["git", "-C", str(tmp_path), *args], check=True, capture_output=True)
     git("init", "-q", "-b", "main")
@@ -68,7 +69,8 @@ def test_parse_shortstat():
     assert info.parse_shortstat("") == (0, 0, 0)
 
 
-def test_path_lines_show_root_and_subfolder(tmp_path):
+def test_path_lines_show_root_and_subfolder(tmp_path, monkeypatch):
+    monkeypatch.setattr(info, "ALLOWED_ROOTS", (str(tmp_path),))
     subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
     (tmp_path / "src").mkdir()
     plain = [info.ANSI.sub("", line) for line in info.path_lines(info.cutter(200), 200, str(tmp_path / "src"))]
@@ -121,7 +123,8 @@ def test_wrap_path_keeps_every_character():
     assert parts[0].endswith("/")
 
 
-def test_conversation_dir_prefers_status_line(tmp_path):
+def test_conversation_dir_prefers_status_line(tmp_path, monkeypatch):
+    monkeypatch.setattr(info, "ALLOWED_ROOTS", (str(tmp_path),))
     real, pane = tmp_path / "real", tmp_path / "pane"
     real.mkdir()
     pane.mkdir()
@@ -131,7 +134,8 @@ def test_conversation_dir_prefers_status_line(tmp_path):
     assert info.conversation_dir(agent, {}) == str(pane)
 
 
-def test_safe_dir_rejects_option_like_and_relative_paths(tmp_path):
+def test_safe_dir_rejects_option_like_and_relative_paths(tmp_path, monkeypatch):
+    monkeypatch.setattr(info, "ALLOWED_ROOTS", (str(tmp_path),))
     assert info.safe_dir(str(tmp_path)) == str(tmp_path)
     assert info.safe_dir("/etc") == ""
     assert info.safe_dir("--output=/etc/passwd") == ""

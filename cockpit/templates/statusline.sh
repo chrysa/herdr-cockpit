@@ -24,7 +24,7 @@ if [[ -n "$dir" ]]; then
   name=${dir/#$HOME/\~}
   segments+=("$(printf '\033[38;2;{{rgb.blue}}m%s\033[0m' "$name")")
   # Same symbols as the herdr agent rows (chrysa.agent-info): ↑ ahead ↓ behind + staged ~ changed ? untracked
-  git_line=$(git -C "$dir" status --porcelain=v2 --branch 2>/dev/null | awk '
+  git_line=$(git --no-optional-locks -C "$dir" status --porcelain=v2 --branch 2>/dev/null | awk '
     /^# branch.head / { b = $3 }
     /^# branch.ab /   { a = substr($3, 2); d = substr($4, 2) }
     /^[12u] /         { if (substr($2,1,1) != ".") s++; if (substr($2,2,1) != ".") c++ }

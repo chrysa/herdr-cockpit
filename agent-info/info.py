@@ -113,11 +113,11 @@ def git_state(cwd):
     if not cwd:
         return None, 0
     try:
-        branch = subprocess.run(["git", "-C", cwd, "symbolic-ref", "--short", "-q", "HEAD"],
+        branch = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "symbolic-ref", "--short", "-q", "HEAD"],
                                 capture_output=True, text=True, timeout=2).stdout.strip()
         if not branch:
             return None, 0
-        dirty = subprocess.run(["git", "-C", cwd, "status", "--porcelain"],
+        dirty = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "status", "--porcelain"],
                                capture_output=True, text=True, timeout=2).stdout.count("\n")
         return branch, dirty
     except Exception:
@@ -192,15 +192,15 @@ def render(width):
     return render_agents(width) if UI["mode"] == "agents" else render_conversation(width)
 
 
-ALLOWED_ROOTS = tuple(os.path.normpath(p) for p in (os.path.expanduser("~"), "/tmp"))
+ALLOWED_ROOTS = (os.path.normpath(os.path.expanduser("~")),)
 
 
 def safe_dir(path):
     """Absolute, normalised, existing directory, or "".
 
     Paths come from files other processes write (status line state) and end
-    up as `git -C <path>`: only absolute paths under the home directory or
-    /tmp, without control characters, are accepted (so nothing git could
+    up as `git -C <path>`: only absolute paths under the home directory,
+    without control characters, are accepted (so nothing git could
     read as an option, and no probing of the rest of the filesystem).
     """
     if not isinstance(path, str) or not path.startswith("/") or CONTROL.search(path):
@@ -210,7 +210,8 @@ def safe_dir(path):
                     if normalised == base or normalised.startswith(base + os.sep)), None)
     if allowed is None:
         return ""
-    candidate = os.path.join(allowed, os.path.relpath(normalised, allowed))
+    rel = os.path.relpath(normalised, allowed)
+    candidate = allowed if rel == "." else os.path.join(allowed, rel)
     return candidate if os.path.isdir(candidate) else ""
 
 
@@ -266,11 +267,11 @@ def git_details(cwd):
     if not cwd:
         return None
     try:
-        out = subprocess.run(["git", "-C", cwd, "status", "--porcelain=v2", "--branch"],
+        out = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "status", "--porcelain=v2", "--branch"],
                              capture_output=True, text=True, timeout=3)
         if out.returncode != 0:
             return None
-        diff = subprocess.run(["git", "-C", cwd, "diff", "HEAD", "--shortstat"],
+        diff = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "diff", "HEAD", "--shortstat"],
                               capture_output=True, text=True, timeout=3).stdout
     except Exception:
         return None
@@ -320,7 +321,7 @@ def project_root(cwd):
     if not cwd:
         return None
     try:
-        out = subprocess.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"],
+        out = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "rev-parse", "--show-toplevel"],
                              capture_output=True, text=True, timeout=3)
     except Exception:
         return None

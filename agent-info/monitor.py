@@ -286,7 +286,7 @@ def git_summary(cwd):
     if not cwd:
         return None
     try:
-        out = subprocess.run(["git", "-C", cwd, "status", "--porcelain=v2", "--branch"],
+        out = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "status", "--porcelain=v2", "--branch"],
                              capture_output=True, text=True, timeout=3)
     except Exception:
         return None

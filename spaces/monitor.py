@@ -131,7 +131,7 @@ def git_info(cwd):
     """
     try:
         proc = subprocess.run(
-            ["git", "-C", cwd, "rev-parse",
+            ["git", "--no-optional-locks", "-C", cwd, "rev-parse",
              "--git-common-dir", "--show-toplevel", "--abbrev-ref", "HEAD"],
             capture_output=True, text=True, timeout=5)
     except Exception:
@@ -148,7 +148,7 @@ def git_info(cwd):
 def worktree_count(toplevel):
     """Number of work trees git knows for the repo checked out at toplevel."""
     try:
-        proc = subprocess.run(["git", "-C", toplevel, "worktree", "list", "--porcelain"],
+        proc = subprocess.run(["git", "--no-optional-locks", "-C", toplevel, "worktree", "list", "--porcelain"],
                               capture_output=True, text=True, timeout=5)
     except Exception:
         return 0
