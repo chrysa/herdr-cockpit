@@ -177,5 +177,5 @@ def test_agents_by_worktree(tmp_path, monkeypatch):
 
 
 def test_is_scratch():
-    assert info.is_scratch("/tmp/claude-1000/x")
+    assert info.is_scratch(info.tempfile.gettempdir() + "/claude-1000/x")
     assert not info.is_scratch("/home/u/projects/app")

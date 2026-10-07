@@ -15,6 +15,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import select
 import termios
 import time
@@ -440,9 +441,12 @@ def agents_by_worktree(trees, agents, labels):
     return by_tree
 
 
+SCRATCH_ROOT = os.path.realpath(tempfile.gettempdir())
+
+
 def is_scratch(path):
-    """Throw-away work trees (agent scratch copies under /tmp)."""
-    return path.startswith("/tmp/")
+    """Throw-away work trees (agent scratch copies under the system temp dir); read-only check."""
+    return os.path.realpath(path).startswith(SCRATCH_ROOT + os.sep)
 
 
 def section_worktrees(cut, width, cwd):
@@ -471,7 +475,7 @@ def section_worktrees(cut, width, cwd):
         for who in busy.get(path, []):
             lines.append(f"  {C['mod']}◐ {cut(who, width - 6)}{C['r']}")
     if hidden:
-        lines.append(f"{C['dim']}  +{hidden} temporaire{'s' if hidden > 1 else ''} (/tmp){C['r']}")
+        lines.append(f"{C['dim']}  +{hidden} temporaire{'s' if hidden > 1 else ''}{C['r']}")
     return lines + [""]
 
 
