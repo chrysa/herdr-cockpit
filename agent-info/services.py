@@ -15,7 +15,9 @@ from urllib.parse import urlunsplit
 CACHE_S = 5
 DOCKER_REFRESH_S = 30  # `docker ps` can take ~20 s on a busy daemon: never on the draw path
 _cache = {}
+SS_REFRESH_S = 10  # `ss -ltnp` reads /proc for every socket: seconds on a busy machine
 _docker = {"output": "", "started": False}
+_ss = {"output": "", "started": False}
 
 
 def _run(args, timeout=4):
@@ -88,6 +90,20 @@ def _docker_loop():
         time.sleep(DOCKER_REFRESH_S)
 
 
+def _ss_loop():
+    while True:
+        _ss["output"] = _run(["ss", "-ltnpH"], timeout=30)
+        time.sleep(SS_REFRESH_S)
+
+
+def ss_snapshot():
+    """Latest `ss -ltnpH` output, refreshed by a background thread (empty until the first read)."""
+    if not _ss["started"]:
+        _ss["started"] = True
+        threading.Thread(target=_ss_loop, daemon=True).start()
+    return _ss["output"]
+
+
 def docker_snapshot():
     """Latest `docker ps` output, refreshed by a background thread (empty until the first read)."""
     if not _docker["started"]:
@@ -136,7 +152,7 @@ def parse_ss_line(line):
 
 def listeners(root, ss_output=None, cwd_of=None):
     """[{name, pid, url}] for TCP listeners whose process cwd is inside root."""
-    raw = _run(["ss", "-ltnpH"]) if ss_output is None else ss_output
+    raw = ss_snapshot() if ss_output is None else ss_output
     cwd_of = cwd_of or (lambda pid: os.readlink(f"/proc/{pid}/cwd"))
     found, seen = [], set()
     for line in raw.splitlines():

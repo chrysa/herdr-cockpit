@@ -70,6 +70,23 @@ CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
 
 
+def ttl_cache(seconds):
+    """Memoise a one-argument function for `seconds` (git calls cost ~0.1-0.2 s each)."""
+    def wrap(fn):
+        store = {}
+
+        def cached(arg):
+            hit = store.get(arg)
+            if hit and time.monotonic() - hit[0] < seconds:
+                return hit[1]
+            value = fn(arg)
+            store[arg] = (time.monotonic(), value)
+            return value
+        cached.cache = store
+        return cached
+    return wrap
+
+
 def safe(text):
     """Drop control characters: titles and tasks come from agents and repos,
     so raw escape sequences must never reach the terminal."""
@@ -150,8 +167,9 @@ STATE_ORDER = ("blocked", "working", "done", "idle")
 STATE_LABEL = {"blocked": "bloqués", "working": "en cours", "done": "terminés", "idle": "en attente"}
 UI = {"mode": "conv", "all_spaces": False, "collapsed": set()}
 UI_FILE = os.path.join(STATE, "panel.json")
-HELP = {"conv": "a agents · t tâches · d faites · s subagents · g git · u conso · r rtk · w services · q",
-        "agents": "a conversation · A tous les spaces · 1-4 replier · q"}
+HELP = {"conv": "a agents · e espace · t tâches · d faites · s subagents · g git · u conso · r rtk · w services · q",
+        "agents": "a conversation · e espace · A tous les spaces · 1-4 replier · q",
+        "space": "e conversation · a agents · q"}
 
 
 def load_ui():
@@ -191,7 +209,66 @@ def state_color(status):
 
 
 def render(width):
-    return render_agents(width) if UI["mode"] == "agents" else render_conversation(width)
+    if UI["mode"] == "agents":
+        return render_agents(width)
+    if UI["mode"] == "space":
+        return render_space(width)
+    return render_conversation(width)
+
+
+def projects_of(agents):
+    """{project root: [agents]}: each agent under the git work tree it works in (or its folder)."""
+    projects = {}
+    for agent in agents:
+        where = safe_dir(agent.get("foreground_cwd") or agent.get("cwd") or "")
+        if not where:
+            continue
+        projects.setdefault(project_root(where) or where, []).append(agent)
+    return projects
+
+
+@ttl_cache(5)
+def cached_git_summary(root):
+    return monitor.git_summary(root)
+
+
+def project_block(cut, width, root, members):
+    """One project of the space: name, git, PRs, running services, agents."""
+    name = os.path.basename(root) or root
+    lines = [f"{C['b']}■ {cut(name, width - 4)}{C['r']}"]
+    git = cached_git_summary(root)
+    if git:
+        lines.append(f"  {C['ok'] if git.endswith('✓') else C['yel']}{cut(git, width - 4)}{C['r']}")
+    prs = sorted({safe((a.get("tokens") or {}).get("pr", "")) for a in members} - {""})
+    if prs:
+        lines.append(f"  {C['dir']}PR {cut(' '.join(prs), width - 7)}{C['r']}")
+    if project_root(root):
+        boxes, procs = services.services(root)
+        up = [b for b in boxes if b["state"] == "running"]
+        urls = [u for b in up for u in b["urls"]] + [p["url"] for p in procs]
+        if up or procs:
+            lines.append(f"  {C['ok']}● {len(up) + len(procs)} service{'s' if len(up) + len(procs) > 1 else ''}{C['r']}"
+                         + (f"  {C['dir']}{cut(' '.join(urls[:2]), width - 18)}{C['r']}" if urls else ""))
+    for agent in members:
+        status = agent.get("agent_status", "")
+        who = safe(agent.get("name") or agent.get("terminal_title_stripped") or agent["pane_id"])
+        lines.append(f"  {state_color(status)}{SYM.get(status, '·')}{C['r']} {cut(who, width - 6)}")
+    return lines + [""]
+
+
+def render_space(width):
+    cut = cutter(width)
+    agents = monitor.herdr("agent", "list").get("result", {}).get("agents", [])
+    ws_id, label = focused_workspace()
+    agents = [a for a in agents if a.get("workspace_id") == ws_id]
+    projects = projects_of(agents)
+    lines = [f"{C['b']}Espace · {safe(label or ws_id)}{C['r']} "
+             f"{C['dim']}({len(projects)} projet{'s' if len(projects) > 1 else ''}, {len(agents)} agents){C['r']}", ""]
+    if not projects:
+        return lines + [f"{C['dim']}aucun agent dans ce space{C['r']}"], None
+    for root in sorted(projects, key=lambda r: (-len(projects[r]), r)):
+        lines += project_block(cut, width, root, projects[root])
+    return lines, None
 
 
 ALLOWED_ROOTS = (os.path.normpath(os.path.expanduser("~")),)
@@ -335,6 +412,7 @@ def git_lines(cut, width, details):
     return [parts[0]] + [f"  {part}" for part in parts[1:]]
 
 
+@ttl_cache(60)
 def project_root(cwd):
     """Absolute path of the git work tree holding cwd, or None."""
     cwd = safe_dir(cwd)
@@ -831,7 +909,9 @@ def main():
             if key == "q":
                 break
             if key == "a":
-                UI["mode"] = "agents" if UI["mode"] == "conv" else "conv"
+                UI["mode"] = "conv" if UI["mode"] == "agents" else "agents"
+            elif key == "e":
+                UI["mode"] = "conv" if UI["mode"] == "space" else "space"
             elif key == "A":
                 UI["all_spaces"] = not UI["all_spaces"]
             elif key in ("1", "2", "3", "4") and UI["mode"] == "agents":
