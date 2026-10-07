@@ -21,7 +21,7 @@ a name you set by hand is kept.
 
 ## Info panel (`prefix+ctrl+g`)
 
-Two views, toggled with `a`:
+Three views: conversation (default), agents (`a`), espace (`e`):
 
 - **Conversation** (the tab's agent): state and title, then sections
   `Compte` (account in its color, model, quota/context), `Projet` (full local path of the git root, sub-folder if any,
@@ -31,6 +31,10 @@ Two views, toggled with `a`:
   `RTK` (savings recorded by RTK under the project folder: last 24 h and total),
   `Subagents`, `Tâches`. Cost appears only once usage is billed past the plan
   quota. Keys: `t` tasks, `d` done tasks, `s` subagents, `g` git, `u` usage, `r` RTK.
+- **Espace** (`e`): every project of the space selected in herdr — agents
+  grouped by git work tree, with branch and git state, open PRs (from the
+  `gh-pr` plugin's token, no API call), running services and their URLs, and
+  each agent's state.
 - **Agents** (the space selected in herdr; `A` for all spaces): grouped
   `‼ bloqués`, `◐ en cours`, `✓ terminés`, `○ en attente`; `1`-`4` fold a group.
 

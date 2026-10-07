@@ -211,3 +211,16 @@ def test_finished_subagents_are_hidden(monkeypatch):
 def test_no_subagent_section_when_all_finished(monkeypatch):
     monkeypatch.setattr(info, "subagents_for", lambda s: [(False, "explore", "done")])
     assert info.section_subagents(info.cutter(60), 60, "s") == []
+
+
+def test_projects_of_groups_agents_by_git_root(tmp_path, monkeypatch):
+    monkeypatch.setattr(info, "ALLOWED_ROOTS", (str(tmp_path),))
+    app, other = tmp_path / "app", tmp_path / "notes"
+    (app / "src").mkdir(parents=True)
+    other.mkdir()
+    subprocess.run(["git", "-C", str(app), "init", "-q"], check=True)
+    agents = [{"pane_id": "1", "cwd": str(app / "src")}, {"pane_id": "2", "cwd": str(app)},
+              {"pane_id": "3", "cwd": str(other)}, {"pane_id": "4", "cwd": "/etc"}]
+    projects = info.projects_of(agents)
+    assert {k: [a["pane_id"] for a in v] for k, v in projects.items()} == {
+        str(app): ["1", "2"], str(other): ["3"]}
