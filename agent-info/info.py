@@ -232,6 +232,20 @@ def cached_git_summary(root):
     return monitor.git_summary(root)
 
 
+def services_summary(cut, width, root):
+    """"● 5 services  http://… http://…" for a git project, or nothing."""
+    if not project_root(root):
+        return []
+    boxes, procs = services.services(root)
+    count = sum(b["state"] == "running" for b in boxes) + len(procs)
+    if not count:
+        return []
+    urls = [u for b in boxes if b["state"] == "running" for u in b["urls"]] + [p["url"] for p in procs]
+    shown = f"  {C['dir']}{cut(' '.join(urls[:2]), width - 18)}{C['r']}" if urls else ""
+    plural = "s" if count > 1 else ""
+    return [f"  {C['ok']}● {count} service{plural}{C['r']}{shown}"]
+
+
 def project_block(cut, width, root, members):
     """One project of the space: name, git, PRs, running services, agents."""
     name = os.path.basename(root) or root
@@ -242,13 +256,7 @@ def project_block(cut, width, root, members):
     prs = sorted({safe((a.get("tokens") or {}).get("pr", "")) for a in members} - {""})
     if prs:
         lines.append(f"  {C['dir']}PR {cut(' '.join(prs), width - 7)}{C['r']}")
-    if project_root(root):
-        boxes, procs = services.services(root)
-        up = [b for b in boxes if b["state"] == "running"]
-        urls = [u for b in up for u in b["urls"]] + [p["url"] for p in procs]
-        if up or procs:
-            lines.append(f"  {C['ok']}● {len(up) + len(procs)} service{'s' if len(up) + len(procs) > 1 else ''}{C['r']}"
-                         + (f"  {C['dir']}{cut(' '.join(urls[:2]), width - 18)}{C['r']}" if urls else ""))
+    lines += services_summary(cut, width, root)
     for agent in members:
         status = agent.get("agent_status", "")
         who = safe(agent.get("name") or agent.get("terminal_title_stripped") or agent["pane_id"])
