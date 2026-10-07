@@ -239,6 +239,20 @@ def read_footer(session):
         return {}
 
 
+def plan_line(tokens):
+    """usagebar packs "<window> <left%> · <context%>" into $context: label both parts."""
+    raw = safe(tokens.get("context") or "")
+    if not raw:
+        return ""
+    window, _, context = raw.partition(" · ")
+    parts = []
+    if window:
+        parts.append(f"{C['dim']}quota restant{C['r']} {window}")
+    if context:
+        parts.append(f"{C['dim']}contexte{C['r']} {context}")
+    return "   ".join(parts)
+
+
 def section_account(cut, width, account, kind, model, tokens):
     lines = [header("Compte", width),
              f"{account_color(account)}● {safe(account or kind)}{C['r']}  {C['mod']}{safe(model or '?')}{C['r']}"]
@@ -305,16 +319,20 @@ GIT_LABELS = (("ahead", "↑", "à pousser"), ("behind", "↓", "à tirer"), ("s
 def git_lines(cut, width, details):
     branch, counts, shortstat = details
     clean = not any(counts.values())
-    state = f"  {C['ok']}{SYM['done']} propre{C['r']}" if clean else ""
-    lines = [f"{C['mod']}{SYM.get('branch', '⑂')} {cut(branch, width - 4)}{C['r']}{state}"]
+    parts = [f"{C['mod']}{SYM.get('branch', '⑂')} {cut(branch, width // 2)}{C['r']}"]
+    if clean:
+        parts.append(f"{C['ok']}{SYM['done']} propre{C['r']}")
     for key, symbol, label in GIT_LABELS:
         if counts[key]:
             color = C["warn"] if key == "behind" else C["yel"]
-            lines.append(f"  {color}{symbol}{counts[key]}{C['r']} {C['dim']}{label}{C['r']}")
+            parts.append(f"{color}{symbol}{counts[key]}{C['r']} {C['dim']}{label}{C['r']}")
     if shortstat:
         added, removed, rest = shortstat.split(" ", 2)
-        lines.append(f"  {C['ok']}{added}{C['r']} {C['warn']}{removed}{C['r']} {C['dim']}{rest}{C['r']}")
-    return lines
+        parts.append(f"{C['ok']}{added}{C['r']} {C['warn']}{removed}{C['r']} {C['dim']}{rest}{C['r']}")
+    joined = "  ".join(parts)
+    if len(ANSI.sub("", joined)) <= width - 1:
+        return [joined]
+    return [parts[0]] + [f"  {part}" for part in parts[1:]]
 
 
 def project_root(cwd):
@@ -424,9 +442,8 @@ def human(n):
 def rtk_line(label, stats):
     commands, sent, saved = stats
     rate = saved / sent if sent else 0
-    color = level_color(1 - rate)
-    return (f"{C['dim']}{label:<6}{C['r']}{color}{rate:.0%}{C['r']} "
-            f"{C['dim']}· {human(saved)} économisés · {commands} cmd{C['r']}")
+    return (f"{C['dim']}{label}{C['r']} {level_color(1 - rate)}{rate:.0%}{C['r']} "
+            f"{C['dim']}({human(saved)} économisés, {commands} cmd){C['r']}")
 
 
 STATE_STYLE = {"running": "ok", "restarting": "yel", "paused": "yel", "created": "dim",
@@ -526,16 +543,29 @@ def section_services(cut, width, cwd):
         return []
     running = sum(b["state"] == "running" for b in boxes) + len(procs)
     lines = [header("Services", width, f"{running} actifs")]
-    for box in boxes:
-        color = C[STATE_STYLE.get(box["state"], "dim")]
-        health = "" if box["health"] in ("none", "") else f" · {safe(box['health'])}"
-        lines.append(f"{color}● {cut(box['name'], width - 22)}{C['r']} "
-                     f"{C['dim']}{safe(box['status'])}{health}{C['r']}")
-        for url in box["urls"]:
-            lines.append(f"  {C['dir']}{cut(url, width - 4)}{C['r']}")
+    order = {"running": 0, "restarting": 1, "paused": 2}
+    rows = []
+    for box in sorted(boxes, key=lambda b: (order.get(b["state"], 9), b["name"])):
+        health = "" if box["health"] in ("none", "") else f" {safe(box['health'])}"
+        rows.append((STATE_STYLE.get(box["state"], "dim"), safe(box["name"]),
+                     safe(box["status"]) + health, box["urls"]))
     for proc in procs:
-        lines.append(f"{C['ok']}● {cut(proc['name'], width - 12)}{C['r']} {C['dim']}pid {proc['pid']}{C['r']}")
-        lines.append(f"  {C['dir']}{cut(proc['url'], width - 4)}{C['r']}")
+        rows.append(("ok", safe(proc["name"]), f"pid {proc['pid']}", [proc["url"]]))
+    name_w = min(max(len(r[1]) for r in rows), max(8, width // 3))
+    status_w = min(max(len(r[2]) for r in rows), 18)
+    for style, name, status, urls in rows:
+        faded = C["dim"] if style in ("dim", "warn") else ""
+        line = (f"{C[style]}●{C['r']} {faded}{cut(name, name_w).ljust(name_w)}{C['r']}"
+                f"  {C['dim']}{status[:status_w].ljust(status_w)}{C['r']}")
+        first = urls[0] if urls else ""
+        if first and len(first) <= width - 6 - name_w - status_w:
+            lines.append(f"{line}  {C['dir']}{first}{C['r']}")
+        else:
+            lines.append(line)
+            if first:
+                lines.append(f"    {C['dir']}{cut(first, width - 6)}{C['r']}")
+        for extra in urls[1:]:
+            lines.append(f"    {C['dir']}{cut(extra, width - 6)}{C['r']}")
     return lines + [""]
 
 
@@ -549,10 +579,11 @@ def section_rtk(width, cwd):
         return []
     since = (datetime.now(timezone.utc) - timedelta(hours=24)).replace(microsecond=0).isoformat()
     day = rtk_stats(root, since)
+    parts = [rtk_line("24 h", day)] if day and day[0] else []
+    parts.append(rtk_line("total", total))
+    joined = "   ".join(parts)
     lines = [header("RTK", width)]
-    if day and day[0]:
-        lines.append(rtk_line("24 h", day))
-    lines.append(rtk_line("total", total))
+    lines += [joined] if len(ANSI.sub("", joined)) <= width - 2 else parts
     return lines + [""]
 
 
@@ -595,16 +626,31 @@ def color_usage(segment):
     return f"{C['dim']} · {C['r']}".join(color_metric(part) for part in parts)
 
 
+def label_usage(segment):
+    """Prefix an llmtrim segment with what it measures, coloured by its own value."""
+    text = safe(segment)
+    if "▓" in text or "░" in text:
+        return f"{C['dim']}contexte{C['r']} {color_usage(text)}"
+    names = {"✂": "économies", "◔": "quota utilisé", "♻": "cache"}
+    mark = text[:1]
+    if mark in names:
+        body = text[1:].strip().replace(" cached", "")
+        return f"{C['dim']}{names[mark]}{C['r']} {color_usage(mark + ' ' + body)}"
+    return color_usage(text)
+
+
 def section_usage(cut, width, footer, tokens):
     usage = footer.get("usage", []) if VIEW["usage"] else []
     if not usage:
         return []
     age = int(time.time() - footer["ts"]) if footer.get("ts") else 0
     lines = [header("Conso", width, f"{age}s" if age > 30 else "")]
-    if sum(len(safe(u)) for u in usage) + 3 * (len(usage) - 1) <= width - 2:
-        lines.append("   ".join(color_usage(u) for u in usage))
+    labelled = [label_usage(u) for u in usage]
+    joined = "   ".join(labelled)
+    if len(ANSI.sub("", joined)) <= width - 2:
+        lines.append(joined)
     else:
-        lines += [color_usage(cut(u)) for u in usage]
+        lines += labelled
     if footer.get("cost") is not None and monitor.is_billed(tokens):
         lines.append(f"{C['warn']}hors quota{C['r']}  ${footer['cost']:.2f}")
     return lines + [""]
@@ -656,8 +702,12 @@ def render_conversation(width):
     cwd = conversation_dir(agent, footer)
     title = cut(agent.get("terminal_title_stripped") or kind, width - 14)
     lines = [f"{state_color(status)}{ICON.get(status, status)}{C['r']}  {C['b']}{title}{C['r']}",
-             f"{C['dim']}{safe(agent.get('name') or agent['pane_id'])}{C['r']}", ""]
-    lines += section_account(cut, width, account, kind, model, tokens)
+             f"{account_color(account)}● {safe(account or kind)}{C['r']}  {C['mod']}{safe(model or '?')}{C['r']}"
+             f"  {C['dim']}{safe(agent.get('name') or agent['pane_id'])}{C['r']}"]
+    plan = plan_line(tokens)
+    if plan:
+        lines.append(plan)
+    lines.append("")
     lines += section_project(cut, width, cwd)
     lines += section_worktrees(cut, width, cwd)
     lines += section_services(cut, width, cwd)
