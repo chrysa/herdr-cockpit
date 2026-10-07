@@ -15,6 +15,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import select
 import termios
 import time
@@ -440,6 +441,14 @@ def agents_by_worktree(trees, agents, labels):
     return by_tree
 
 
+SCRATCH_ROOT = os.path.realpath(tempfile.gettempdir())
+
+
+def is_scratch(path):
+    """Throw-away work trees (agent scratch copies under the system temp dir); read-only check."""
+    return os.path.realpath(path).startswith(SCRATCH_ROOT + os.sep)
+
+
 def section_worktrees(cut, width, cwd):
     """Every work tree of the repository, the current one highlighted (only when there are several)."""
     if not VIEW["git"]:
@@ -455,12 +464,18 @@ def section_worktrees(cut, width, cwd):
         agents, labels = [], {}
     busy = agents_by_worktree(trees, agents, labels)
     lines = [header("Worktrees", width, str(len(trees)))]
+    hidden = 0
     for path, branch, current in trees:
+        if is_scratch(path) and not current and not busy.get(path):
+            hidden += 1
+            continue
         mark, color = ("▶", C["ok"]) if current else (" ", C["dim"])
         lines.append(f"{color}{mark} {cut(branch or '?', width - 4)}{C['r']}")
         lines.append(f"{C['dim']}  {cut(path.replace(monitor.HOME, '~'), width - 4)}{C['r']}")
         for who in busy.get(path, []):
             lines.append(f"  {C['mod']}◐ {cut(who, width - 6)}{C['r']}")
+    if hidden:
+        lines.append(f"{C['dim']}  +{hidden} temporaire{'s' if hidden > 1 else ''}{C['r']}")
     return lines + [""]
 
 

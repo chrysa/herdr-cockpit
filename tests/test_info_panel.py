@@ -174,3 +174,8 @@ def test_agents_by_worktree(tmp_path, monkeypatch):
               {"name": "other", "cwd": str(feat), "workspace_id": "w2"}]
     busy = info.agents_by_worktree(trees, agents, {"w1": "padam-av", "w2": "chrysa"})
     assert busy == {str(main): ["padam-av-x"], str(feat): ["other (chrysa)"]}
+
+
+def test_is_scratch():
+    assert info.is_scratch(info.tempfile.gettempdir() + "/claude-1000/x")
+    assert not info.is_scratch("/home/u/projects/app")
