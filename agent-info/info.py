@@ -581,8 +581,19 @@ def read_key(timeout):
     return sys.stdin.read(1) if ready else None
 
 
+SOURCES = [os.path.abspath(__file__), os.path.abspath(monitor.__file__)]
+
+
+def sources_mtime():
+    try:
+        return max(os.path.getmtime(path) for path in SOURCES)
+    except OSError:
+        return 0
+
+
 def main():
     load_ui()
+    started = sources_mtime()
     flag = None
     interactive = sys.stdin.isatty()
     saved = termios.tcgetattr(sys.stdin) if interactive else None
@@ -606,6 +617,11 @@ def main():
             sys.stdout.write("\033[H\033[2J" + "\n".join(lines))
             sys.stdout.flush()
             key = read_key(REFRESH_S) if interactive else time.sleep(REFRESH_S)
+            if sources_mtime() > started:
+                # code updated (git pull, cockpit setup): restart in place to pick it up
+                if saved:
+                    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, saved)
+                os.execv(sys.executable, [sys.executable, os.path.abspath(__file__)])
             if key == "q":
                 break
             if key == "a":
