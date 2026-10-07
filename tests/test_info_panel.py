@@ -126,13 +126,14 @@ def test_conversation_dir_prefers_status_line(tmp_path):
     real.mkdir()
     pane.mkdir()
     agent = {"cwd": str(pane), "foreground_cwd": str(pane)}
-    assert info.conversation_dir(agent, {"dir": str(real)}) == str(real.resolve())
-    assert info.conversation_dir(agent, {"dir": "/does/not/exist"}) == str(pane.resolve())
-    assert info.conversation_dir(agent, {}) == str(pane.resolve())
+    assert info.conversation_dir(agent, {"dir": str(real)}) == str(real)
+    assert info.conversation_dir(agent, {"dir": "/does/not/exist"}) == str(pane)
+    assert info.conversation_dir(agent, {}) == str(pane)
 
 
 def test_safe_dir_rejects_option_like_and_relative_paths(tmp_path):
-    assert info.safe_dir(str(tmp_path)) == str(tmp_path.resolve())
+    assert info.safe_dir(str(tmp_path)) == str(tmp_path)
+    assert info.safe_dir("/etc") == ""
     assert info.safe_dir("--output=/etc/passwd") == ""
     assert info.safe_dir("relative/dir") == ""
     assert info.safe_dir(str(tmp_path) + "\x1b[2J") == ""

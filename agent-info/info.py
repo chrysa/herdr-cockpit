@@ -192,17 +192,26 @@ def render(width):
     return render_agents(width) if UI["mode"] == "agents" else render_conversation(width)
 
 
+ALLOWED_ROOTS = tuple(os.path.normpath(p) for p in (os.path.expanduser("~"), "/tmp"))
+
+
 def safe_dir(path):
     """Absolute, normalised, existing directory, or "".
 
     Paths come from files other processes write (status line state) and end
-    up as `git -C <path>`: reject relative paths, control characters and
-    anything git could read as an option, and return the resolved path.
+    up as `git -C <path>`: only absolute paths under the home directory or
+    /tmp, without control characters, are accepted (so nothing git could
+    read as an option, and no probing of the rest of the filesystem).
     """
     if not isinstance(path, str) or not path.startswith("/") or CONTROL.search(path):
         return ""
-    resolved = os.path.realpath(path)
-    return resolved if os.path.isdir(resolved) else ""
+    normalised = os.path.normpath(path)
+    allowed = next((base for base in ALLOWED_ROOTS
+                    if normalised == base or normalised.startswith(base + os.sep)), None)
+    if allowed is None:
+        return ""
+    candidate = os.path.join(allowed, os.path.relpath(normalised, allowed))
+    return candidate if os.path.isdir(candidate) else ""
 
 
 def conversation_dir(agent, footer):
