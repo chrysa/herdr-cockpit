@@ -200,7 +200,8 @@ def theme_name(agent, space_label):
             break
         name = f"{name}-{word}"
     if name == space:
-        name = f"{space}-{words[0][:27 - len(space)]}"
+        first = words[0] if words else "main"
+        name = f"{space}-{first[:27 - len(space)]}"
     if not name[0].isalpha():
         name = "a" + name[:31]
     return name

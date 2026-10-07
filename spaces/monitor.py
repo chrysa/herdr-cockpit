@@ -407,33 +407,37 @@ def cmd_ensure():
     )
 
 
-def cmd_daemon():
-    lock = claim_pidfile()
-    if not lock:
-        return
-    state = {"ws": {}, "pane": {}, "cache": {}}
-    failures = 0
-    socket_misses = 0
+def run_loop(state):
+    """Publish rounds until the server goes away, errors repeat, or the
+    shared cockpit daemon takes over."""
+    failures = socket_misses = 0
     while True:
         if SOCKET_PATH and not os.path.exists(SOCKET_PATH):
             socket_misses += 1
             if socket_misses >= 3:
-                break
+                return
             time.sleep(10)
             continue
         socket_misses = 0
         if cockpit_daemon_alive():
-            break  # the shared cockpit daemon renders spaces now
+            return  # the shared cockpit daemon renders spaces now
         try:
             publish_round(state)
             failures = 0
         except Exception:
             failures += 1
             if failures >= 3:
-                break
+                return
             time.sleep(10)
             continue
         time.sleep(POLL_S)
+
+
+def cmd_daemon():
+    lock = claim_pidfile()
+    if not lock:
+        return
+    run_loop({"ws": {}, "pane": {}, "cache": {}})
     lock.close()
     try:
         os.remove(PIDFILE)
