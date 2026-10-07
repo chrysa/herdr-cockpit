@@ -564,24 +564,30 @@ def worktrees(cwd):
     if out.returncode != 0:
         return []
     here = os.path.realpath(project_root(cwd) or cwd)
-    PRUNABLE[here] = 0
-    found, path, branch, prunable = [], None, "", False
-    for line in out.stdout.splitlines() + [""]:
-        if line.startswith("prunable"):
-            prunable = True
+    records = parse_worktree_list(out.stdout)
+    PRUNABLE[here] = sum(r["prunable"] for r in records)
+    return [(safe(r["path"]), safe(r["branch"]), os.path.realpath(r["path"]) == here)
+            for r in records if not r["prunable"]]
+
+
+def parse_worktree_list(porcelain):
+    """`git worktree list --porcelain` -> [{path, branch, prunable}]."""
+    records, current = [], {}
+    for line in porcelain.splitlines() + [""]:
+        if not line:
+            if current.get("path"):
+                records.append({"path": current["path"], "branch": current.get("branch", ""),
+                                "prunable": current.get("prunable", False)})
+            current = {}
         elif line.startswith("worktree "):
-            path = line[len("worktree "):]
+            current["path"] = line[len("worktree "):]
         elif line.startswith("branch "):
-            branch = line[len("branch "):].removeprefix("refs/heads/")
+            current["branch"] = line[len("branch "):].removeprefix("refs/heads/")
         elif line == "detached":
-            branch = "(détaché)"
-        elif not line and path:
-            if prunable:
-                PRUNABLE[here] = PRUNABLE.get(here, 0) + 1
-            else:
-                found.append((safe(path), safe(branch), os.path.realpath(path) == here))
-            path, branch, prunable = None, "", False
-    return found
+            current["branch"] = "(détaché)"
+        elif line.startswith("prunable"):
+            current["prunable"] = True
+    return records
 
 
 def agents_by_worktree(trees, agents, labels):
@@ -606,6 +612,13 @@ def is_scratch(path):
     return os.path.realpath(path).startswith(SCRATCH_ROOT + os.sep)
 
 
+def worktree_lines(cut, width, path, branch, current, workers):
+    mark, color = ("▶", C["ok"]) if current else (" ", C["dim"])
+    lines = [f"{color}{mark} {cut(branch or '?', width - 4)}{C['r']}",
+             f"{C['dim']}  {cut(path.replace(monitor.HOME, '~'), width - 4)}{C['r']}"]
+    return lines + [f"  {C['mod']}◐ {cut(who, width - 6)}{C['r']}" for who in workers]
+
+
 def section_worktrees(cut, width, cwd):
     """Every work tree of the repository, the current one highlighted (only when there are several)."""
     if not VIEW["git"]:
@@ -622,16 +635,10 @@ def section_worktrees(cut, width, cwd):
         agents, labels = [], {}
     busy = agents_by_worktree(trees, agents, labels)
     lines = [header("Worktrees", width, str(len(trees)))]
-    hidden = 0
-    for path, branch, current in trees:
-        if is_scratch(path) and not current and not busy.get(path):
-            hidden += 1
-            continue
-        mark, color = ("▶", C["ok"]) if current else (" ", C["dim"])
-        lines.append(f"{color}{mark} {cut(branch or '?', width - 4)}{C['r']}")
-        lines.append(f"{C['dim']}  {cut(path.replace(monitor.HOME, '~'), width - 4)}{C['r']}")
-        for who in busy.get(path, []):
-            lines.append(f"  {C['mod']}◐ {cut(who, width - 6)}{C['r']}")
+    shown = [t for t in trees if not (is_scratch(t[0]) and not t[2] and not busy.get(t[0]))]
+    hidden = len(trees) - len(shown)
+    for path, branch, current in shown:
+        lines += worktree_lines(cut, width, path, branch, current, busy.get(path, []))
     if hidden:
         lines.append(f"{C['dim']}  +{hidden} temporaire{'s' if hidden > 1 else ''}{C['r']}")
     if stale:
