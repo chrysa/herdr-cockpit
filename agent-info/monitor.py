@@ -174,14 +174,20 @@ def slug(text):
     return re.sub(r"[^a-z0-9]+", "-", text).strip("-")
 
 
-def theme_name(agent, space_label):
-    """<space>-<theme>, e.g. padam-av-eisenhower; valid herdr agent name."""
+def space_slug(space_label):
+    """Name prefix for a space: "Forge-Stack-Workshop" -> "forge", "padam-av" -> "padam-av"."""
     space = "agent"
     for i, part in enumerate(slug(space_label or "").split("-")):
         candidate = part if i == 0 else f"{space}-{part}"
         if i and len(candidate) > 10:
             break
         space = candidate[:10] if i == 0 else candidate
+    return space
+
+
+def theme_name(agent, space_label):
+    """<space>-<theme>, e.g. padam-av-eisenhower; valid herdr agent name."""
+    space = space_slug(space_label)
     title = (agent.get("terminal_title_stripped") or "").strip()
     words = [w for w in slug(title).split("-") if w and w not in STOPWORDS]
     folder = [w for w in slug(os.path.basename(agent.get("cwd") or "")).split("-")
@@ -211,6 +217,16 @@ def load_named():
         return {}
 
 
+def is_auto_name(name, space):
+    """True when name carries the space prefix auto_rename gives (`<space>-…`).
+
+    herdr restores agent names after a server restart while named.json may not
+    know them, and the topic may have changed since; the prefix is what
+    tells our names apart from hand-given ones.
+    """
+    return name == space or name.startswith(space + "-")
+
+
 def auto_rename(agents, named, workspaces=None):
     """Name every agent after its space and topic, unless the user named it."""
     if workspaces is None:
@@ -219,9 +235,10 @@ def auto_rename(agents, named, workspaces=None):
     taken = {a.get("name") for a in agents if a.get("name")}
     for agent in agents:
         pane_id, current = agent["pane_id"], agent.get("name")
-        if current and named.get(pane_id) != current:
-            continue  # named by hand: leave it
         wanted = theme_name(agent, labels.get(agent["workspace_id"]))
+        space = space_slug(labels.get(agent["workspace_id"]))
+        if current and named.get(pane_id) != current and not is_auto_name(current, space):
+            continue  # named by hand: leave it
         base, n = wanted, 2
         while wanted in taken and wanted != current:
             wanted = f"{base[:29]}-{n}"
