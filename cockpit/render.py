@@ -13,9 +13,18 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 PLACEHOLDER = re.compile(r"\{\{\s*([a-z_]+)\.([a-z_]+)\s*\}\}")
 
 
+def rgb(hex_color):
+    """"#89b4fa" -> "137;180;250", for \\033[38;2;<rgb>m."""
+    value = hex_color.lstrip("#")
+    return ";".join(str(int(value[i:i + 2], 16)) for i in (0, 2, 4))
+
+
 def load_palette(path=os.path.join(ROOT, "palette.toml")):
     with open(path, "rb") as fh:
-        return tomllib.load(fh)
+        palette = tomllib.load(fh)
+    palette["rgb"] = {k: rgb(v) for k, v in palette["colors"].items() if isinstance(v, str)}
+    palette["acc_rgb"] = {k: rgb(v) for k, v in palette["accounts"].items()}
+    return palette
 
 
 def render(template, palette):

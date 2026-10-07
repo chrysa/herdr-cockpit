@@ -28,11 +28,40 @@ SUBAGENT_MAX = 6
 STATE = os.path.expanduser("~/.local/state/chrysa.agent-info")
 STATUS_DIR = os.path.join(STATE, "status")    # written by statusline.sh
 VISIBLE_DIR = os.path.join(STATE, "visible")  # read by statusline.sh
-ICON = {"working": "◐ en cours", "blocked": "‼ bloqué", "done": "✓ terminé", "idle": "○ en attente"}
-C = {"dim": "\033[2m", "acc": "\033[1;38;2;249;226;175m", "mod": "\033[38;2;203;166;247m",
-     "dir": "\033[38;2;137;180;250m", "ok": "\033[38;2;166;227;161m",
-     "warn": "\033[38;2;243;139;168m", "yel": "\033[33m", "b": "\033[1m", "r": "\033[0m"}
-TASK_ICON = {"in_progress": C["ok"] + "▶", "pending": C["dim"] + "☐", "completed": C["dim"] + "✓"}
+PALETTE_FILE = os.path.expanduser("~/.local/state/chrysa.cockpit/rendered/palette.json")
+
+
+def load_palette():
+    """Cockpit palette (shared with the sidebar and the status line), or defaults."""
+    try:
+        with open(PALETTE_FILE) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {"rgb": {"blue": "137;180;250", "green": "166;227;161", "yellow": "249;226;175",
+                        "red": "243;139;168", "mauve": "203;166;247", "overlay": "147;153;178"},
+                "accounts": {"perso": "249;226;175", "pro": "137;220;235",
+                             "codex": "166;227;161", "other": "147;153;178"},
+                "symbols": {"working": "◐", "blocked": "‼", "done": "✓", "idle": "○"}}
+
+
+PALETTE = load_palette()
+SYM = PALETTE["symbols"]
+ICON = {"working": f"{SYM['working']} en cours", "blocked": f"{SYM['blocked']} bloqué",
+        "done": f"{SYM['done']} terminé", "idle": f"{SYM['idle']} en attente"}
+
+
+def fg(rgb, bold=False):
+    return f"\033[{'1;' if bold else ''}38;2;{rgb}m"
+
+
+C = {"dim": "\033[2m", "mod": fg(PALETTE["rgb"]["mauve"]), "dir": fg(PALETTE["rgb"]["blue"]),
+     "ok": fg(PALETTE["rgb"]["green"]), "warn": fg(PALETTE["rgb"]["red"]),
+     "yel": fg(PALETTE["rgb"]["yellow"]), "b": "\033[1m", "r": "\033[0m"}
+TASK_ICON = {"in_progress": C["ok"] + "▶", "pending": C["dim"] + "☐", "completed": C["dim"] + SYM["done"]}
+
+
+def account_color(account):
+    return fg(PALETTE["accounts"].get(account, PALETTE["accounts"]["other"]), bold=True)
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
 
@@ -139,7 +168,7 @@ def render(width):
     lines = [f"{C['b']}{cut(agent.get('terminal_title_stripped') or kind)}{C['r']}",
              f"{color}{ICON.get(status, status)}{C['r']}", ""]
 
-    lines.append(f"{C['acc']}● {safe(account or kind)}{C['r']}  {C['mod']}{safe(model or '?')}{C['r']}")
+    lines.append(f"{account_color(account)}● {safe(account or kind)}{C['r']}  {C['mod']}{safe(model or '?')}{C['r']}")
     if tokens.get("limit"):
         lines.append(f"  {C['dim']}{cut(tokens['limit'])}{C['r']}")
     if tokens.get("context"):

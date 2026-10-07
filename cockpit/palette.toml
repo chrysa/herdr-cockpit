@@ -13,6 +13,15 @@ pink = "#f5c2e7"
 sky = "#89dceb"
 overlay = "#9399b2"
 
+# Neutral surfaces (opencode theme, info bar text).
+text = "#cdd6f4"
+subtext = "#a6adc8"
+surface = "#313244"
+surface_high = "#45475a"
+base = "#1e1e2e"
+mantle = "#181825"
+crust = "#11111b"
+
 # Project color slots, in order (chrysa.spaces assigns one per ecosystem).
 slots = ["blue", "green", "yellow", "red", "mauve", "peach", "teal", "pink"]
 
@@ -27,3 +36,16 @@ other = "#9399b2"
 done = "green"
 subagents = "sky"
 muted = "overlay"
+
+# One symbol set for every surface.
+[symbols]
+working = "◐"
+blocked = "‼"
+done = "✓"
+idle = "○"
+branch = "⑂"
+ahead = "↑"
+behind = "↓"
+staged = "+"
+changed = "~"
+untracked = "?"

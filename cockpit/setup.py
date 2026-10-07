@@ -25,6 +25,7 @@ import render  # noqa: E402
 ROOT = os.path.dirname(os.path.abspath(__file__))
 HOME = os.path.expanduser("~")
 CONFIG = "config.toml"
+DOT_CONFIG = ".config"
 PLUGINS = ("chrysa.spaces", "chrysa.agent-info")
 UNITS = ("herdr-config-reload.path", "herdr-config-reload.service",
          "herdr-logrotate.service", "herdr-logrotate.timer")
@@ -37,8 +38,8 @@ class Paths:
         self.state = os.path.join(home, ".local", "state", "chrysa.cockpit")
         self.rendered = os.path.join(self.state, "rendered")
         self.bin = os.path.join(self.state, "bin")
-        self.herdr_config = os.path.join(home, ".config", "herdr", CONFIG)
-        self.units = os.path.join(home, ".config", "systemd", "user")
+        self.herdr_config = os.path.join(home, DOT_CONFIG, "herdr", CONFIG)
+        self.units = os.path.join(home, DOT_CONFIG, "systemd", "user")
         self.backups = os.path.join(self.state, "backups", time.strftime("%Y%m%d-%H%M%S"))
 
     def claude_dirs(self):
@@ -142,6 +143,30 @@ class Setup:
             if not active and self.change(f"enable {unit}"):
                 self.run(["systemctl", "--user", "enable", "--now", unit], check=False)
 
+    def install_opencode_theme(self):
+        """Link the rendered theme into opencode and select it in tui.json(c)."""
+        config_dir = os.path.join(self.p.home, DOT_CONFIG, "opencode")
+        if not os.path.isdir(config_dir):
+            return
+        self.link(os.path.join(config_dir, "themes", "chrysa-cockpit.json"),
+                  os.path.join(self.p.rendered, "opencode-theme.json"))
+        for name in ("tui.json", "tui.jsonc"):
+            path = os.path.join(config_dir, name)
+            if not os.path.exists(path):
+                continue
+            try:
+                with open(path) as fh:
+                    tui = json.load(fh)
+            except ValueError:
+                return  # comments or trailing commas: leave the user's file alone
+            if tui.get("theme") != "chrysa-cockpit" and self.change(f"opencode theme in {path}"):
+                self.backup(path)
+                tui["theme"] = "chrysa-cockpit"
+                with open(path, "w") as fh:
+                    json.dump(tui, fh, indent=2)
+                    fh.write("\n")
+            return
+
     def enable_plugins(self):
         out = self.run(["herdr", "plugin", "list", "--json"], capture_output=True, text=True, check=False)
         data = json.loads(out.stdout or "{}")
@@ -158,6 +183,7 @@ class Setup:
         self.install_config()
         self.install_statusline()
         self.install_units(palette)
+        self.install_opencode_theme()
         self.enable_plugins()
         if self.changes and not self.dry_run:
             self.run(["herdr", "server", "reload-config"], check=False, capture_output=True)
