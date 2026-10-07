@@ -195,14 +195,14 @@ def theme_name(agent, space_label):
     if title.lower() in GENERIC_TITLES or not words:
         words = folder or ["main"]
     name = space
-    for word in words[:2]:
-        if len(f"{name}-{word}") > 28:
+    for count, word in enumerate(words):
+        if count == 2 or len(f"{name}-{word}") > 28:
             break
         name = f"{name}-{word}"
     if name == space:
-        first = words[0] if words else "main"
+        first = next(iter(words), "main")
         name = f"{space}-{first[:27 - len(space)]}"
-    if not name[0].isalpha():
+    if not name[:1].isalpha():
         name = "a" + name[:31]
     return name
 
