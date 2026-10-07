@@ -487,11 +487,13 @@ def path_lines(cut, width, cwd):
     return lines
 
 
-def section_project(cut, width, cwd):
+def section_project(cut, width, cwd, pr=""):
     lines = [header("Projet", width)] + path_lines(cut, width, cwd)
     if VIEW["git"] and cwd:
         details = git_details(cwd)
         lines += git_lines(cut, width, details) if details else [f"{C['dim']}pas un dépôt git{C['r']}"]
+    if pr:
+        lines.append(f"{C['dir']}PR {cut(safe(pr), width - 4)}{C['r']}")
     return lines + [""]
 
 
@@ -536,6 +538,19 @@ STATE_STYLE = {"running": "ok", "restarting": "yel", "paused": "yel", "created":
                "exited": "warn", "dead": "warn"}
 
 
+PRUNABLE = {}  # repo root -> work trees whose directory is gone (filled by worktrees())
+
+
+def prune_worktrees(cwd):
+    """`git worktree prune`: drops only the records of work trees whose directory no longer exists."""
+    root = project_root(cwd)
+    if not root:
+        return False
+    out = subprocess.run(["git", "-C", root, "worktree", "prune"], capture_output=True, text=True, timeout=10)
+    PRUNABLE.pop(os.path.realpath(root), None)
+    return out.returncode == 0
+
+
 def worktrees(cwd):
     """[(path, branch, is_current)] for the git work trees of cwd's repository."""
     cwd = safe_dir(cwd)
@@ -549,18 +564,30 @@ def worktrees(cwd):
     if out.returncode != 0:
         return []
     here = os.path.realpath(project_root(cwd) or cwd)
-    found, path, branch = [], None, ""
-    for line in out.stdout.splitlines() + [""]:
-        if line.startswith("worktree "):
-            path = line[len("worktree "):]
+    records = parse_worktree_list(out.stdout)
+    PRUNABLE[here] = sum(r["prunable"] for r in records)
+    return [(safe(r["path"]), safe(r["branch"]), os.path.realpath(r["path"]) == here)
+            for r in records if not r["prunable"]]
+
+
+def parse_worktree_list(porcelain):
+    """`git worktree list --porcelain` -> [{path, branch, prunable}]."""
+    records, current = [], {}
+    for line in porcelain.splitlines() + [""]:
+        if not line:
+            if current.get("path"):
+                records.append({"path": current["path"], "branch": current.get("branch", ""),
+                                "prunable": current.get("prunable", False)})
+            current = {}
+        elif line.startswith("worktree "):
+            current["path"] = line[len("worktree "):]
         elif line.startswith("branch "):
-            branch = line[len("branch "):].removeprefix("refs/heads/")
+            current["branch"] = line[len("branch "):].removeprefix("refs/heads/")
         elif line == "detached":
-            branch = "(détaché)"
-        elif not line and path:
-            found.append((safe(path), safe(branch), os.path.realpath(path) == here))
-            path, branch = None, ""
-    return found
+            current["branch"] = "(détaché)"
+        elif line.startswith("prunable"):
+            current["prunable"] = True
+    return records
 
 
 def agents_by_worktree(trees, agents, labels):
@@ -585,12 +612,20 @@ def is_scratch(path):
     return os.path.realpath(path).startswith(SCRATCH_ROOT + os.sep)
 
 
+def worktree_lines(cut, width, path, branch, current, workers):
+    mark, color = ("▶", C["ok"]) if current else (" ", C["dim"])
+    lines = [f"{color}{mark} {cut(branch or '?', width - 4)}{C['r']}",
+             f"{C['dim']}  {cut(path.replace(monitor.HOME, '~'), width - 4)}{C['r']}"]
+    return lines + [f"  {C['mod']}◐ {cut(who, width - 6)}{C['r']}" for who in workers]
+
+
 def section_worktrees(cut, width, cwd):
     """Every work tree of the repository, the current one highlighted (only when there are several)."""
     if not VIEW["git"]:
         return []
     trees = worktrees(cwd)
-    if len(trees) < 2:
+    stale = PRUNABLE.get(os.path.realpath(project_root(cwd) or cwd), 0)
+    if len(trees) < 2 and not stale:
         return []
     try:
         agents = monitor.herdr("agent", "list").get("result", {}).get("agents", [])
@@ -600,18 +635,15 @@ def section_worktrees(cut, width, cwd):
         agents, labels = [], {}
     busy = agents_by_worktree(trees, agents, labels)
     lines = [header("Worktrees", width, str(len(trees)))]
-    hidden = 0
-    for path, branch, current in trees:
-        if is_scratch(path) and not current and not busy.get(path):
-            hidden += 1
-            continue
-        mark, color = ("▶", C["ok"]) if current else (" ", C["dim"])
-        lines.append(f"{color}{mark} {cut(branch or '?', width - 4)}{C['r']}")
-        lines.append(f"{C['dim']}  {cut(path.replace(monitor.HOME, '~'), width - 4)}{C['r']}")
-        for who in busy.get(path, []):
-            lines.append(f"  {C['mod']}◐ {cut(who, width - 6)}{C['r']}")
+    shown = [t for t in trees if not (is_scratch(t[0]) and not t[2] and not busy.get(t[0]))]
+    hidden = len(trees) - len(shown)
+    for path, branch, current in shown:
+        lines += worktree_lines(cut, width, path, branch, current, busy.get(path, []))
     if hidden:
         lines.append(f"{C['dim']}  +{hidden} temporaire{'s' if hidden > 1 else ''}{C['r']}")
+    if stale:
+        lines.append(f"{C['yel']}  {stale} obsolète{'s' if stale > 1 else ''} (dossier supprimé){C['r']}"
+                     f" {C['dim']}· P pour nettoyer{C['r']}")
     return lines + [""]
 
 
@@ -803,7 +835,7 @@ def render_conversation(width):
     if plan:
         lines.append(plan)
     lines.append("")
-    lines += section_project(cut, width, cwd)
+    lines += section_project(cut, width, cwd, tokens.get("pr", ""))
     lines += section_worktrees(cut, width, cwd)
     lines += section_services(cut, width, cwd)
     lines += section_usage(width, footer, tokens)
@@ -918,6 +950,10 @@ def main():
                 break
             if key == "a":
                 UI["mode"] = "conv" if UI["mode"] == "agents" else "agents"
+            elif key == "P" and UI["mode"] == "conv":
+                agent = target_agent()
+                if agent:
+                    prune_worktrees(conversation_dir(agent, read_footer(monitor.session_for(agent))))
             elif key == "e":
                 UI["mode"] = "conv" if UI["mode"] == "space" else "space"
             elif key == "A":
