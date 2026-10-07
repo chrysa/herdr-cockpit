@@ -341,12 +341,45 @@ def wrap_path(path, width):
     return lines + [path]
 
 
+def remote_url(cwd):
+    """Browsable URL of the repository's `origin` remote (local git only, no API call)."""
+    cwd = safe_dir(cwd)
+    if not cwd:
+        return None
+    try:
+        out = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "remote", "get-url", "origin"],
+                             capture_output=True, text=True, timeout=3)
+    except Exception:
+        return None
+    return browsable(out.stdout.strip()) if out.returncode == 0 else None
+
+
+def browsable(remote):
+    """git@github.com:owner/repo.git or https://…/owner/repo.git -> https://github.com/owner/repo."""
+    remote = safe(remote).removesuffix(".git")
+    if remote.startswith("git@") and ":" in remote:
+        host, _, repo = remote[len("git@"):].partition(":")
+        return f"https://{host}/{repo}"
+    if remote.startswith(("ssh://", "git://")):
+        rest = remote.split("://", 1)[1].split("@", 1)[-1]
+        host, _, repo = rest.partition("/")
+        return f"https://{host.split(':')[0]}/{repo}"
+    if remote.startswith("https://"):
+        rest = remote[len("https://"):]
+        host, _, path = rest.partition("/")
+        return f"https://{host.rsplit('@', 1)[-1]}/{path}"  # never show embedded credentials
+    return remote or None
+
+
 def path_lines(cut, width, cwd):
     """The conversation's current directory, in full; the git root it belongs to as a note."""
     lines = [f"{C['dir']}{part}{C['r']}" for part in wrap_path(safe(cwd), width)]
     root = project_root(cwd) if cwd else None
     if root and os.path.realpath(cwd) != os.path.realpath(root):
         lines.append(f"{C['dim']}  dépôt {cut(os.path.basename(root), width - 10)}{C['r']}")
+    remote = remote_url(cwd) if root else None
+    if remote:
+        lines.append(f"{C['dir']}  ↗ {cut(remote, width - 6)}{C['r']}")
     return lines
 
 
@@ -578,16 +611,15 @@ def section_usage(cut, width, footer, tokens):
 
 
 def section_subagents(cut, width, session):
-    subs = subagents_for(session) if VIEW["subs"] else []
-    if not subs:
+    """Subagents still running; finished ones are not shown."""
+    running = [(kind, desc) for live, kind, desc in (subagents_for(session) if VIEW["subs"] else []) if live]
+    if not running:
         return []
-    live = sum(r for r, _, _ in subs)
-    lines = [header("Subagents", width, f"{live} actifs / {len(subs)}")]
-    for running, sub_kind, desc in subs[:SUBAGENT_MAX]:
-        mark = f"{C['ok']}{SYM['working']}" if running else f"{C['dim']}{SYM['done']}"
-        lines.append(f"{mark} {cut(sub_kind + ' · ' + desc, width - 4)}{C['r']}")
-    if len(subs) > SUBAGENT_MAX:
-        lines.append(f"{C['dim']}+{len(subs) - SUBAGENT_MAX} plus anciens{C['r']}")
+    lines = [header("Subagents", width, f"{len(running)} actifs")]
+    for sub_kind, desc in running[:SUBAGENT_MAX]:
+        lines.append(f"{C['ok']}{SYM['working']} {cut(sub_kind + ' · ' + desc, width - 4)}{C['r']}")
+    if len(running) > SUBAGENT_MAX:
+        lines.append(f"{C['dim']}+{len(running) - SUBAGENT_MAX} autres{C['r']}")
     return lines + [""]
 
 
