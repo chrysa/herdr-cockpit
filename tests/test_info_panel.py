@@ -187,3 +187,27 @@ def test_services_need_a_git_project(tmp_path, monkeypatch):
     monkeypatch.setattr(info.services, "services", lambda root: called.append(root) or ([], []))
     assert info.section_services(info.cutter(40), 40, str(tmp_path)) == []
     assert called == []
+
+
+
+
+@pytest.mark.parametrize("remote, url", [
+    ("git@github.com:chrysa/herdr-cockpit.git", "https://github.com/chrysa/herdr-cockpit"),
+    ("https://github.com/chrysa/dotfiles.git", "https://github.com/chrysa/dotfiles"),
+    ("https://user:secret@github.com/o/r.git", "https://github.com/o/r"),
+    ("ssh://git@gitlab.com:2222/team/app.git", "https://gitlab.com/team/app"),
+])
+def test_browsable(remote, url):
+    assert info.browsable(remote) == url
+
+
+def test_finished_subagents_are_hidden(monkeypatch):
+    monkeypatch.setattr(info, "subagents_for", lambda s: [(False, "explore", "done"), (True, "security-auditor", "x")])
+    plain = [info.ANSI.sub("", line) for line in info.section_subagents(info.cutter(60), 60, "s")]
+    assert any("security-auditor" in line for line in plain)
+    assert not any("explore" in line for line in plain)
+
+
+def test_no_subagent_section_when_all_finished(monkeypatch):
+    monkeypatch.setattr(info, "subagents_for", lambda s: [(False, "explore", "done")])
+    assert info.section_subagents(info.cutter(60), 60, "s") == []
