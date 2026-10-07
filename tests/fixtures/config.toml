@@ -71,7 +71,7 @@ rows = [
   #    de tâches : panneau info à droite (prefix+ctrl+g, chrysa.agent-info).
   ["state_icon", { token = "$ag0", fg = "#89b4fa", bold = true }, { token = "$ag1", fg = "#a6e3a1", bold = true }, { token = "$ag2", fg = "#f9e2af", bold = true }, { token = "$ag3", fg = "#f38ba8", bold = true }, { token = "$ag4", fg = "#cba6f7", bold = true }, { token = "$ag5", fg = "#fab387", bold = true }, { token = "$ag6", fg = "#94e2d5", bold = true }, { token = "$ag7", fg = "#f5c2e7", bold = true }, "$title"],
   # 2. état git du dossier de l'agent (chrysa.agent-info) · action en cours
-  [{ token = "$git", fg = "#9399b2" }, { token = "$doing", fg = "#a6e3a1" }],
+  [{ token = "$git", fg = "#9399b2" }, { token = "$pr", fg = "#89dceb" }, { token = "$doing", fg = "#a6e3a1" }],
   # subagents en train de tourner (chrysa.agent-info), vide sinon
   [{ token = "$subs", fg = "#89dceb" }],
 ]

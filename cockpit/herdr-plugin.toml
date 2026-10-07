@@ -1,6 +1,6 @@
 id = "chrysa.cockpit"
 name = "Cockpit"
-version = "0.2.0"
+version = "0.3.0"
 min_herdr_version = "0.9.0"
 description = "Owns the herdr configuration: one palette rendered into herdr, Claude Code and opencode surfaces. setup and status arrive in the next releases."
 platforms = ["macos", "linux"]

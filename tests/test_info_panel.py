@@ -245,3 +245,9 @@ def test_prunable_worktrees_are_counted_and_pruned(tmp_path, monkeypatch):
     assert info.prune_worktrees(str(main))
     info.worktrees(str(main))
     assert info.PRUNABLE[str(main.resolve())] == 0
+
+
+def test_help_lists_every_key():
+    plain = "\n".join(info.ANSI.sub("", line) for line in info.render_help(60)[0])
+    for key in ("a", "e", "A", "t", "d", "s", "g", "u", "r", "w", "P", "?", "q"):
+        assert f"  {key}" in plain

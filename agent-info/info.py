@@ -167,9 +167,28 @@ STATE_ORDER = ("blocked", "working", "done", "idle")
 STATE_LABEL = {"blocked": "bloqués", "working": "en cours", "done": "terminés", "idle": "en attente"}
 UI = {"mode": "conv", "all_spaces": False, "collapsed": set()}
 UI_FILE = os.path.join(STATE, "panel.json")
-HELP = {"conv": "a agents · e espace · t tâches · d faites · s subagents · g git · u conso · r rtk · w services · q",
-        "agents": "a conversation · e espace · A tous les spaces · 1-4 replier · q",
-        "space": "e conversation · a agents · q"}
+HELP = {"conv": "a agents · e espace · ? toutes les touches · q fermer",
+        "agents": "a conversation · e espace · A tous les spaces · 1-4 replier · ? aide · q",
+        "space": "e conversation · a agents · ? aide · q"}
+
+
+KEY_HELP = (
+    ("Vues", (("a", "agents du space sélectionné"), ("e", "espace : projets du space"),
+              ("A", "vue agents : tous les spaces"), ("1-4", "vue agents : replier un groupe"))),
+    ("Conversation", (("t", "tâches"), ("d", "tâches terminées"), ("s", "subagents"), ("g", "git et worktrees"),
+                      ("u", "conso"), ("r", "RTK"), ("w", "services"), ("P", "nettoyer les worktrees obsolètes"))),
+    ("Panel", (("?", "afficher / masquer cette aide"), ("q", "fermer le panel"))),
+)
+
+
+def render_help(width):
+    lines = [f"{C['b']}Raccourcis du panel{C['r']}", ""]
+    for title, keys in KEY_HELP:
+        lines.append(header(title, width))
+        lines += [f"  {C['mod']}{key.ljust(4)}{C['r']} {label}" for key, label in keys]
+        lines.append("")
+    lines.append(f"{C['dim']}herdr : prefix+ctrl+g ouvre/ferme le panel{C['r']}")
+    return lines, None
 
 
 def load_ui():
@@ -209,6 +228,8 @@ def state_color(status):
 
 
 def render(width):
+    if UI.get("help"):
+        return render_help(width)
     if UI["mode"] == "agents":
         return render_agents(width)
     if UI["mode"] == "space":
@@ -948,6 +969,10 @@ def main():
                 os.execv(sys.executable, [sys.executable, os.path.abspath(__file__)])
             if key == "q":
                 break
+            if key == "?":
+                UI["help"] = not UI.get("help")
+                continue
+            UI["help"] = False
             if key == "a":
                 UI["mode"] = "conv" if UI["mode"] == "agents" else "agents"
             elif key == "P" and UI["mode"] == "conv":
