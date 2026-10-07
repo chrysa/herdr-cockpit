@@ -487,11 +487,13 @@ def path_lines(cut, width, cwd):
     return lines
 
 
-def section_project(cut, width, cwd):
+def section_project(cut, width, cwd, pr=""):
     lines = [header("Projet", width)] + path_lines(cut, width, cwd)
     if VIEW["git"] and cwd:
         details = git_details(cwd)
         lines += git_lines(cut, width, details) if details else [f"{C['dim']}pas un dépôt git{C['r']}"]
+    if pr:
+        lines.append(f"{C['dir']}PR {cut(safe(pr), width - 4)}{C['r']}")
     return lines + [""]
 
 
@@ -536,6 +538,19 @@ STATE_STYLE = {"running": "ok", "restarting": "yel", "paused": "yel", "created":
                "exited": "warn", "dead": "warn"}
 
 
+PRUNABLE = {}  # repo root -> work trees whose directory is gone (filled by worktrees())
+
+
+def prune_worktrees(cwd):
+    """`git worktree prune`: drops only the records of work trees whose directory no longer exists."""
+    root = project_root(cwd)
+    if not root:
+        return False
+    out = subprocess.run(["git", "-C", root, "worktree", "prune"], capture_output=True, text=True, timeout=10)
+    PRUNABLE.pop(os.path.realpath(root), None)
+    return out.returncode == 0
+
+
 def worktrees(cwd):
     """[(path, branch, is_current)] for the git work trees of cwd's repository."""
     cwd = safe_dir(cwd)
@@ -549,17 +564,23 @@ def worktrees(cwd):
     if out.returncode != 0:
         return []
     here = os.path.realpath(project_root(cwd) or cwd)
-    found, path, branch = [], None, ""
+    PRUNABLE[here] = 0
+    found, path, branch, prunable = [], None, "", False
     for line in out.stdout.splitlines() + [""]:
-        if line.startswith("worktree "):
+        if line.startswith("prunable"):
+            prunable = True
+        elif line.startswith("worktree "):
             path = line[len("worktree "):]
         elif line.startswith("branch "):
             branch = line[len("branch "):].removeprefix("refs/heads/")
         elif line == "detached":
             branch = "(détaché)"
         elif not line and path:
-            found.append((safe(path), safe(branch), os.path.realpath(path) == here))
-            path, branch = None, ""
+            if prunable:
+                PRUNABLE[here] = PRUNABLE.get(here, 0) + 1
+            else:
+                found.append((safe(path), safe(branch), os.path.realpath(path) == here))
+            path, branch, prunable = None, "", False
     return found
 
 
@@ -590,7 +611,8 @@ def section_worktrees(cut, width, cwd):
     if not VIEW["git"]:
         return []
     trees = worktrees(cwd)
-    if len(trees) < 2:
+    stale = PRUNABLE.get(os.path.realpath(project_root(cwd) or cwd), 0)
+    if len(trees) < 2 and not stale:
         return []
     try:
         agents = monitor.herdr("agent", "list").get("result", {}).get("agents", [])
@@ -612,6 +634,9 @@ def section_worktrees(cut, width, cwd):
             lines.append(f"  {C['mod']}◐ {cut(who, width - 6)}{C['r']}")
     if hidden:
         lines.append(f"{C['dim']}  +{hidden} temporaire{'s' if hidden > 1 else ''}{C['r']}")
+    if stale:
+        lines.append(f"{C['yel']}  {stale} obsolète{'s' if stale > 1 else ''} (dossier supprimé){C['r']}"
+                     f" {C['dim']}· P pour nettoyer{C['r']}")
     return lines + [""]
 
 
@@ -803,7 +828,7 @@ def render_conversation(width):
     if plan:
         lines.append(plan)
     lines.append("")
-    lines += section_project(cut, width, cwd)
+    lines += section_project(cut, width, cwd, tokens.get("pr", ""))
     lines += section_worktrees(cut, width, cwd)
     lines += section_services(cut, width, cwd)
     lines += section_usage(width, footer, tokens)
@@ -918,6 +943,10 @@ def main():
                 break
             if key == "a":
                 UI["mode"] = "conv" if UI["mode"] == "agents" else "agents"
+            elif key == "P" and UI["mode"] == "conv":
+                agent = target_agent()
+                if agent:
+                    prune_worktrees(conversation_dir(agent, read_footer(monitor.session_for(agent))))
             elif key == "e":
                 UI["mode"] = "conv" if UI["mode"] == "space" else "space"
             elif key == "A":

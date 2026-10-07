@@ -29,7 +29,7 @@ Three views: conversation (default), agents (`a`), espace (`e`):
   `+12 -3 (4 fichiers)`), `Conso` (each metric colored on its own value: green
   < 50 % used, yellow < 80 %, red beyond; savings and cache the other way round),
   `RTK` (savings recorded by RTK under the project folder: last 24 h and total),
-  `Subagents`, `Tâches`. Cost appears only once usage is billed past the plan
+  `Subagents`, `Tâches`; the branch's PR (from `gh-pr`) under Projet; stale work trees (directory gone) counted under Worktrees, `P` runs `git worktree prune`. Cost appears only once usage is billed past the plan
   quota. Keys: `t` tasks, `d` done tasks, `s` subagents, `g` git, `u` usage, `r` RTK.
 - **Espace** (`e`): every project of the space selected in herdr — agents
   grouped by git work tree, with branch and git state, open PRs (from the

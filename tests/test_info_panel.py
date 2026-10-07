@@ -224,3 +224,24 @@ def test_projects_of_groups_agents_by_git_root(tmp_path, monkeypatch):
     projects = info.projects_of(agents)
     assert {k: [a["pane_id"] for a in v] for k, v in projects.items()} == {
         str(app): ["1", "2"], str(other): ["3"]}
+
+
+def test_prunable_worktrees_are_counted_and_pruned(tmp_path, monkeypatch):
+    monkeypatch.setattr(info, "ALLOWED_ROOTS", (str(tmp_path),))
+    main = tmp_path / "main"
+    main.mkdir()
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(main), *args], check=True, capture_output=True)
+    git("init", "-q", "-b", "main")
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init")
+    git("worktree", "add", "-q", "-b", "gone", str(tmp_path / "gone"))
+    import shutil as sh
+    sh.rmtree(tmp_path / "gone")
+    info.project_root.cache.clear()
+    trees = info.worktrees(str(main))
+    assert [b for _, b, _ in trees] == ["main"]
+    assert info.PRUNABLE[str(main.resolve())] == 1
+    assert info.prune_worktrees(str(main))
+    info.worktrees(str(main))
+    assert info.PRUNABLE[str(main.resolve())] == 0
