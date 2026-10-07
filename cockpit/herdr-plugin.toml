@@ -16,3 +16,12 @@ id = "setup"
 title = "Cockpit: setup (install or repair)"
 contexts = ["workspace"]
 command = ["sh", "-c", "python3 setup.py | ${PAGER:-less -R}"]
+
+# One poller for spaces + agent-info (chrysa.cockpit daemon).
+[[startup]]
+platforms = ["linux", "macos"]
+command = ["python3", "daemon.py", "ensure"]
+
+[[events]]
+on = "workspace.focused"
+command = ["python3", "daemon.py", "ensure"]

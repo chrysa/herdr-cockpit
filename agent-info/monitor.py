@@ -174,14 +174,20 @@ def slug(text):
     return re.sub(r"[^a-z0-9]+", "-", text).strip("-")
 
 
-def theme_name(agent, space_label):
-    """<space>-<theme>, e.g. padam-av-eisenhower; valid herdr agent name."""
+def space_slug(space_label):
+    """Name prefix for a space: "Forge-Stack-Workshop" -> "forge", "padam-av" -> "padam-av"."""
     space = "agent"
     for i, part in enumerate(slug(space_label or "").split("-")):
         candidate = part if i == 0 else f"{space}-{part}"
         if i and len(candidate) > 10:
             break
         space = candidate[:10] if i == 0 else candidate
+    return space
+
+
+def theme_name(agent, space_label):
+    """<space>-<theme>, e.g. padam-av-eisenhower; valid herdr agent name."""
+    space = space_slug(space_label)
     title = (agent.get("terminal_title_stripped") or "").strip()
     words = [w for w in slug(title).split("-") if w and w not in STOPWORDS]
     folder = [w for w in slug(os.path.basename(agent.get("cwd") or "")).split("-")
@@ -189,13 +195,14 @@ def theme_name(agent, space_label):
     if title.lower() in GENERIC_TITLES or not words:
         words = folder or ["main"]
     name = space
-    for word in words[:2]:
-        if len(f"{name}-{word}") > 28:
+    for count, word in enumerate(words):
+        if count == 2 or len(f"{name}-{word}") > 28:
             break
         name = f"{name}-{word}"
     if name == space:
-        name = f"{space}-{words[0][:27 - len(space)]}"
-    if not name[0].isalpha():
+        first = next(iter(words), "main")
+        name = f"{space}-{first[:27 - len(space)]}"
+    if not name[:1].isalpha():
         name = "a" + name[:31]
     return name
 
@@ -211,16 +218,28 @@ def load_named():
         return {}
 
 
-def auto_rename(agents, named):
+def is_auto_name(name, space):
+    """True when name carries the space prefix auto_rename gives (`<space>-…`).
+
+    herdr restores agent names after a server restart while named.json may not
+    know them, and the topic may have changed since; the prefix is what
+    tells our names apart from hand-given ones.
+    """
+    return name == space or name.startswith(space + "-")
+
+
+def auto_rename(agents, named, workspaces=None):
     """Name every agent after its space and topic, unless the user named it."""
-    labels = {w["workspace_id"]: w.get("label") for w in
-              herdr("workspace", "list").get("result", {}).get("workspaces", [])}
+    if workspaces is None:
+        workspaces = herdr("workspace", "list").get("result", {}).get("workspaces", [])
+    labels = {w["workspace_id"]: w.get("label") for w in workspaces}
     taken = {a.get("name") for a in agents if a.get("name")}
     for agent in agents:
         pane_id, current = agent["pane_id"], agent.get("name")
-        if current and named.get(pane_id) != current:
-            continue  # named by hand: leave it
         wanted = theme_name(agent, labels.get(agent["workspace_id"]))
+        space = space_slug(labels.get(agent["workspace_id"]))
+        if current and named.get(pane_id) != current and not is_auto_name(current, space):
+            continue  # named by hand: leave it
         base, n = wanted, 2
         while wanted in taken and wanted != current:
             wanted = f"{base[:29]}-{n}"
@@ -373,7 +392,7 @@ def publish(pane_id, tokens):
     herdr(*args)
 
 
-def tick(shown):
+def tick(shown, snap=None):
     if time.monotonic() - shown.get("_refreshed", 0) > TTL_MS / 1000 / 3:
         # unchanged tokens are not re-sent each round, so force one round
         # before TTL_MS lets herdr drop them
@@ -381,12 +400,14 @@ def tick(shown):
         shown.clear()
         shown["_named"], shown["_status"] = named, status
         shown["_refreshed"] = time.monotonic()
-    agents = herdr("agent", "list").get("result", {}).get("agents", [])
-    auto_rename(agents, shown.setdefault("_named", load_named()))
+    if snap is None:
+        snap = {"agents": herdr("agent", "list").get("result", {}).get("agents", []),
+                "workspaces": herdr("workspace", "list").get("result", {}).get("workspaces", [])}
+    agents = snap["agents"]
+    auto_rename(agents, shown.setdefault("_named", load_named()), snap["workspaces"])
     fresh = blocked_transitions(agents, shown.setdefault("_status", {}))
     if fresh:
-        labels = {w["workspace_id"]: w.get("label") for w in
-                  herdr("workspace", "list").get("result", {}).get("workspaces", [])}
+        labels = {w["workspace_id"]: w.get("label") for w in snap["workspaces"]}
         for agent in fresh:
             notify_blocked(agent, labels)
     live = set()
@@ -422,6 +443,8 @@ def daemon():
         fh.write(str(os.getpid()))
     shown, failures = {}, 0
     while True:
+        if cockpit_daemon_alive():
+            break  # the shared cockpit daemon runs this tick now
         try:
             tick(shown)
             failures = 0
@@ -442,8 +465,22 @@ def running_pid():
         return None
 
 
+def cockpit_daemon_alive():
+    """chrysa.cockpit's shared daemon runs this tick itself when it is up."""
+    lock = os.path.expanduser("~/.local/state/chrysa.cockpit/daemon.lock")
+    if not os.path.exists(lock):
+        return False
+    try:
+        with open(lock, "a+") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(handle, fcntl.LOCK_UN)
+        return False
+    except OSError:
+        return True
+
+
 def ensure():
-    if running_pid():
+    if running_pid() or cockpit_daemon_alive():
         return
     os.makedirs(STATE_DIR, exist_ok=True)
     subprocess.Popen([sys.executable, os.path.abspath(__file__), "daemon"],

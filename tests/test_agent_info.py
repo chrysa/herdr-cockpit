@@ -106,3 +106,28 @@ def test_notify_blocked_falls_back_to_herdr_toast():
     assert calls[1][1:3] == ["notification", "show"]
     assert "\x1b" not in calls[1][3]
     assert calls[1][3] == "‼ padam-av-x[2J attend une réponse"
+
+
+def test_restored_auto_names_are_still_ours():
+    assert monitor.is_auto_name("padam-av-pdf-complet", "padam-av")
+    assert monitor.is_auto_name("padam-av-pdf-complet-2", "padam-av")
+    assert not monitor.is_auto_name("mon-agent", "padam-av")
+    assert not monitor.is_auto_name("padam-avx", "padam-av")
+
+
+def test_auto_rename_updates_restored_name_but_keeps_manual(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(monitor, "STATE_DIR", str(tmp_path))
+    monkeypatch.setattr(monitor, "NAMED_FILE", str(tmp_path / "named.json"))
+    monkeypatch.setattr(monitor, "herdr", lambda *args: calls.append(args) or {})
+    agents = [
+        {"pane_id": "p1", "name": "padam-av-pdf-complet", "workspace_id": "w1",
+         "terminal_title_stripped": "Scheduler dynamique", "cwd": "/x"},
+        {"pane_id": "p2", "name": "mon-agent", "workspace_id": "w1",
+         "terminal_title_stripped": "Autre sujet", "cwd": "/x"},
+    ]
+    named = {}
+    monitor.auto_rename(agents, named, [{"workspace_id": "w1", "label": "padam-av"}])
+    assert ("agent", "rename", "p1", "padam-av-scheduler-dynamique") in calls
+    assert not any(call[2] == "p2" for call in calls if call[:2] == ("agent", "rename"))
+    assert named == {"p1": "padam-av-scheduler-dynamique"}

@@ -189,11 +189,18 @@ def worktrees_for(cwds, cache):
     return labels
 
 
-def gather(cache):
+def snapshot():
+    """One read of herdr state: panes, agents, workspaces."""
+    return {"panes": herdr_json("pane", "list", key="panes"),
+            "agents": herdr_json("agent", "list", key="agents"),
+            "workspaces": herdr_json("workspace", "list", key="workspaces")}
+
+
+def gather(cache, snap=None):
     """workspace_id -> {slot, agents, worktrees[]} plus pane_slot per agent pane."""
-    panes = herdr_json("pane", "list", key="panes")
-    agents = herdr_json("agent", "list", key="agents")
-    slots = color_slots(herdr_json("workspace", "list", key="workspaces"))
+    snap = snap or snapshot()
+    panes, agents = snap["panes"], snap["agents"]
+    slots = color_slots(snap["workspaces"])
 
     def color_slot(ws_id):
         return slots.get(ws_id, zlib.crc32(ws_id.encode()) % PALETTE_SLOTS)
@@ -301,9 +308,9 @@ def clear_pane(pane_id):
     report("pane", pane_id, {}, AG_VARIANTS)
 
 
-def publish_round(state):
+def publish_round(state, snap=None):
     """One refresh pass. state carries what each target currently shows."""
-    spaces, pane_slot = gather(state["cache"])
+    spaces, pane_slot = gather(state["cache"], snap)
     if time.monotonic() - state.get("refreshed", 0) > REFRESH_S:
         # unchanged tokens are not re-sent each round, so force one round
         # before TTL_MS lets herdr drop them
@@ -375,8 +382,22 @@ def claim_pidfile():
     return handle
 
 
+def cockpit_daemon_alive():
+    """chrysa.cockpit's shared daemon renders spaces itself when it runs."""
+    lock = os.path.expanduser("~/.local/state/chrysa.cockpit/daemon.lock")
+    if not os.path.exists(lock):
+        return False
+    try:
+        with open(lock, "a+") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(handle, fcntl.LOCK_UN)
+        return False
+    except OSError:
+        return True
+
+
 def cmd_ensure():
-    if daemon_alive():
+    if daemon_alive() or cockpit_daemon_alive():
         return
     os.makedirs(STATE_DIR, exist_ok=True)
     subprocess.Popen(
@@ -386,31 +407,37 @@ def cmd_ensure():
     )
 
 
-def cmd_daemon():
-    lock = claim_pidfile()
-    if not lock:
-        return
-    state = {"ws": {}, "pane": {}, "cache": {}}
-    failures = 0
-    socket_misses = 0
+def run_loop(state):
+    """Publish rounds until the server goes away, errors repeat, or the
+    shared cockpit daemon takes over."""
+    failures = socket_misses = 0
     while True:
         if SOCKET_PATH and not os.path.exists(SOCKET_PATH):
             socket_misses += 1
             if socket_misses >= 3:
-                break
+                return
             time.sleep(10)
             continue
         socket_misses = 0
+        if cockpit_daemon_alive():
+            return  # the shared cockpit daemon renders spaces now
         try:
             publish_round(state)
             failures = 0
         except Exception:
             failures += 1
             if failures >= 3:
-                break
+                return
             time.sleep(10)
             continue
         time.sleep(POLL_S)
+
+
+def cmd_daemon():
+    lock = claim_pidfile()
+    if not lock:
+        return
+    run_loop({"ws": {}, "pane": {}, "cache": {}})
     lock.close()
     try:
         os.remove(PIDFILE)
