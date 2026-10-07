@@ -16,3 +16,12 @@ Source of truth for the herdr setup (see `work/specs/2026-10-06-cockpit-design.m
   A second run prints `nothing to do`.
 - **Cockpit: status** (`python3 status.py`): read-only drift report, exit 1 on
   any drift.
+
+## Shared daemon
+
+`daemon.py` (started with the herdr server) reads herdr once per tick (panes,
+agents, workspaces) and hands the snapshot to `chrysa.spaces` and
+`chrysa.agent-info`. While it holds its lock, those plugins' own daemons do not
+start, and any already running exits at its next tick (their startup hooks race
+with this one when the server starts). A renderer that fails does not stop the
+others.

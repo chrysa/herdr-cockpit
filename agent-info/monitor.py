@@ -211,10 +211,11 @@ def load_named():
         return {}
 
 
-def auto_rename(agents, named):
+def auto_rename(agents, named, workspaces=None):
     """Name every agent after its space and topic, unless the user named it."""
-    labels = {w["workspace_id"]: w.get("label") for w in
-              herdr("workspace", "list").get("result", {}).get("workspaces", [])}
+    if workspaces is None:
+        workspaces = herdr("workspace", "list").get("result", {}).get("workspaces", [])
+    labels = {w["workspace_id"]: w.get("label") for w in workspaces}
     taken = {a.get("name") for a in agents if a.get("name")}
     for agent in agents:
         pane_id, current = agent["pane_id"], agent.get("name")
@@ -373,7 +374,7 @@ def publish(pane_id, tokens):
     herdr(*args)
 
 
-def tick(shown):
+def tick(shown, snap=None):
     if time.monotonic() - shown.get("_refreshed", 0) > TTL_MS / 1000 / 3:
         # unchanged tokens are not re-sent each round, so force one round
         # before TTL_MS lets herdr drop them
@@ -381,12 +382,14 @@ def tick(shown):
         shown.clear()
         shown["_named"], shown["_status"] = named, status
         shown["_refreshed"] = time.monotonic()
-    agents = herdr("agent", "list").get("result", {}).get("agents", [])
-    auto_rename(agents, shown.setdefault("_named", load_named()))
+    if snap is None:
+        snap = {"agents": herdr("agent", "list").get("result", {}).get("agents", []),
+                "workspaces": herdr("workspace", "list").get("result", {}).get("workspaces", [])}
+    agents = snap["agents"]
+    auto_rename(agents, shown.setdefault("_named", load_named()), snap["workspaces"])
     fresh = blocked_transitions(agents, shown.setdefault("_status", {}))
     if fresh:
-        labels = {w["workspace_id"]: w.get("label") for w in
-                  herdr("workspace", "list").get("result", {}).get("workspaces", [])}
+        labels = {w["workspace_id"]: w.get("label") for w in snap["workspaces"]}
         for agent in fresh:
             notify_blocked(agent, labels)
     live = set()
@@ -422,6 +425,8 @@ def daemon():
         fh.write(str(os.getpid()))
     shown, failures = {}, 0
     while True:
+        if cockpit_daemon_alive():
+            break  # the shared cockpit daemon runs this tick now
         try:
             tick(shown)
             failures = 0
@@ -442,8 +447,22 @@ def running_pid():
         return None
 
 
+def cockpit_daemon_alive():
+    """chrysa.cockpit's shared daemon runs this tick itself when it is up."""
+    lock = os.path.expanduser("~/.local/state/chrysa.cockpit/daemon.lock")
+    if not os.path.exists(lock):
+        return False
+    try:
+        with open(lock, "a+") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(handle, fcntl.LOCK_UN)
+        return False
+    except OSError:
+        return True
+
+
 def ensure():
-    if running_pid():
+    if running_pid() or cockpit_daemon_alive():
         return
     os.makedirs(STATE_DIR, exist_ok=True)
     subprocess.Popen([sys.executable, os.path.abspath(__file__), "daemon"],
