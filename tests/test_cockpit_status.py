@@ -53,11 +53,16 @@ def test_statusline_missing_on_one_account(tmp_path):
 
 
 def test_plugins_states():
-    ok = [{"plugin_id": p, "enabled": True} for p in status.REQUIRED_PLUGINS]
-    assert status.check_plugins(ok)[0] == "ok"
-    assert status.check_plugins(ok[:1])[0] == "missing"
-    disabled = [dict(ok[0]), {"plugin_id": ok[1]["plugin_id"], "enabled": False}]
-    assert status.check_plugins(disabled)[0] == "drift"
+    manifest = [{"id": "a", "source": "o/a", "ref": "1111", "enabled": True},
+                {"id": "b", "source": "o/b", "enabled": False}]
+    ok = [{"plugin_id": "a", "enabled": True, "source": {"kind": "github", "resolved_commit": "1111"}},
+          {"plugin_id": "b", "enabled": False}]
+    assert status.check_plugins(ok, manifest)[0] == "ok"
+    assert status.check_plugins(ok[:1], manifest)[0] == "missing"
+    stale = [dict(ok[0], source={"kind": "github", "resolved_commit": "2222"}), ok[1]]
+    assert status.check_plugins(stale, manifest)[0] == "drift"
+    extra = ok + [{"plugin_id": "c", "enabled": True}]
+    assert "not in plugins.toml" in status.check_plugins(extra, manifest)[1]
 
 
 def test_units_states():

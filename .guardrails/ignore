@@ -1,0 +1,5 @@
+# cockpit/plugins.toml pins herdr plugins to public git commit SHAs
+# (40 hex chars). GuardRails' "Hex High Entropy String" rule flags them as
+# secrets; they are public commit identifiers, not credentials. Only this file
+# is excluded; every other path stays scanned.
+cockpit/plugins.toml

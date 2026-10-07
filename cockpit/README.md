@@ -32,3 +32,20 @@ others.
 symbols as the sidebar), llmtrim context/savings/cache, cost only once billed
 past the quota, and a `⌃b ⌃g panel` hint inside herdr. It hides itself while
 the herdr info panel is open, since the panel shows all of it.
+
+## Plugin manifest
+
+`plugins.toml` lists every herdr plugin this setup expects, pinned to a commit
+(`source = "owner/repo"`, `ref`, `enabled`). `setup` installs what is missing
+and applies `enabled`; `status` reports a pinned commit that differs and any
+plugin installed but not listed. Nothing is ever uninstalled. To add a plugin,
+add it here and run setup.
+
+## Validate and guards
+
+- `python3 validate.py` (also run in CI): palette format, every template
+  renders with no placeholder left, JSON/TOML parse, and `herdr config check`
+  on the rendered config when herdr is installed.
+- `setup` prints its plan and refuses to apply from a checkout with
+  uncommitted changes or one that differs from `origin/main`
+  (`--force-local` overrides, with a warning).
