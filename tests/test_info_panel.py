@@ -179,3 +179,11 @@ def test_agents_by_worktree(tmp_path, monkeypatch):
 def test_is_scratch():
     assert info.is_scratch(info.tempfile.gettempdir() + "/claude-1000/x")
     assert not info.is_scratch("/home/u/projects/app")
+
+
+def test_services_need_a_git_project(tmp_path, monkeypatch):
+    monkeypatch.setattr(info, "ALLOWED_ROOTS", (str(tmp_path),))
+    called = []
+    monkeypatch.setattr(info.services, "services", lambda root: called.append(root) or ([], []))
+    assert info.section_services(info.cutter(40), 40, str(tmp_path)) == []
+    assert called == []
