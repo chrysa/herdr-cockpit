@@ -1,6 +1,6 @@
 id = "chrysa.agent-info"
 name = "Agent Info"
-version = "0.2.0"
+version = "0.3.0"
 min_herdr_version = "0.7.0"
 description = "Shows per agent pane the Claude account ($account), the LLM model ($model), the in-progress task ($doing) and the task tally ($todo), read from local session transcripts. Local reads only - no network, no telemetry."
 platforms = ["macos", "linux"]

@@ -1,6 +1,6 @@
 id = "chrysa.spaces"
 name = "Spaces"
-version = "0.2.0"
+version = "0.3.0"
 min_herdr_version = "0.7.0"
 description = "Readable space rows: colored agent-count chip per space, worktree list when a space spans several worktrees, and a matching color dot on every agent so spaces and their agents read as one group. Pure local socket reads - no network, no telemetry."
 platforms = ["macos", "linux"]
