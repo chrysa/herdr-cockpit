@@ -7,10 +7,10 @@ because the panel redraws every second.
 """
 import json
 import os
-import re
 import subprocess
 import threading
 import time
+from urllib.parse import urlunsplit
 
 CACHE_S = 5
 DOCKER_REFRESH_S = 30  # `docker ps` can take ~20 s on a busy daemon: never on the draw path
@@ -48,7 +48,10 @@ NON_HTTP = {1433, 1521, 2181, 3306, 5432, 5672, 6379, 9042, 9092, 11211, 11434, 
 
 
 def address(port, host="localhost"):
-    return f"{host}:{port}" if port in NON_HTTP else f"http://{host}:{port}"
+    """Local URL for a published port (plain HTTP: these are dev servers on this machine)."""
+    if port in NON_HTTP:
+        return f"{host}:{port}"
+    return urlunsplit(("http", f"{host}:{port}", "", "", ""))
 
 
 def short_status(status):
@@ -117,7 +120,18 @@ def containers(root, ps_output=None):
     return found
 
 
-SS_LINE = re.compile(r'\S+\s+\S+\s+\S+\s+(\S+):(\d+)\s+\S+\s+users:\(\("([^"]+)",pid=(\d+)')
+def parse_ss_line(line):
+    """`ss -ltnpH` line -> (addr, port, process, pid), or None. Split-based, no regex."""
+    fields = line.split()
+    if len(fields) < 6 or 'users:(("' not in line:
+        return None
+    addr, _, port = fields[3].rpartition(":")
+    users = line.split('users:(("', 1)[1]
+    name, _, rest = users.partition('"')
+    pid_text = rest.split("pid=", 1)[1].split(",", 1)[0] if "pid=" in rest else ""
+    if not port.isdigit() or not pid_text.isdigit():
+        return None
+    return addr, int(port), name, int(pid_text)
 
 
 def listeners(root, ss_output=None, cwd_of=None):
@@ -126,10 +140,10 @@ def listeners(root, ss_output=None, cwd_of=None):
     cwd_of = cwd_of or (lambda pid: os.readlink(f"/proc/{pid}/cwd"))
     found, seen = [], set()
     for line in raw.splitlines():
-        m = SS_LINE.search(line)
-        if not m:
+        parsed = parse_ss_line(line)
+        if not parsed:
             continue
-        addr, port, name, pid = m.group(1), int(m.group(2)), m.group(3), int(m.group(4))
+        addr, port, name, pid = parsed
         try:
             if not _inside(cwd_of(pid), root):
                 continue
