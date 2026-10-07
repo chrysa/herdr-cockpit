@@ -206,10 +206,15 @@ def gather(cache):
 
     agent_count = {}
     accounts = {}  # ws_id -> {account: agents}
+    attention = {}  # ws_id -> {"blocked": n, "done": n}
     pane_slot = {}  # pane_id -> color slot, for the agent panel
     for agent in agents:
         ws_id = agent["workspace_id"]
         agent_count[ws_id] = agent_count.get(ws_id, 0) + 1
+        status = agent.get("agent_status")
+        if status in ("blocked", "done"):
+            per_ws = attention.setdefault(ws_id, {"blocked": 0, "done": 0})
+            per_ws[status] += 1
         account = (agent.get("tokens") or {}).get("account")
         if account:
             per_ws = accounts.setdefault(ws_id, {})
@@ -223,12 +228,14 @@ def gather(cache):
             "agents": agent_count.get(ws_id, 0),
             "worktrees": worktrees_for(cwds, cache),
             "accounts": accounts.get(ws_id, {}),
+            "attention": attention.get(ws_id, {}),
         }
     # spaces with panes but no agents still deserve their (0-agent) chip
     for ws_id in agent_count:
         spaces.setdefault(ws_id, {"slot": color_slot(ws_id),
                                   "agents": agent_count[ws_id], "worktrees": [],
-                                  "accounts": accounts.get(ws_id, {})})
+                                  "accounts": accounts.get(ws_id, {}),
+                                  "attention": attention.get(ws_id, {})})
     return spaces, pane_slot
 
 
@@ -249,11 +256,23 @@ def render_accounts(accounts):
     return tokens
 
 
+def render_attention(counts):
+    """Agents that need the user: blocked ones waiting for input, done ones not yet seen."""
+    tokens = {}
+    blocked, done = counts.get("blocked", 0), counts.get("done", 0)
+    if blocked:
+        tokens["attn"] = f"‼ {blocked} attend{'ent' if blocked > 1 else ''}"
+    if done:
+        tokens["fresh"] = f"✓ {done} terminé{'s' if done > 1 else ''}"
+    return tokens
+
+
 def render_space(info):
     """{token: text} for one space's chip + optional worktree list."""
     n = info["agents"]
     label = "aucun agent" if n == 0 else f"{n} agent{'s' if n > 1 else ''}"
     tokens = {SP_VARIANTS[info["slot"]]: label}
+    tokens.update(render_attention(info.get("attention", {})))
     tokens.update(render_accounts(info.get("accounts", {})))
     if info["worktrees"]:
         tokens["wt"] = "⑂" + " ".join(info["worktrees"])
@@ -275,7 +294,7 @@ def report(scope, target_id, tokens, all_variants, extra_clear=()):
 
 
 def clear_space(ws_id):
-    report("workspace", ws_id, {}, SP_VARIANTS, extra_clear=("wt",) + ACC_VARIANTS)
+    report("workspace", ws_id, {}, SP_VARIANTS, extra_clear=("wt", "attn", "fresh") + ACC_VARIANTS)
 
 
 def clear_pane(pane_id):
@@ -298,7 +317,7 @@ def publish_round(state):
     for ws_id, info in spaces.items():
         tokens = render_space(info)
         if state["ws"].get(ws_id) != tokens:
-            report("workspace", ws_id, tokens, SP_VARIANTS, extra_clear=("wt",) + ACC_VARIANTS)
+            report("workspace", ws_id, tokens, SP_VARIANTS, extra_clear=("wt", "attn", "fresh") + ACC_VARIANTS)
             state["ws"][ws_id] = tokens
     for ws_id in list(state["ws"]):
         if ws_id not in seen_ws:

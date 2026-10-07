@@ -58,8 +58,8 @@ pane_history = true
 [ui.sidebar.spaces]
 row_gap = 1
 rows = [
-  # nom du space · nombre d'agents (couleur du projet) · comptes utilisés (couleur par compte)
-  ["state_icon", "workspace", { token = "$sp0", fg = "{{colors.blue}}", bold = true }, { token = "$sp1", fg = "{{colors.green}}", bold = true }, { token = "$sp2", fg = "{{colors.yellow}}", bold = true }, { token = "$sp3", fg = "{{colors.red}}", bold = true }, { token = "$sp4", fg = "{{colors.mauve}}", bold = true }, { token = "$sp5", fg = "{{colors.peach}}", bold = true }, { token = "$sp6", fg = "{{colors.teal}}", bold = true }, { token = "$sp7", fg = "{{colors.pink}}", bold = true }, { token = "$acc_perso", fg = "{{accounts.perso}}" }, { token = "$acc_pro", fg = "{{accounts.pro}}" }, { token = "$acc_codex", fg = "{{accounts.codex}}" }, { token = "$acc_other", fg = "{{accounts.other}}" }],
+  # nom du space · nombre d'agents (couleur du projet) · agents qui attendent / terminés non vus · comptes
+  ["state_icon", "workspace", { token = "$sp0", fg = "{{colors.blue}}", bold = true }, { token = "$sp1", fg = "{{colors.green}}", bold = true }, { token = "$sp2", fg = "{{colors.yellow}}", bold = true }, { token = "$sp3", fg = "{{colors.red}}", bold = true }, { token = "$sp4", fg = "{{colors.mauve}}", bold = true }, { token = "$sp5", fg = "{{colors.peach}}", bold = true }, { token = "$sp6", fg = "{{colors.teal}}", bold = true }, { token = "$sp7", fg = "{{colors.pink}}", bold = true }, { token = "$attn", fg = "{{colors.red}}", bold = true }, { token = "$fresh", fg = "{{colors.blue}}" }, { token = "$acc_perso", fg = "{{accounts.perso}}" }, { token = "$acc_pro", fg = "{{accounts.pro}}" }, { token = "$acc_codex", fg = "{{accounts.codex}}" }, { token = "$acc_other", fg = "{{accounts.other}}" }],
   # branche git du space
   ["branch", "git_status"],
 ]
