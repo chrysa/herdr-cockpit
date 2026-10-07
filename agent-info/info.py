@@ -529,6 +529,33 @@ def section_worktrees(cut, width, cwd):
     return lines + [""]
 
 
+def service_rows(boxes, procs):
+    """(style, name, status, urls) rows: running containers first, then processes."""
+    order = {"running": 0, "restarting": 1, "paused": 2}
+    rows = []
+    for box in sorted(boxes, key=lambda b: (order.get(b["state"], 9), b["name"])):
+        health = "" if box["health"] in ("none", "") else f" {safe(box['health'])}"
+        rows.append((STATE_STYLE.get(box["state"], "dim"), safe(box["name"]),
+                     safe(box["status"]) + health, box["urls"]))
+    for proc in procs:
+        rows.append(("ok", safe(proc["name"]), f"pid {proc['pid']}", [proc["url"]]))
+    return rows
+
+
+def service_lines(cut, width, row, name_w, status_w):
+    """One aligned row; the first URL on the same line when it fits."""
+    style, name, status, urls = row
+    faded = C["dim"] if style in ("dim", "warn") else ""
+    line = (f"{C[style]}●{C['r']} {faded}{cut(name, name_w).ljust(name_w)}{C['r']}"
+            f"  {C['dim']}{status[:status_w].ljust(status_w)}{C['r']}")
+    first = urls[0] if urls else ""
+    if first and len(first) <= width - 6 - name_w - status_w:
+        lines = [f"{line}  {C['dir']}{first}{C['r']}"]
+    else:
+        lines = [line] + ([f"    {C['dir']}{cut(first, width - 6)}{C['r']}"] if first else [])
+    return lines + [f"    {C['dir']}{cut(extra, width - 6)}{C['r']}" for extra in urls[1:]]
+
+
 def section_services(cut, width, cwd):
     """Containers and listening processes of this project, with their URLs."""
     if not VIEW["services"]:
@@ -543,29 +570,11 @@ def section_services(cut, width, cwd):
         return []
     running = sum(b["state"] == "running" for b in boxes) + len(procs)
     lines = [header("Services", width, f"{running} actifs")]
-    order = {"running": 0, "restarting": 1, "paused": 2}
-    rows = []
-    for box in sorted(boxes, key=lambda b: (order.get(b["state"], 9), b["name"])):
-        health = "" if box["health"] in ("none", "") else f" {safe(box['health'])}"
-        rows.append((STATE_STYLE.get(box["state"], "dim"), safe(box["name"]),
-                     safe(box["status"]) + health, box["urls"]))
-    for proc in procs:
-        rows.append(("ok", safe(proc["name"]), f"pid {proc['pid']}", [proc["url"]]))
+    rows = service_rows(boxes, procs)
     name_w = min(max(len(r[1]) for r in rows), max(8, width // 3))
     status_w = min(max(len(r[2]) for r in rows), 18)
-    for style, name, status, urls in rows:
-        faded = C["dim"] if style in ("dim", "warn") else ""
-        line = (f"{C[style]}●{C['r']} {faded}{cut(name, name_w).ljust(name_w)}{C['r']}"
-                f"  {C['dim']}{status[:status_w].ljust(status_w)}{C['r']}")
-        first = urls[0] if urls else ""
-        if first and len(first) <= width - 6 - name_w - status_w:
-            lines.append(f"{line}  {C['dir']}{first}{C['r']}")
-        else:
-            lines.append(line)
-            if first:
-                lines.append(f"    {C['dir']}{cut(first, width - 6)}{C['r']}")
-        for extra in urls[1:]:
-            lines.append(f"    {C['dir']}{cut(extra, width - 6)}{C['r']}")
+    for row in rows:
+        lines += service_lines(cut, width, row, name_w, status_w)
     return lines + [""]
 
 
@@ -639,7 +648,7 @@ def label_usage(segment):
     return color_usage(text)
 
 
-def section_usage(cut, width, footer, tokens):
+def section_usage(width, footer, tokens):
     usage = footer.get("usage", []) if VIEW["usage"] else []
     if not usage:
         return []
@@ -711,7 +720,7 @@ def render_conversation(width):
     lines += section_project(cut, width, cwd)
     lines += section_worktrees(cut, width, cwd)
     lines += section_services(cut, width, cwd)
-    lines += section_usage(cut, width, footer, tokens)
+    lines += section_usage(width, footer, tokens)
     lines += section_rtk(width, cwd)
     if session and kind == "claude":
         lines += section_subagents(cut, width, session)

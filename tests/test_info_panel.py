@@ -189,10 +189,9 @@ def test_services_need_a_git_project(tmp_path, monkeypatch):
     assert called == []
 
 
-import pytest as _pytest  # noqa: E402
 
 
-@_pytest.mark.parametrize("remote, url", [
+@pytest.mark.parametrize("remote, url", [
     ("git@github.com:chrysa/herdr-cockpit.git", "https://github.com/chrysa/herdr-cockpit"),
     ("https://github.com/chrysa/dotfiles.git", "https://github.com/chrysa/dotfiles"),
     ("https://user:secret@github.com/o/r.git", "https://github.com/o/r"),
