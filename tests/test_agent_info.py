@@ -70,3 +70,39 @@ def test_git_summary_clean_and_dirty(tmp_path):
 
 def test_git_summary_outside_repo(tmp_path):
     assert monitor.git_summary(str(tmp_path)) is None
+
+
+def a(pane, status, name=None, ws="w1"):
+    return {"pane_id": pane, "agent_status": status, "name": name, "workspace_id": ws}
+
+
+def test_blocked_transitions_only_on_change():
+    previous = {}
+    assert monitor.blocked_transitions([a("p1", "blocked")], previous) == []
+    assert monitor.blocked_transitions([a("p1", "blocked")], previous) == []
+    assert monitor.blocked_transitions([a("p1", "working")], previous) == []
+    fresh = monitor.blocked_transitions([a("p1", "blocked")], previous)
+    assert [x["pane_id"] for x in fresh] == ["p1"]
+
+
+def test_blocked_transitions_forget_closed_panes():
+    previous = {}
+    monitor.blocked_transitions([a("p1", "idle"), a("p2", "idle")], previous)
+    monitor.blocked_transitions([a("p1", "idle")], previous)
+    assert set(previous) == {"p1"}
+
+
+def test_notify_blocked_falls_back_to_herdr_toast():
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        if args[0] == "notify-send":
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(args, 0)
+
+    monitor.notify_blocked(a("p1", "blocked", name="padam-av-x\x1b[2J"), {"w1": "padam-av"}, run=run)
+    assert calls[0][0] == "notify-send"
+    assert calls[1][1:3] == ["notification", "show"]
+    assert "\x1b" not in calls[1][3]
+    assert calls[1][3] == "‼ padam-av-x[2J attend une réponse"

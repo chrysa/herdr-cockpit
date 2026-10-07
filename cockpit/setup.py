@@ -27,6 +27,8 @@ HOME = os.path.expanduser("~")
 CONFIG = "config.toml"
 DOT_CONFIG = ".config"
 PLUGINS = ("chrysa.spaces", "chrysa.agent-info")
+# Replaced by the cockpit (blocked-only notification in chrysa.agent-info).
+REPLACED_PLUGINS = ("jyasha11.in-your-face",)
 UNITS = ("herdr-config-reload.path", "herdr-config-reload.service",
          "herdr-logrotate.service", "herdr-logrotate.timer")
 ENABLE = ("herdr-config-reload.path", "herdr-logrotate.timer")
@@ -176,6 +178,9 @@ class Setup:
         for plugin in PLUGINS:
             if plugin not in enabled and self.change(f"enable plugin {plugin}"):
                 self.run(["herdr", "plugin", "enable", plugin], check=False)
+        for plugin in REPLACED_PLUGINS:
+            if plugin in enabled and self.change(f"disable plugin {plugin}"):
+                self.run(["herdr", "plugin", "disable", plugin], check=False)
 
     def apply(self):
         palette = self.palette()
