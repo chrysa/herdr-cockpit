@@ -12,11 +12,13 @@ enabled = true
 [[plugin]]
 id = "chrysa.agent-info"
 source = "chrysa/herdr-cockpit/agent-info"
+ref = "v0.2.0"
 enabled = true
 
 [[plugin]]
 id = "chrysa.cockpit"
 source = "chrysa/herdr-cockpit/cockpit"
+ref = "v0.2.0"
 enabled = true
 
 [[plugin]]
@@ -27,6 +29,7 @@ enabled = true
 [[plugin]]
 id = "chrysa.spaces"
 source = "chrysa/herdr-cockpit/spaces"
+ref = "v0.2.0"
 enabled = true
 
 [[plugin]]
