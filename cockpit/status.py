@@ -12,10 +12,10 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import plugins  # noqa: E402
 import render  # noqa: E402
 
 HOME = os.path.expanduser("~")
-REQUIRED_PLUGINS = ("chrysa.spaces", "chrysa.agent-info")
 SYSTEMD_UNITS = ("herdr-config-reload.path", "herdr-logrotate.timer")
 
 
@@ -53,21 +53,16 @@ def check_statusline(claude_dirs=None):
     return "ok", next(iter(commands.values()))
 
 
-def check_plugins(listing=None):
-    """Cockpit plugins installed and enabled."""
-    if listing is None:
-        out = subprocess.run(["herdr", "plugin", "list", "--json"], capture_output=True, text=True, timeout=10)
-        data = json.loads(out.stdout or "{}")
-        data = data.get("result", data)
-        listing = data.get("plugins", data) if isinstance(data, dict) else data
-    state = {p["plugin_id"]: p.get("enabled", False) for p in listing}
-    missing = [p for p in REQUIRED_PLUGINS if p not in state]
-    disabled = [p for p in REQUIRED_PLUGINS if state.get(p) is False]
-    if missing:
-        return "missing", ", ".join(missing)
-    if disabled:
-        return "drift", "disabled: " + ", ".join(disabled)
-    return "ok", ", ".join(REQUIRED_PLUGINS)
+def check_plugins(listing=None, manifest=None):
+    """Installed plugins vs plugins.toml: missing, wrong enabled state, version drift, extras."""
+    manifest = plugins.load_manifest() if manifest is None else manifest
+    listing = plugins.installed() if listing is None else listing
+    actions, drift = plugins.diff(manifest, listing)
+    if actions:
+        return "missing", "; ".join("herdr " + " ".join(a) for a in actions)
+    if drift:
+        return "drift", "\n".join(drift)
+    return "ok", f"{len(manifest)} plugins as declared"
 
 
 def check_units(is_active=None):

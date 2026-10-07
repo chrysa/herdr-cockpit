@@ -27,3 +27,13 @@ Outside this repo, still open:
 - herdr server restart (activates `HERDR_LOG`, clean env, auto-title managed).
 - closing idle agents (`forge-*` idle 211 h).
 - local `main` of dotfiles diverged from `origin`.
+
+## Follow-up inspired by Forge-Stack-Workshop/synapse (2026-10-07)
+
+| # | Step | Done when |
+|---|------|-----------|
+| 12 | Plugin manifest `cockpit/plugins.toml` (complete, pinned), reconciled by setup, drift in status | status ok with 27 plugins |
+| 13 | `cockpit/validate.py` in CI (palette, templates, `herdr config check`) | CI step green |
+| 14 | setup guards: plan first, refuse dirty/unpushed checkout unless `--force-local` | tested |
+| 15 | Health checks in status (daemon alive, herdr version, docker/ss/git present) | — |
+| 16 | Tagged releases + `herdr plugin install --ref` | — |

@@ -9,7 +9,9 @@ Steps, each skipped when already in place:
 4. install the systemd user units and helper scripts;
 5. enable the cockpit plugins, reload herdr.
 
-`--dry-run` prints the plan without touching anything.
+`--dry-run` prints the plan without touching anything. Without it, setup
+refuses to apply from a checkout with uncommitted changes or one that differs
+from origin/main (`--force-local` overrides, with a warning).
 """
 import glob
 import json
@@ -20,15 +22,13 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import plugins  # noqa: E402
 import render  # noqa: E402
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 HOME = os.path.expanduser("~")
 CONFIG = "config.toml"
 DOT_CONFIG = ".config"
-PLUGINS = ("chrysa.spaces", "chrysa.agent-info")
-# Replaced by the cockpit (blocked-only notification in chrysa.agent-info).
-REPLACED_PLUGINS = ("jyasha11.in-your-face",)
 UNITS = ("herdr-config-reload.path", "herdr-config-reload.service",
          "herdr-logrotate.service", "herdr-logrotate.timer")
 ENABLE = ("herdr-config-reload.path", "herdr-logrotate.timer")
@@ -170,17 +170,11 @@ class Setup:
             return
 
     def enable_plugins(self):
-        out = self.run(["herdr", "plugin", "list", "--json"], capture_output=True, text=True, check=False)
-        data = json.loads(out.stdout or "{}")
-        data = data.get("result", data)
-        listing = data.get("plugins", data) if isinstance(data, dict) else data
-        enabled = {p["plugin_id"] for p in listing if p.get("enabled")}
-        for plugin in PLUGINS:
-            if plugin not in enabled and self.change(f"enable plugin {plugin}"):
-                self.run(["herdr", "plugin", "enable", plugin], check=False)
-        for plugin in REPLACED_PLUGINS:
-            if plugin in enabled and self.change(f"disable plugin {plugin}"):
-                self.run(["herdr", "plugin", "disable", plugin], check=False)
+        """Reconcile installed plugins with plugins.toml (install, enable, disable; never uninstall)."""
+        actions, _ = plugins.diff(plugins.load_manifest(), plugins.installed(self.run))
+        for action in actions:
+            if self.change("herdr " + " ".join(action)):
+                self.run(["herdr", *action], check=False)
 
     def apply(self):
         palette = self.palette()
@@ -195,14 +189,45 @@ class Setup:
         return self.changes
 
 
+def source_drift(root=os.path.dirname(ROOT), run=subprocess.run):
+    """Why this checkout should not be applied, or None (`synapse sync` guard).
+
+    Applying uncommitted or unpushed templates would install a setup nobody
+    else can reproduce, and the next clean setup would silently undo it.
+    """
+    def git(*args):
+        return run(["git", "--no-optional-locks", "-C", root, *args], capture_output=True, text=True)
+    if git("rev-parse", "--is-inside-work-tree").returncode != 0:
+        return None  # installed from a release archive: nothing to compare
+    if git("status", "--porcelain").stdout.strip():
+        return "uncommitted changes in the cockpit checkout"
+    head = git("rev-parse", "HEAD").stdout.strip()
+    upstream = git("rev-parse", "origin/main").stdout.strip()
+    if upstream and head != upstream:
+        return "checkout differs from origin/main (commit and push, or pull, first)"
+    return None
+
+
 def main():
     dry_run = "--dry-run" in sys.argv
-    changes = Setup(Paths(), dry_run=dry_run).apply()
-    prefix = "would " if dry_run else ""
-    for change in changes:
-        print(prefix + change)
-    if not changes:
-        print("nothing to do: cockpit already in place")
+    force_local = "--force-local" in sys.argv
+    plan = Setup(Paths(), dry_run=True).apply()
+    if dry_run or not plan:
+        for change in plan:
+            print("would " + change)
+        if not plan:
+            print("nothing to do: cockpit already in place")
+        return
+    drift = source_drift()
+    if drift and not force_local:
+        print(f"refusing to apply: {drift}. Re-run with --force-local to apply anyway.")
+        for change in plan:
+            print("would " + change)
+        sys.exit(1)
+    if drift:
+        print(f"warning: {drift}; applying anyway (--force-local).")
+    for change in Setup(Paths(), dry_run=False).apply():
+        print(change)
 
 
 if __name__ == "__main__":

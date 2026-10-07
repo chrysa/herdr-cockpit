@@ -26,9 +26,13 @@ class FakeRun:
             self.active.add(args[-1])
         elif args[:3] == ["herdr", "plugin", "list"]:
             out = json.dumps({"result": {"plugins": [
-                {"plugin_id": p, "enabled": p in self.enabled} for p in setup.PLUGINS]}})
+                {"plugin_id": w["id"], "enabled": w["id"] in self.enabled,
+                 "source": {"kind": "github", "resolved_commit": w.get("ref")}}
+                for w in setup.plugins.load_manifest()]}})
         elif args[:3] == ["herdr", "plugin", "enable"]:
             self.enabled.add(args[3])
+        elif args[:3] == ["herdr", "plugin", "disable"]:
+            self.enabled.discard(args[3])
         return subprocess.CompletedProcess(args, 0, stdout=out, stderr="")
 
 
@@ -80,4 +84,5 @@ def test_dry_run_touches_nothing(tmp_path):
     assert changes
     assert not os.path.islink(paths.herdr_config)
     assert not os.path.exists(paths.state)
-    assert not any(call[:3] == ["herdr", "plugin", "enable"] for call in run.calls)
+    assert not any(call[:3] in (["herdr", "plugin", "enable"], ["herdr", "plugin", "disable"],
+                                ["herdr", "plugin", "install"]) for call in run.calls)
