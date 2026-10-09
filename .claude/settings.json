@@ -71,7 +71,8 @@
       "Read(**/.next/**)",
       "Read(**/dist/**)",
       "Read(**/*.min.js)",
-      "Read(**/*.map)"
+      "Read(**/*.map)",
+      "Read(!.env.example)"
     ],
     "allow": [
       "Bash(rtk git status *)",
@@ -88,7 +89,33 @@
       "Bash(rtk gh issue view *)",
       "Bash(rtk gh issue list *)",
       "Bash(rtk gh run list *)",
-      "Bash(rtk gh run view *)"
+      "Bash(rtk gh run view *)",
+      "Bash(rtk pytest *)",
+      "Bash(rtk python -m pytest *)",
+      "Bash(rtk ruff check *)",
+      "Bash(rtk ruff format *)",
+      "Bash(rtk mypy *)",
+      "Bash(uv run pytest *)",
+      "Bash(uv run ruff *)",
+      "Bash(uv run mypy *)",
+      "Bash(rtk uv sync *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/format.py"
+            ],
+            "timeout": 30
+          }
+        ]
+      }
     ]
   }
 }
