@@ -33,4 +33,5 @@ herdr plugin install chrysa/herdr-cockpit/agent-info --ref v0.2.0
 # then, in herdr: action "Cockpit: setup" (or python3 <cockpit root>/setup.py)
 ```
 
-Sidebar rows and keybindings: see each plugin's README.
+Sidebar rows and keybindings: see each plugin's README. Why most of the setup is
+native or third-party: [ADR 0001](docs/adr/0001-native-first.md). History: [CHANGELOG](CHANGELOG.md).
