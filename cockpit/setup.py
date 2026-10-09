@@ -148,6 +148,21 @@ class Setup:
             if not active and self.change(f"enable {unit}"):
                 self.run(["systemctl", "--user", "enable", "--now", unit], check=False)
 
+    def install_claude_integration(self):
+        """herdr's native Claude Code integration (session id, state) in every account.
+
+        Without it herdr cannot tell which session a pane runs, so the account and
+        model tokens stay empty for that account's agents.
+        """
+        for d in self.p.claude_dirs():
+            env = {**os.environ, "CLAUDE_CONFIG_DIR": d}
+            out = self.run(["herdr", "integration", "status"], capture_output=True, text=True,
+                           check=False, env=env).stdout or ""
+            line = next((l for l in out.splitlines() if l.startswith("claude:")), "")
+            if "current" not in line and self.change(f"herdr integration install claude ({os.path.basename(d)})"):
+                self.run(["herdr", "integration", "install", "claude"], check=False, env=env,
+                         capture_output=True)
+
     def install_opencode_theme(self):
         """Link the rendered theme into opencode and select it in tui.json(c)."""
         config_dir = os.path.join(self.p.home, DOT_CONFIG, "opencode")
@@ -186,6 +201,7 @@ class Setup:
         self.install_statusline()
         self.install_units(palette)
         self.install_opencode_theme()
+        self.install_claude_integration()
         self.enable_plugins()
         if self.changes and not self.dry_run:
             self.run(["herdr", "server", "reload-config"], check=False, capture_output=True)
