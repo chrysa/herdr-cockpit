@@ -111,6 +111,9 @@ class Setup:
 
     def install_config(self):
         self.link(self.p.herdr_config, os.path.join(self.p.rendered, CONFIG))
+        # herdr.auto-title reads its own file, outside herdr's config dir.
+        self.link(os.path.join(self.p.home, DOT_CONFIG, "herdr-auto-title", "config.env"),
+                  os.path.join(self.p.rendered, "auto-title.env"))
 
     def install_statusline(self):
         script = os.path.join(self.p.rendered, "statusline.sh")
