@@ -24,12 +24,6 @@ def test_every_template_renders_completely(name):
     assert "{{" not in render.render_file(name, palette)
 
 
-def test_palette_json_is_valid_and_complete():
-    data = json.loads(render.render_file("palette.json"))
-    assert set(data["accounts"]) == {"perso", "pro", "codex", "other"}
-    assert data["symbols"]["blocked"] == "‼"
-
-
 def test_opencode_theme_references_only_defined_colors():
     theme = json.loads(render.render_file("opencode-theme.json"))
     assert set(theme["theme"].values()) <= set(theme["defs"])

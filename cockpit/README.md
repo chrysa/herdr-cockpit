@@ -17,21 +17,11 @@ Source of truth for the herdr setup (see `work/specs/2026-10-06-cockpit-design.m
 - **Cockpit: status** (`python3 status.py`): read-only drift report, exit 1 on
   any drift.
 
-## Shared daemon
-
-`daemon.py` (started with the herdr server) reads herdr once per tick (panes,
-agents, workspaces) and hands the snapshot to `chrysa.spaces` and
-`chrysa.agent-info`. While it holds its lock, those plugins' own daemons do not
-start, and any already running exits at its next tick (their startup hooks race
-with this one when the server starts). A renderer that fails does not stop the
-others.
-
 ## Claude Code status line
 
-`templates/statusline.sh`: account (colored), model, folder, git state (same
-symbols as the sidebar), llmtrim context/savings/cache, cost only once billed
-past the quota, and a `⌃b ⌃g panel` hint inside herdr. It hides itself while
-the herdr info panel is open, since the panel shows all of it.
+`templates/statusline.sh`: account (colored), model, folder, git state and
+llmtrim's context/savings/cache. Plan limits and pay-as-you-go cost come from
+usagebar in herdr, so they are not repeated here.
 
 ## Plugin manifest
 
@@ -66,6 +56,7 @@ the built-in Agents column itself (sidebar, collapsed sidebar, navigation):
 | `prefix+ctrl+p` | next Claude profile: all → perso → pro… (accounts seen on agents) |
 | `prefix+ctrl+a` | only active agents (working, blocked) |
 | `prefix+ctrl+x` | only the space selected in herdr |
+| `prefix+ctrl+s` | sort by attention / by space order |
 | `prefix+ctrl+z` | show every agent |
 
 Filters combine, a toast shows the current one, and the state is re-applied at

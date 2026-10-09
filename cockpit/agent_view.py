@@ -9,7 +9,7 @@ Three independent filters, combined with "all":
 State lives in the plugin state dir and is re-applied at startup, since herdr
 drops the view when the server exits.
 
-Usage: agent_view.py profile | active | space | reset | apply
+Usage: agent_view.py profile | active | space | sort | reset | apply
 """
 import json
 import os
@@ -19,7 +19,7 @@ import sys
 SOURCE = "plugin:chrysa.cockpit"
 STATE_DIR = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.expanduser("~/.local/state/chrysa.cockpit")
 STATE = os.path.join(STATE_DIR, "agent-view.json")
-DEFAULT = {"profile": "", "active": False, "space": False}
+DEFAULT = {"profile": "", "active": False, "space": False, "attention": False}
 
 
 def call(method, params):
@@ -67,6 +67,7 @@ def build_filter(state):
 
 def label(state):
     parts = [state["profile"] or "tous profils"]
+    parts += ["tri attention"] if state.get("attention") else []
     parts += ["actifs"] if state["active"] else []
     parts += ["space courant"] if state["space"] else []
     return " · ".join(parts)
@@ -79,11 +80,18 @@ def accounts():
     return [""] + sorted(a for a in found if a)
 
 
+SORT_ATTENTION = [{"field": "attention", "order": "desc"}, {"field": "state_change_seq", "order": "desc"}]
+
+
 def apply(state):
     query = build_filter(state)
-    if query is None:
+    if query is None and not state.get("attention"):
         return call("agent.view.clear", {"source": SOURCE})
-    return call("agent.view.set", {"source": SOURCE, "label": label(state), "filter": query})
+    params = {"source": SOURCE, "label": label(state),
+              "filter": query or {"op": "exists", "field": "pane_id"}}
+    if state.get("attention"):
+        params["sort"] = SORT_ATTENTION
+    return call("agent.view.set", params)
 
 
 def notify(state):
@@ -96,6 +104,8 @@ def main():
     if command == "profile":
         order = accounts()
         state["profile"] = order[(order.index(state["profile"]) + 1) % len(order)] if state["profile"] in order else ""
+    elif command == "sort":
+        state["attention"] = not state.get("attention")
     elif command in ("active", "space"):
         state[command] = not state[command]
     elif command == "reset":

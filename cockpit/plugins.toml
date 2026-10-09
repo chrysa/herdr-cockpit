@@ -27,12 +27,6 @@ source = "chrysa/herdr-rtk-savings"
 enabled = true
 
 [[plugin]]
-id = "chrysa.spaces"
-source = "chrysa/herdr-cockpit/spaces"
-ref = "v0.3.0"
-enabled = true
-
-[[plugin]]
 id = "com.herdr.agent-config-manager"
 source = "Phoobobo/herdr-agent-config-manager"
 ref = "1c5416fdeabf194af0375e25cf49f8f4c28a55fa"

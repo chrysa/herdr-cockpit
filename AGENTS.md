@@ -5,10 +5,10 @@
 
 ## Overview
 
-Herdr plugins that make a multi-agent terminal session readable: `cockpit`
-(palette, templates, `setup`/`status`, shared daemon), `spaces` (space rows)
-and `agent-info` (agent tokens, auto-naming, right-hand info panel). Used daily
-on one machine; plan and specs in `work/`.
+Herdr configuration (`cockpit`: templates, palette, `setup`/`status`/`validate`,
+plugin manifest, native Agents-column filters) and one small plugin
+(`agent-info`: account/model tokens, services pane). Prefer native herdr and
+marketplace plugins; custom code only fills gaps. Plan and specs in `work/`.
 
 ## Commands
 

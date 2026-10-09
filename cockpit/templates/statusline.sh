@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Claude Code status line: what THIS session is doing.
-# Model, plan limits and tasks live in the herdr info pane (chrysa.agent-info,
-# usagebar), so they are deliberately not repeated here.
+# Claude Code status line: account, model, folder, git state, then llmtrim's
+# context / savings / cache. Plan limits and pay-as-you-go cost come from usagebar
+# in herdr's sidebar and limits pane, so they are not repeated here.
 input=$(cat)
 dir=$(jq -r '.workspace.current_dir // .cwd // empty' <<<"$input")
-cost=$(jq -r '.cost.total_cost_usd // empty' <<<"$input")
 
 segments=()
 # Account = Claude config dir in use (~/.claude-perso -> perso, ~/.claude-pro -> pro).
@@ -17,7 +16,6 @@ case "$account" in
   *) acc_rgb="{{acc_rgb.other}}" ;;
 esac
 segments+=("$(printf '\033[1;38;2;%sm● %s\033[0m' "$acc_rgb" "${account:-default}")")
-# Model: shown here only while the herdr info panel is closed (it carries the model when open).
 model=$(jq -r '.model.display_name // .model.id // empty' <<<"$input" | tr -d '\000-\037')
 [[ -n "$model" ]] && segments+=("$(printf '\033[38;2;{{rgb.mauve}}m%s\033[0m' "$model")")
 if [[ -n "$dir" ]]; then
@@ -54,30 +52,6 @@ if command -v llmtrim >/dev/null; then
   trimmed=$(llmtrim statusline <<<"$input" 2>/dev/null | perl -pe 's/^.*?   //')
   [[ -n "$trimmed" ]] && segments+=("$trimmed")
 fi
-
-# Cost only matters once the plan quota is spent and extra credits are billed
-# (flag maintained by chrysa.agent-info from usagebar's limit window).
-sid=$(jq -r '.session_id // empty' <<<"$input")
-[[ -n "$cost" ]] && [[ -n "$sid" ]] && [[ -f "$HOME/.local/state/chrysa.agent-info/billed/$sid" ]] && segments+=("$(printf '\033[2m$%.2f\033[0m' "$cost")")
-
-# Share this session's footer with the herdr info bar (chrysa.agent-info).
-session=$(jq -r '.session_id // empty' <<<"$input")
-state="$HOME/.local/state/chrysa.agent-info"
-if [[ -n "$session" ]] && [[ "$session" =~ ^[A-Za-z0-9-]+$ ]]; then
-  mkdir -p "$state/status"
-  usage=$(sed 's/\x1b\[[0-9;]*m//g' <<<"$trimmed" | perl -pe 's/   /\n/g' | jq -R . | jq -sc .)
-  jq -n --argjson usage "${usage:-[]}" --arg cost "$cost" --arg pane "${HERDR_PANE_ID:-}" --arg dir "$dir" \
-    '{usage: $usage, cost: (if $cost == "" then null else ($cost | tonumber) end), pane: $pane, dir: $dir, ts: now}' \
-    > "$state/status/$session.json.tmp" && mv "$state/status/$session.json.tmp" "$state/status/$session.json"
-  # The info bar heartbeats every second while open: then it carries all of this.
-  flag="$state/visible/$session"
-  if [[ -f "$flag" ]] && [[ $(( $(date +%s) - $(stat -c %Y "$flag") )) -lt 5 ]]; then
-    exit 0
-  fi
-fi
-
-# Hint for the info panel that replaces this line (herdr only).
-[[ -n "${HERDR_ENV:-}" ]] && segments+=("$(printf '\033[2m⌃b ⌃g panel\033[0m')")
 
 out=""
 for s in "${segments[@]}"; do out+="${out:+   }$s"; done

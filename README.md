@@ -1,12 +1,12 @@
 # herdr-cockpit
 
-Herdr plugins that make a multi-agent session readable at a glance.
+Herdr configuration and two small plugins that make a multi-agent session readable at a glance.
+Most of it is native herdr or existing marketplace plugins (see `cockpit/plugins.toml`); the code here only fills the gaps.
 
 | Plugin | Id | What it does |
 |---|---|---|
-| [`spaces`](spaces/) | `chrysa.spaces` | Space rows: agent count in the project color, agents waiting for you (`‼ 2 attendent`, `✓ 1 terminé`), accounts used (one color per account), worktrees |
-| [`cockpit`](cockpit/) | `chrysa.cockpit` | Palette and templates for the whole herdr setup (`setup` installs, `status` reports drift) |
-| [`agent-info`](agent-info/) | `chrysa.agent-info` | Sidebar tokens per agent (account, model, git, task, subagents), auto-naming `<space>-<topic>`, right-hand info panel with conversation and agents views |
+| [`cockpit`](cockpit/) | `chrysa.cockpit` | The whole setup: config templates and palette, `setup` / `status` / `validate`, plugin manifest, filters and sort for herdr's native Agents column, tab bar status, Claude Code status line |
+| [`agent-info`](agent-info/) | `chrysa.agent-info` | `$account` / `$model` tokens for the sidebar, and a services pane (containers, ports, URLs of the tab's project) |
 
 Local reads only: herdr socket, Claude Code / Codex / opencode session files. No network, no telemetry.
 
@@ -29,7 +29,6 @@ Pin a released version (tags `vX.Y.Z`, see Releases) so another machine stays st
 
 ```sh
 herdr plugin install chrysa/herdr-cockpit/cockpit --ref v0.2.0
-herdr plugin install chrysa/herdr-cockpit/spaces --ref v0.2.0
 herdr plugin install chrysa/herdr-cockpit/agent-info --ref v0.2.0
 # then, in herdr: action "Cockpit: setup" (or python3 <cockpit root>/setup.py)
 ```
