@@ -35,6 +35,9 @@ Three views: conversation (default), agents (`a`), espace (`e`):
   grouped by git work tree, with branch and git state, open PRs (from the
   `gh-pr` plugin's token, no API call), running services and their URLs, and
   each agent's state.
+- In the Agents and Espace views, `p` cycles the Claude profile (all, perso, pro…)
+  and `f` keeps only active agents (working or blocked); both combine with the
+  selected space.
 - **Agents** (the space selected in herdr; `A` for all spaces): grouped
   `‼ bloqués`, `◐ en cours`, `✓ terminés`, `○ en attente`; `1`-`4` fold a group.
 
