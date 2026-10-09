@@ -18,7 +18,7 @@ jobs:
       - name: Check plugin versions match the tag
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          for manifest in cockpit/herdr-plugin.toml spaces/herdr-plugin.toml agent-info/herdr-plugin.toml; do
+          for manifest in */herdr-plugin.toml; do
             grep -q "^version = \"$tag\"" "$manifest" || { echo "$manifest is not at version $tag"; exit 1; }
           done
       - name: Release notes from commits since the previous tag
