@@ -165,16 +165,19 @@ VIEW = {"tasks": True, "done": False, "subs": True, "git": True, "usage": True, 
 KEYS = {"t": "tasks", "d": "done", "s": "subs", "g": "git", "u": "usage", "r": "rtk", "w": "services"}
 STATE_ORDER = ("blocked", "working", "done", "idle")
 STATE_LABEL = {"blocked": "bloqués", "working": "en cours", "done": "terminés", "idle": "en attente"}
-UI = {"mode": "conv", "all_spaces": False, "collapsed": set()}
+UI = {"mode": "conv", "all_spaces": False, "collapsed": set(), "profile": "", "active_only": False}
+ACTIVE_STATES = ("working", "blocked")
 UI_FILE = os.path.join(STATE, "panel.json")
 HELP = {"conv": "a agents · e espace · ? toutes les touches · q fermer",
-        "agents": "a conversation · e espace · A tous les spaces · 1-4 replier · ? aide · q",
-        "space": "e conversation · a agents · ? aide · q"}
+        "agents": "a conversation · e espace · p profil · f actifs · A tous les spaces · 1-4 replier · ? aide · q",
+        "space": "e conversation · a agents · p profil · f actifs · ? aide · q"}
 
 
 KEY_HELP = (
     ("Vues", (("a", "agents du space sélectionné"), ("e", "espace : projets du space"),
-              ("A", "vue agents : tous les spaces"), ("1-4", "vue agents : replier un groupe"))),
+              ("A", "vue agents : tous les spaces"), ("1-4", "vue agents : replier un groupe"),
+              ("p", "agents / espace : profil Claude suivant (tous, perso, pro…)"),
+              ("f", "agents / espace : seulement les agents actifs (en cours, bloqués)"))),
     ("Conversation", (("t", "tâches"), ("d", "tâches terminées"), ("s", "subagents"), ("g", "git et worktrees"),
                       ("u", "conso"), ("r", "RTK"), ("w", "services"), ("P", "nettoyer les worktrees obsolètes"))),
     ("Panel", (("?", "afficher / masquer cette aide"), ("q", "fermer le panel"))),
@@ -191,6 +194,35 @@ def render_help(width):
     return lines, None
 
 
+def profiles(agents):
+    """Accounts seen on agents, in a stable order ("" = every profile)."""
+    return [""] + sorted({(a.get("tokens") or {}).get("account") for a in agents} - {None, ""})
+
+
+def by_profile(agents):
+    """Agents of the selected profile (account) — and only active ones when that filter is on."""
+    wanted = UI.get("profile", "")
+    kept = [a for a in agents if not wanted or (a.get("tokens") or {}).get("account") == wanted]
+    if UI.get("active_only"):
+        kept = [a for a in kept if a.get("agent_status") in ACTIVE_STATES]
+    return kept
+
+
+def profile_label():
+    label = safe(UI.get("profile") or "tous profils")
+    return label + (" · actifs" if UI.get("active_only") else "")
+
+
+def next_profile():
+    try:
+        agents = monitor.herdr("agent", "list").get("result", {}).get("agents", [])
+    except Exception:
+        return
+    order = profiles(agents)
+    current = UI.get("profile", "")
+    UI["profile"] = order[(order.index(current) + 1) % len(order)] if current in order else ""
+
+
 def load_ui():
     try:
         with open(UI_FILE) as fh:
@@ -198,6 +230,8 @@ def load_ui():
         UI["mode"] = data.get("mode", "conv")
         UI["all_spaces"] = bool(data.get("all_spaces"))
         UI["collapsed"] = set(data.get("collapsed", []))
+        UI["profile"] = data.get("profile", "")
+        UI["active_only"] = bool(data.get("active_only"))
     except (OSError, ValueError):
         pass
 
@@ -206,7 +240,8 @@ def save_ui():
     os.makedirs(STATE, exist_ok=True)
     with open(UI_FILE, "w") as fh:
         json.dump({"mode": UI["mode"], "all_spaces": UI["all_spaces"],
-                   "collapsed": sorted(UI["collapsed"])}, fh)
+                   "collapsed": sorted(UI["collapsed"]), "profile": UI.get("profile", ""),
+                   "active_only": UI.get("active_only", False)}, fh)
 
 
 def cutter(width):
@@ -289,10 +324,11 @@ def render_space(width):
     cut = cutter(width)
     agents = monitor.herdr("agent", "list").get("result", {}).get("agents", [])
     ws_id, label = focused_workspace()
-    agents = [a for a in agents if a.get("workspace_id") == ws_id]
+    agents = by_profile([a for a in agents if a.get("workspace_id") == ws_id])
     projects = projects_of(agents)
     lines = [f"{C['b']}Espace · {safe(label or ws_id)}{C['r']} "
-             f"{C['dim']}({len(projects)} projet{'s' if len(projects) > 1 else ''}, {len(agents)} agents){C['r']}", ""]
+             f"{C['dim']}({len(projects)} projet{'s' if len(projects) > 1 else ''}, {len(agents)} agents)"
+             f" · {profile_label()}{C['r']}", ""]
     if not projects:
         return lines + [f"{C['dim']}aucun agent dans ce space{C['r']}"], None
     for root in sorted(projects, key=lambda r: (-len(projects[r]), r)):
@@ -910,8 +946,9 @@ def render_agents(width):
     ws_id, label = focused_workspace()
     if not UI["all_spaces"]:
         agents = [a for a in agents if a.get("workspace_id") == ws_id]
+    agents = by_profile(agents)
     title = "tous les spaces" if UI["all_spaces"] else (label or ws_id)
-    lines = [f"{C['b']}Agents · {safe(title)}{C['r']} {C['dim']}({len(agents)}){C['r']}", ""]
+    lines = [f"{C['b']}Agents · {safe(title)}{C['r']} {C['dim']}({len(agents)}) · {profile_label()}{C['r']}", ""]
     if not agents:
         return lines + [f"{C['dim']}aucun agent{C['r']}"], None
     for number, (state, members) in enumerate(group_by_state(agents).items(), start=1):
@@ -979,6 +1016,10 @@ def main():
                 agent = target_agent()
                 if agent:
                     prune_worktrees(conversation_dir(agent, read_footer(monitor.session_for(agent))))
+            elif key == "p" and UI["mode"] in ("agents", "space"):
+                next_profile()
+            elif key == "f" and UI["mode"] in ("agents", "space"):
+                UI["active_only"] = not UI.get("active_only")
             elif key == "e":
                 UI["mode"] = "conv" if UI["mode"] == "space" else "space"
             elif key == "A":

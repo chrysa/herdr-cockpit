@@ -185,3 +185,28 @@ key = "prefix+ctrl+s"
 type = "shell"
 command = '''c="${HERDR_CONFIG_PATH:-$HOME/.config/herdr/config.toml}"; if grep -q '^agent_panel_sort = "priority"' "$c"; then sed -i --follow-symlinks 's/^agent_panel_sort = "priority"/agent_panel_sort = "spaces"/' "$c"; else sed -i --follow-symlinks 's/^agent_panel_sort = "spaces"/agent_panel_sort = "priority"/' "$c"; fi; "$HERDR_BIN_PATH" server reload-config >/dev/null'''
 description = "agents : tri priorité / par space"
+
+# ── Filtres de la colonne Agents native (chrysa.cockpit, agent.view.set) ──
+[[keys.command]]
+key = "prefix+ctrl+p"
+type = "plugin_action"
+command = "chrysa.cockpit.agents-profile"
+description = "agents : profil Claude suivant (tous, perso, pro…)"
+
+[[keys.command]]
+key = "prefix+ctrl+a"
+type = "plugin_action"
+command = "chrysa.cockpit.agents-active"
+description = "agents : seulement les actifs (en cours, bloqués)"
+
+[[keys.command]]
+key = "prefix+ctrl+x"
+type = "plugin_action"
+command = "chrysa.cockpit.agents-space"
+description = "agents : seulement le space sélectionné"
+
+[[keys.command]]
+key = "prefix+ctrl+z"
+type = "plugin_action"
+command = "chrysa.cockpit.agents-reset"
+description = "agents : tout afficher"
