@@ -35,10 +35,15 @@ agent_panel_sort = "spaces"
 show_agent_labels_on_pane_borders = false
 confirm_close = true
 
-# ── Notifications bureau ──
 status_indicators = "symbols"
+# ── Notifications herdr (dans la fenêtre, pas celles du système), en haut à droite :
+#    agent qui a fini ou qui attend une réponse, et copie dans le presse-papiers ──
 [ui.toast]
-delivery = "terminal"
+delivery = "herdr"
+[ui.toast.herdr]
+position = "top-right"
+[ui.toast.clipboard]
+position = "top-right"
 
 # ── Session : reprend les agents après redémarrage ──
 [session]
@@ -57,27 +62,26 @@ enabled = false
 [experimental]
 pane_history = true
 
-# ── Sidebar spaces : économies RTK (chrysa.rtk-savings).
-#    (jauges conso Claude déplacées vers usagebar → voir [ui.sidebar.agents]) ──
+# ── Sidebar spaces : lignes natives (état, nom, branche, git ; worktrees groupés nativement) ──
 [ui.sidebar.spaces]
 row_gap = 1
 rows = [
-  # nom du space · nombre d'agents (couleur du projet) · agents qui attendent / terminés non vus · comptes
-  ["state_icon", "workspace", { token = "$sp0", fg = "#89b4fa", bold = true }, { token = "$sp1", fg = "#a6e3a1", bold = true }, { token = "$sp2", fg = "#f9e2af", bold = true }, { token = "$sp3", fg = "#f38ba8", bold = true }, { token = "$sp4", fg = "#cba6f7", bold = true }, { token = "$sp5", fg = "#fab387", bold = true }, { token = "$sp6", fg = "#94e2d5", bold = true }, { token = "$sp7", fg = "#f5c2e7", bold = true }, { token = "$attn", fg = "#f38ba8", bold = true }, { token = "$fresh", fg = "#89b4fa" }, { token = "$acc_perso", fg = "#f9e2af" }, { token = "$acc_pro", fg = "#89dceb" }, { token = "$acc_codex", fg = "#a6e3a1" }, { token = "$acc_other", fg = "#9399b2" }],
-  # branche git du space
+  ["state_icon", "workspace"],
   ["branch", "git_status"],
 ]
 
+# ── Sidebar agents : titre (auto-title / claude-session-title), compte coloré, modèle, PR (gh-pr) ──
 [ui.sidebar.agents]
 row_gap = 0
 rows = [
-  # 1. état · pastille du space · tâche. Compte : footer Claude Code. Modèle, limites, contexte et liste
-  #    de tâches : panneau info à droite (prefix+ctrl+g, chrysa.agent-info).
-  ["state_icon", { token = "$ag0", fg = "#89b4fa", bold = true }, { token = "$ag1", fg = "#a6e3a1", bold = true }, { token = "$ag2", fg = "#f9e2af", bold = true }, { token = "$ag3", fg = "#f38ba8", bold = true }, { token = "$ag4", fg = "#cba6f7", bold = true }, { token = "$ag5", fg = "#fab387", bold = true }, { token = "$ag6", fg = "#94e2d5", bold = true }, { token = "$ag7", fg = "#f5c2e7", bold = true }, "$title"],
-  # 2. état git du dossier de l'agent (chrysa.agent-info) · action en cours
-  [{ token = "$git", fg = "#9399b2" }, { token = "$pr", fg = "#89dceb" }, { token = "$doing", fg = "#a6e3a1" }],
-  # subagents en train de tourner (chrysa.agent-info), vide sinon
-  [{ token = "$subs", fg = "#89dceb" }],
+  ["state_icon", "$title"],
+  [{ token = "$account", fg = "#9399b2", bold = true, rules = [
+      { equals = "perso", fg = "#f9e2af" },
+      { equals = "pro", fg = "#89dceb" },
+      { equals = "codex", fg = "#a6e3a1" },
+    ] },
+   { token = "$model", fg = "#cba6f7" },
+   { token = "$pr", fg = "#89dceb" }],
 ]
 
 # prefix+r est pris par resize_mode (builtin) → déplacé sur prefix+ctrl+r (alt évité : envoie ESC en xterm)
@@ -172,19 +176,19 @@ command = '''n="rev-$(date +%H%M%S)"; p=$("$HERDR_BIN_PATH" pane split --current
 description = "reviewer: codex revoit le diff dans un split"
 
 
-# ── Panneau info à droite : compte, modèle, limites, contexte, tâches ──
+# ── Services du projet de l'onglet (conteneurs, ports, URL) : chrysa.agent-info ──
 [[keys.command]]
 key = "prefix+ctrl+g"
-type = "plugin_action"
-command = "chrysa.agent-info.toggle-info"
-description = "info : panneau agents à droite"
+type = "shell"
+command = '"$HERDR_BIN_PATH" plugin pane open --plugin chrysa.agent-info --entrypoint services --placement split --direction down --no-focus'
+description = "services du projet (conteneurs, ports, URL)"
 
-# ── Agents : bascule du tri file d'attention (priority) / groupé par space (spaces) ──
+# ── Agents : tri natif par attention / ordre des spaces (agent.view.set, sans toucher la config) ──
 [[keys.command]]
 key = "prefix+ctrl+s"
-type = "shell"
-command = '''c="${HERDR_CONFIG_PATH:-$HOME/.config/herdr/config.toml}"; if grep -q '^agent_panel_sort = "priority"' "$c"; then sed -i --follow-symlinks 's/^agent_panel_sort = "priority"/agent_panel_sort = "spaces"/' "$c"; else sed -i --follow-symlinks 's/^agent_panel_sort = "spaces"/agent_panel_sort = "priority"/' "$c"; fi; "$HERDR_BIN_PATH" server reload-config >/dev/null'''
-description = "agents : tri priorité / par space"
+type = "plugin_action"
+command = "chrysa.cockpit.agents-sort"
+description = "agents : tri par attention / par space"
 
 # ── Filtres de la colonne Agents native (chrysa.cockpit, agent.view.set) ──
 [[keys.command]]

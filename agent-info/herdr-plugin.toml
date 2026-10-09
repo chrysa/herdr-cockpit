@@ -1,48 +1,27 @@
 id = "chrysa.agent-info"
 name = "Agent Info"
-version = "0.3.0"
+version = "0.4.0"
 min_herdr_version = "0.7.0"
-description = "Shows per agent pane the Claude account ($account), the LLM model ($model), the in-progress task ($doing) and the task tally ($todo), read from local session transcripts. Local reads only - no network, no telemetry."
+description = "Publishes the Claude account ($account) and LLM model ($model) of each agent pane for the sidebar, and a pane listing the tab project's containers and listening ports with their URLs. Local reads only - no network, no telemetry."
 platforms = ["macos", "linux"]
 
-[[actions]]
-id = "start"
-title = "Model badge: start monitor"
-contexts = ["workspace"]
-command = ["python3", "monitor.py", "ensure"]
-
-[[actions]]
-id = "stop"
-title = "Model badge: stop monitor"
-contexts = ["workspace"]
-command = ["python3", "monitor.py", "stop"]
-
-[[events]]
-on = "workspace.created"
+[[startup]]
+platforms = ["linux", "macos"]
 command = ["python3", "monitor.py", "ensure"]
 
 [[events]]
 on = "pane.created"
 command = ["python3", "monitor.py", "ensure"]
 
-[[events]]
-on = "workspace.focused"
-command = ["python3", "monitor.py", "ensure"]
-
-# Right-hand info pane: account, model, limits, context and tasks per agent.
-[[panes]]
-id = "info"
-title = "info"
-placement = "split"
-command = ["python3", "info.py"]
-
 [[actions]]
-id = "toggle-info"
-title = "Info: toggle right pane"
-contexts = ["pane", "workspace"]
-command = ["sh", "toggle-info.sh"]
+id = "stop"
+title = "Agent info: stop the token monitor"
+contexts = ["workspace"]
+command = ["python3", "monitor.py", "stop"]
 
-# Start with the server so the sidebar is populated right after a restart.
-[[startup]]
-platforms = ["linux", "macos"]
-command = ["python3", "monitor.py", "ensure"]
+# Containers and listening processes of the tab's git project, with URLs.
+[[panes]]
+id = "services"
+title = "services"
+placement = "split"
+command = ["python3", "services_pane.py"]

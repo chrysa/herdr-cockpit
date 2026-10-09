@@ -37,3 +37,13 @@ Outside this repo, still open:
 | 14 | setup guards: plan first, refuse dirty/unpushed checkout unless `--force-local` | tested |
 | 15 | Health checks in status (daemon alive, herdr version, docker/ss/git present) | — |
 | 16 | Tagged releases + `herdr plugin install --ref` | — |
+
+## Slimming (2026-10-09): native first, custom code only for gaps
+
+After re-reading herdr 0.9.3 docs and the marketplace:
+- removed `spaces` (native space rows + worktree grouping + native Agents filter by profile);
+- removed the info panel (`flowy11/agent-panel`, usagebar limits pane, Go To, RTK pane);
+- removed the shared daemon, auto-renaming, blocked-agent notification (herdr toasts),
+  git/subagent/task tokens (agent-panel, gh-pr);
+- kept: `$account`/`$model` tokens, a services pane, cockpit setup/status/validate,
+  native Agents-column filters and sort (`agent.view.set`), tab bar status, status line.

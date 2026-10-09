@@ -82,18 +82,18 @@ def check_units(is_active=None):
 
 
 MIN_HERDR = (0, 9, 0)
-TOOLS = ("git", "docker", "ss", "jq", "notify-send")
+TOOLS = ("git", "docker", "ss", "jq")
 
 
-def check_daemon(pidfile=os.path.join(HOME, ".local", "state", "chrysa.cockpit", "daemon.pid")):
-    """The shared cockpit daemon (sidebar tokens, auto-naming, notifications) is running."""
+def check_daemon(pidfile=os.path.join(HOME, ".local", "state", "chrysa.agent-info", "daemon.pid")):
+    """The agent-info monitor ($account and $model tokens) is running."""
     try:
         with open(pidfile) as fh:
             pid = int(fh.read().strip())
         os.kill(pid, 0)
     except (OSError, ValueError):
-        return "missing", "cockpit daemon not running (python3 cockpit/daemon.py ensure)"
-    return "ok", f"cockpit daemon pid {pid}"
+        return "missing", "agent-info monitor not running (python3 agent-info/monitor.py ensure)"
+    return "ok", f"agent-info monitor pid {pid}"
 
 
 def parse_version(text):
