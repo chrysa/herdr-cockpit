@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+# Right side of herdr's tab bar (ui.tab_bar_right, type = "command"):
+# account · model · plan window/context of the focused agent, from the tokens
+# chrysa.agent-info and usagebar already publish. Prints nothing outside an agent.
+herdr="${HERDR_BIN_PATH:-herdr}"
+"$herdr" agent list 2>/dev/null | python3 -c '
+import json, re, sys
+try:
+    agents = json.load(sys.stdin)["result"]["agents"]
+except Exception:
+    sys.exit(0)
+agent = next((a for a in agents if a.get("focused")), None)
+if not agent:
+    sys.exit(0)
+t = agent.get("tokens") or {}
+clean = lambda s: re.sub(r"[\x00-\x1f\x7f-\x9f]", "", str(s or ""))
+parts = [clean(t.get("account")), clean(t.get("model")), clean(t.get("context"))]
+print("  ".join(p for p in parts if p))
+'

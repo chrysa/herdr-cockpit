@@ -12,7 +12,9 @@ import render  # noqa: E402
 def test_config_renders_byte_for_byte():
     with open(os.path.join(ROOT, "tests", "fixtures", "config.toml")) as fh:
         expected = fh.read()
-    assert render.render_file("config.toml") == expected
+    palette = render.load_palette()
+    palette["paths"] = {"config": "/c", "bin": "/b"}
+    assert render.render_file("config.toml", palette) == expected
 
 
 def test_template_has_no_hardcoded_palette_color():
