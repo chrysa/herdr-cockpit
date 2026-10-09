@@ -163,3 +163,14 @@ id = "worktrunk"
 source = "devashish2203/herdr-worktrunk"
 ref = "4be9bbbaab1dfbecc81b298d30624052d0c432d1"
 enabled = true
+[[plugin]]
+id = "agent-panel"
+source = "flowy11/agent-panel"
+ref = "cc45980f90a40969ae5ba65ccc27948769cf3b8b"
+enabled = true
+
+[[plugin]]
+id = "bcihanc.claude-session-title"
+source = "bcihanc/herdr-claude-session-title"
+ref = "b718bb1daa7c575978faf29339bc7596ae103483"
+enabled = true

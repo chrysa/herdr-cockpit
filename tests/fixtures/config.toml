@@ -26,6 +26,10 @@ auto_switch = true
 
 # ── UI / Sidebar ──
 [ui]
+# Right of the tab bar: account · model · plan/context of the focused agent (cockpit/bin/herdr-tabbar).
+tab_bar_right = [
+  { type = "command", command = "/b/herdr-tabbar", interval_seconds = 5, timeout_seconds = 2 },
+]
 # Agents groupés sous leur space (natif) : c'est le filtre par space de herdr.
 agent_panel_sort = "spaces"
 show_agent_labels_on_pane_borders = false

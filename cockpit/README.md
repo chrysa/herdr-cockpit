@@ -49,3 +49,9 @@ add it here and run setup.
 - `setup` prints its plan and refuses to apply from a checkout with
   uncommitted changes or one that differs from `origin/main`
   (`--force-local` overrides, with a warning).
+
+## Tab bar
+
+`ui.tab_bar_right` runs `bin/herdr-tabbar` every 5 s: account · model ·
+plan window/context of the focused agent, from tokens other plugins already
+publish (no extra polling of its own beyond one `herdr agent list`).

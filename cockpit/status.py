@@ -20,13 +20,19 @@ HOME = os.path.expanduser("~")
 SYSTEMD_UNITS = ("herdr-config-reload.path", "herdr-logrotate.timer")
 
 
+def setup_palette():
+    """The palette setup renders with, paths included, so status compares like for like."""
+    import setup  # local import: setup imports this module's neighbours, not status
+    return setup.Setup(setup.Paths(), dry_run=True).palette()
+
+
 def check_config(installed=os.path.join(HOME, ".config", "herdr", "config.toml")):
     """Installed herdr config vs the rendered template."""
     if not os.path.exists(installed):
         return "missing", installed
     with open(installed) as fh:
         current = fh.read()
-    expected = render.render_file("config.toml")
+    expected = render.render_file("config.toml", setup_palette())
     if current == expected:
         return "ok", installed
     diff = difflib.unified_diff(expected.splitlines(), current.splitlines(),

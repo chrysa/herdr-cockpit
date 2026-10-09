@@ -11,13 +11,13 @@ import status  # noqa: E402
 
 def test_config_ok_when_identical(tmp_path):
     installed = tmp_path / "config.toml"
-    installed.write_text(render.render_file("config.toml"))
+    installed.write_text(render.render_file("config.toml", status.setup_palette()))
     assert status.check_config(str(installed))[0] == "ok"
 
 
 def test_config_drift_shows_diff(tmp_path):
     installed = tmp_path / "config.toml"
-    installed.write_text(render.render_file("config.toml").replace("prefix = ", "prefix  = ", 1))
+    installed.write_text(render.render_file("config.toml", status.setup_palette()).replace("prefix = ", "prefix  = ", 1))
     state, detail = status.check_config(str(installed))
     assert state == "drift"
     assert "prefix" in detail
