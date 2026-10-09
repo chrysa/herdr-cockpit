@@ -25,3 +25,32 @@ command = ["python3", "daemon.py", "ensure"]
 [[events]]
 on = "workspace.focused"
 command = ["python3", "daemon.py", "ensure"]
+
+# Filters for herdr's native Agents column (agent.view.set), re-applied at startup.
+[[startup]]
+platforms = ["linux", "macos"]
+command = ["python3", "agent_view.py", "apply"]
+
+[[actions]]
+id = "agents-profile"
+title = "Agents: next Claude profile (all, perso, pro…)"
+contexts = ["global"]
+command = ["python3", "agent_view.py", "profile"]
+
+[[actions]]
+id = "agents-active"
+title = "Agents: only active (working, blocked) on/off"
+contexts = ["global"]
+command = ["python3", "agent_view.py", "active"]
+
+[[actions]]
+id = "agents-space"
+title = "Agents: only the selected space on/off"
+contexts = ["global"]
+command = ["python3", "agent_view.py", "space"]
+
+[[actions]]
+id = "agents-reset"
+title = "Agents: show every agent"
+contexts = ["global"]
+command = ["python3", "agent_view.py", "reset"]

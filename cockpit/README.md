@@ -55,3 +55,18 @@ add it here and run setup.
 `ui.tab_bar_right` runs `bin/herdr-tabbar` every 5 s: account · model ·
 plan window/context of the focused agent, from tokens other plugins already
 publish (no extra polling of its own beyond one `herdr agent list`).
+
+## Filters for herdr's native Agents column
+
+`agent_view.py` drives herdr's `agent.view.set` socket method, which filters
+the built-in Agents column itself (sidebar, collapsed sidebar, navigation):
+
+| Key | Filter |
+|---|---|
+| `prefix+ctrl+p` | next Claude profile: all → perso → pro… (accounts seen on agents) |
+| `prefix+ctrl+a` | only active agents (working, blocked) |
+| `prefix+ctrl+x` | only the space selected in herdr |
+| `prefix+ctrl+z` | show every agent |
+
+Filters combine, a toast shows the current one, and the state is re-applied at
+server startup.
