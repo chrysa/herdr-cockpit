@@ -16,6 +16,7 @@ class FakeRun:
         self.calls = []
         self.active = set()
         self.enabled = set()
+        self.integrated = set()
 
     def __call__(self, args, **kwargs):
         self.calls.append(args)
@@ -29,6 +30,10 @@ class FakeRun:
                 {"plugin_id": w["id"], "enabled": w["id"] in self.enabled,
                  "source": {"kind": "github", "resolved_commit": w.get("ref")}}
                 for w in setup.plugins.load_manifest()]}})
+        elif args[:3] == ["herdr", "integration", "status"]:
+            out = "claude: current (v10) (/x)" if kwargs["env"]["CLAUDE_CONFIG_DIR"] in self.integrated else "claude: not installed"
+        elif args[:3] == ["herdr", "integration", "install"]:
+            self.integrated.add(kwargs["env"]["CLAUDE_CONFIG_DIR"])
         elif args[:3] == ["herdr", "plugin", "enable"]:
             self.enabled.add(args[3])
         elif args[:3] == ["herdr", "plugin", "disable"]:
@@ -94,3 +99,11 @@ def test_auto_title_settings_are_linked(tmp_path):
     link = tmp_path / ".config" / "herdr-auto-title" / "config.env"
     assert os.readlink(link) == os.path.join(paths.rendered, "auto-title.env")
     assert "HERDR_AUTO_TITLE_MAX_LENGTH" in link.read_text()
+
+
+def test_claude_integration_installed_in_every_account(tmp_path):
+    paths = make_home(tmp_path)
+    run = FakeRun()
+    changes = setup.Setup(paths, run=run).apply()
+    assert sum("integration install claude" in c for c in changes) == 2
+    assert len(run.integrated) == 2
