@@ -27,10 +27,9 @@ def test_label():
     assert agent_view.label(dict(agent_view.DEFAULT)) == "tous profils"
 
 
-def test_sort_only_view_keeps_every_agent():
-    import types
+def test_sort_only_view_keeps_every_agent(monkeypatch):
     calls = []
-    agent_view.call = lambda method, params: calls.append((method, params)) or {}
+    monkeypatch.setattr(agent_view, "call", lambda method, params: calls.append((method, params)) or {})
     agent_view.apply({"profile": "", "active": False, "space": False, "attention": True})
     method, params = calls[-1]
     assert method == "agent.view.set"
