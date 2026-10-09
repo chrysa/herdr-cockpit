@@ -251,3 +251,23 @@ def test_help_lists_every_key():
     plain = "\n".join(info.ANSI.sub("", line) for line in info.render_help(60)[0])
     for key in ("a", "e", "A", "t", "d", "s", "g", "u", "r", "w", "P", "?", "q"):
         assert f"  {key}" in plain
+
+
+def test_profile_filter(monkeypatch):
+    agents = [{"tokens": {"account": "perso"}}, {"tokens": {"account": "pro"}}, {"tokens": {}}]
+    assert info.profiles(agents) == ["", "perso", "pro"]
+    monkeypatch.setitem(info.UI, "profile", "pro")
+    assert info.by_profile(agents) == [agents[1]]
+    monkeypatch.setitem(info.UI, "profile", "")
+    assert info.by_profile(agents) == agents
+
+
+def test_active_only_filter(monkeypatch):
+    agents = [{"agent_status": "working", "tokens": {"account": "pro"}},
+              {"agent_status": "idle", "tokens": {"account": "pro"}},
+              {"agent_status": "blocked", "tokens": {"account": "perso"}}]
+    monkeypatch.setitem(info.UI, "profile", "")
+    monkeypatch.setitem(info.UI, "active_only", True)
+    assert [a["agent_status"] for a in info.by_profile(agents)] == ["working", "blocked"]
+    monkeypatch.setitem(info.UI, "profile", "pro")
+    assert [a["agent_status"] for a in info.by_profile(agents)] == ["working"]
