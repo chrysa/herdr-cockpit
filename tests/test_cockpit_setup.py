@@ -86,3 +86,11 @@ def test_dry_run_touches_nothing(tmp_path):
     assert not os.path.exists(paths.state)
     assert not any(call[:3] in (["herdr", "plugin", "enable"], ["herdr", "plugin", "disable"],
                                 ["herdr", "plugin", "install"]) for call in run.calls)
+
+
+def test_auto_title_settings_are_linked(tmp_path):
+    paths = make_home(tmp_path)
+    setup.Setup(paths, run=FakeRun()).apply()
+    link = tmp_path / ".config" / "herdr-auto-title" / "config.env"
+    assert os.readlink(link) == os.path.join(paths.rendered, "auto-title.env")
+    assert "HERDR_AUTO_TITLE_MAX_LENGTH" in link.read_text()
