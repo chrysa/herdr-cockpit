@@ -28,3 +28,10 @@ def test_shipped_manifest_is_well_formed():
     assert len(ids) == len(set(ids))
     assert all(p["source"] for p in manifest)
     assert "chrysa.cockpit" in ids
+
+
+def test_disabled_but_installed_plugin_is_reported():
+    manifest = [{"id": "x", "source": "o/x", "enabled": False}]
+    actions, drift = plugins.diff(manifest, [{"plugin_id": "x", "enabled": False}])
+    assert actions == []
+    assert drift == ["x: installed but disabled — uninstall it and drop it from plugins.toml"]

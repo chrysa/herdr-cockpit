@@ -45,22 +45,10 @@ ref = "30e25b5c23d8c5b339c1618904366d29a0c30eb0"
 enabled = true
 
 [[plugin]]
-id = "ez-corp.git-status"
-source = "ezcorp-org/herdr-git-status"
-ref = "297744d68b8a6bced5b96eb56530487308ec6c7b"
-enabled = true
-
-[[plugin]]
 id = "gh-pr"
 source = "wyattjoh/herdr-plugin-gh-pr"
 ref = "6fe22de9a90c569f2186595cfddc3707f55ba1bd"
 enabled = true
-
-[[plugin]]
-id = "herdr-board"
-source = "nelsonPires5/herdr-board"
-ref = "6355bb029b31f7f428fdbd816ac6b93d7c78fb74"
-enabled = false
 
 [[plugin]]
 id = "herdr-file-viewer"
@@ -93,24 +81,6 @@ ref = "7fcec810280696b8b38b5bd884be2b340c73e02b"
 enabled = true
 
 [[plugin]]
-id = "jt.command-palette"
-source = "JanTvrdik/herdr-command-palette"
-ref = "eab940018c2135ac23718efa11e23e9dddcd2a75"
-enabled = false
-
-[[plugin]]
-id = "jyasha11.in-your-face"
-source = "JYasha11/herdr-in-your-face"
-ref = "c2788bfae254693c11451c95baa99e1affa976c1"
-enabled = false
-
-[[plugin]]
-id = "jyasha11.shame-report"
-source = "JYasha11/herdr-shame-report"
-ref = "8453a50921d0fc3be92ba8945e020577568c183c"
-enabled = false
-
-[[plugin]]
 id = "llmtrim.proxy"
 source = "fkiene/llmtrim-herdr"
 ref = "88ed6fbeab1cfc1224bece3744b207659bc1123b"
@@ -139,12 +109,6 @@ id = "ray.plugin-manager"
 source = "speardragon/herdr-plugin-manager"
 ref = "b887396d7bd1358afcba595298af7ef352f650d0"
 enabled = true
-
-[[plugin]]
-id = "spotify-now-playing"
-source = "iikjl/herdr-spotify"
-ref = "3d90cddfce8ce320e40656d1a68e8a06bbfac35f"
-enabled = false
 
 [[plugin]]
 id = "usagebar"
