@@ -95,9 +95,9 @@
       "Bash(rtk ruff check *)",
       "Bash(rtk ruff format *)",
       "Bash(rtk mypy *)",
-      "Bash(uv run pytest *)",
-      "Bash(uv run ruff *)",
-      "Bash(uv run mypy *)",
+      "Bash(rtk uv run pytest *)",
+      "Bash(rtk uv run ruff *)",
+      "Bash(rtk uv run mypy *)",
       "Bash(rtk uv sync *)"
     ]
   },
