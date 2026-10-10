@@ -59,5 +59,7 @@ the built-in Agents column itself (sidebar, collapsed sidebar, navigation):
 | `prefix+ctrl+s` | sort by attention / by space order |
 | `prefix+ctrl+z` | show every agent |
 
+herdr >= 0.9.3 adds a second prefix (`ctrl+space`) and `prefix+ctrl+l` to clear a pane while keeping the prompt. `setup` refuses to apply while the running server is older than the binary (restart it after `herdr update`).
+
 Filters combine, a toast shows the current one, and the state is re-applied at
 server startup.

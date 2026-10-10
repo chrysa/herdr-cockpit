@@ -81,7 +81,7 @@ def check_units(is_active=None):
     return ("missing", ", ".join(inactive)) if inactive else ("ok", ", ".join(SYSTEMD_UNITS))
 
 
-MIN_HERDR = (0, 9, 0)
+MIN_HERDR = (0, 9, 3)
 TOOLS = ("git", "docker", "ss", "jq")
 
 
@@ -106,17 +106,30 @@ def parse_version(text):
 
 
 def check_herdr_version(run=subprocess.run):
-    try:
-        out = run(["herdr", "--version"], capture_output=True, text=True, timeout=10).stdout
-    except (OSError, subprocess.SubprocessError):
+    """Installed binary and running server: both >= MIN_HERDR, and the same version.
+
+    `herdr update` replaces the binary only; the server keeps the old version
+    (and rejects newer config keys) until it is restarted.
+    """
+    def run_text(args):
+        try:
+            return run(args, capture_output=True, text=True, timeout=10).stdout or ""
+        except (OSError, subprocess.SubprocessError):
+            return ""
+    binary = parse_version(run_text(["herdr", "--version"]))
+    if binary is None:
         return "missing", "herdr not found"
-    version = parse_version(out)
-    if version is None:
-        return "drift", f"unreadable herdr version: {out.strip()!r}"
-    wanted = ".".join(map(str, MIN_HERDR))
-    if version < MIN_HERDR:
-        return "drift", f"herdr {'.'.join(map(str, version))} < {wanted}"
-    return "ok", f"herdr {'.'.join(map(str, version))} (>= {wanted})"
+    try:
+        server = parse_version(json.loads(run_text(["herdr", "status", "server", "--json"]) or "{}").get("version", ""))
+    except ValueError:
+        server = None
+    show = lambda v: ".".join(map(str, v))
+    wanted = show(MIN_HERDR)
+    if binary < MIN_HERDR:
+        return "drift", f"herdr {show(binary)} < {wanted}"
+    if server and server != binary:
+        return "drift", f"server runs {show(server)}, binary is {show(binary)}: restart the server (herdr server stop, then herdr)"
+    return "ok", f"herdr {show(binary)} (>= {wanted})"
 
 
 def check_tools(which=shutil.which):

@@ -237,6 +237,11 @@ def main():
         if not plan:
             print("nothing to do: cockpit already in place")
         return
+    import status  # local: status imports setup lazily too
+    herdr_state, herdr_detail = status.check_herdr_version()
+    if herdr_state != "ok":
+        print(f"refusing to apply: {herdr_detail}. The config uses keys this server does not know.")
+        sys.exit(1)
     drift = source_drift()
     if drift and not force_local:
         print(f"refusing to apply: {drift}. Re-run with --force-local to apply anyway.")

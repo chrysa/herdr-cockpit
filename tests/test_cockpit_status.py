@@ -92,7 +92,25 @@ def test_tools_check():
     assert "docker" in detail
 
 
-def test_herdr_version_too_old():
+def fake_versions(binary, server):
     import subprocess as sp
-    old = lambda *a, **k: sp.CompletedProcess(a, 0, stdout="herdr 0.8.4\n")
-    assert status.check_herdr_version(old)[0] == "drift"
+
+    def run(args, **kwargs):
+        if args[:2] == ["herdr", "--version"]:
+            return sp.CompletedProcess(args, 0, stdout=f"herdr {binary}\n")
+        return sp.CompletedProcess(args, 0, stdout=json.dumps({"status": "running", "version": server}))
+    return run
+
+
+def test_herdr_version_too_old():
+    assert status.check_herdr_version(fake_versions("0.8.4", "0.8.4"))[0] == "drift"
+
+
+def test_server_older_than_binary_asks_for_restart():
+    state, detail = status.check_herdr_version(fake_versions("0.9.3", "0.9.1"))
+    assert state == "drift"
+    assert "restart" in detail
+
+
+def test_same_recent_versions_are_ok():
+    assert status.check_herdr_version(fake_versions("0.9.3", "0.9.3"))[0] == "ok"
