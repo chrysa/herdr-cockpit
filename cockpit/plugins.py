@@ -43,6 +43,8 @@ def compare(want, current):
     pinned, actual = want.get("ref"), source.get("resolved_commit")
     if pinned and source.get("kind") == "github" and actual and actual != pinned:
         drift.append(f"{want['id']}: installed {actual[:8]}, manifest pins {pinned[:8]}")
+    if not enabled and not current.get("enabled", True):
+        drift.append(f"{want['id']}: installed but disabled — uninstall it and drop it from plugins.toml")
     return actions, drift
 
 

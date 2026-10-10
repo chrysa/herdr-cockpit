@@ -68,6 +68,9 @@ row_gap = 1
 rows = [
   ["state_icon", "workspace"],
   ["branch", "git_status"],
+  # économies RTK du projet (chrysa.rtk-savings) : une seule variante peuplée
+  [{ token = "$rtk_hi", fg = "#a6e3a1" }, { token = "$rtk", fg = "#9399b2" },
+   { token = "$rtk_low", fg = "#f38ba8" }, { token = "$rtk_sum", fg = "#9399b2" }],
 ]
 
 # ── Sidebar agents : titre (auto-title / claude-session-title), compte coloré, modèle, PR (gh-pr) ──
@@ -82,6 +85,13 @@ rows = [
     ] },
    { token = "$model", fg = "#cba6f7" },
    { token = "$pr", fg = "#89dceb" }],
+]
+
+# Codex : pas de compte Claude, le modèle seul suffit.
+[ui.sidebar.agents.rows_by_agent]
+codex = [
+  ["state_icon", "$title"],
+  [{ token = "$model", fg = "#cba6f7" }, { token = "$pr", fg = "#89dceb" }],
 ]
 
 # prefix+r est pris par resize_mode (builtin) → déplacé sur prefix+ctrl+r (alt évité : envoie ESC en xterm)
