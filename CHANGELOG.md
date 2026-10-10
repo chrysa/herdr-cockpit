@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Requires herdr 0.9.3. Second prefix `ctrl+space`, `prefix+ctrl+l` clears a pane.
+- `status` compares the herdr binary with the running server; `setup` refuses to
+  apply while the server is older (restart it after `herdr update`).
+
 ## v0.4.0 — native first (2026-10-09)
 
 See [ADR 0001](docs/adr/0001-native-first.md).
