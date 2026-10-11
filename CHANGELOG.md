@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.5.0 — herdr 0.9.3 (2026-10-11)
 
 - Requires herdr 0.9.3. Second prefix `ctrl+space`, `prefix+ctrl+l` clears a pane.
 - `status` compares the herdr binary with the running server; `setup` refuses to
