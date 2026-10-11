@@ -63,6 +63,8 @@ def test_first_run_installs_everything(tmp_path):
         assert settings["keep"] is True
         hooks = [h["command"] for g in settings["hooks"]["SessionStart"] for h in g["hooks"]]
         assert hooks == [os.path.join(paths.bin, "agent-panel-hook") + " session-start"]
+    header = tmp_path / ".config/herdr/plugins/config/agent-panel/header-command"
+    assert header.read_text().strip().endswith("agent-info/header.py")
     unit = (tmp_path / ".config/systemd/user/herdr-config-reload.path").read_text()
     assert os.path.join(paths.rendered, "config.toml") in unit
     assert "{{" not in unit

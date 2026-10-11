@@ -112,6 +112,28 @@ def docker_snapshot():
     return _docker["output"]
 
 
+SNAPSHOTS = os.path.expanduser("~/.local/state/chrysa.agent-info/services")
+
+
+def save_snapshots():
+    """Write the latest docker/ss outputs where short-lived readers (the panel header) find them."""
+    os.makedirs(SNAPSHOTS, exist_ok=True)
+    for name, output in (("docker", docker_snapshot()), ("ss", ss_snapshot())):
+        if output:
+            tmp = os.path.join(SNAPSHOTS, name + ".tmp")
+            with open(tmp, "w") as fh:
+                fh.write(output)
+            os.replace(tmp, os.path.join(SNAPSHOTS, name))
+
+
+def saved_snapshot(name):
+    try:
+        with open(os.path.join(SNAPSHOTS, name)) as fh:
+            return fh.read()
+    except OSError:
+        return ""
+
+
 def containers(root, ps_output=None):
     """[{name, state, status, health, urls}] for containers belonging to root."""
     raw = docker_snapshot() if ps_output is None else ps_output

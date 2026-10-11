@@ -23,6 +23,9 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import services  # noqa: E402
+
 PLUGIN_ID = "chrysa.agent-info"
 SOURCE = f"plugin:{PLUGIN_ID}"
 POLL_S = 8
@@ -164,6 +167,7 @@ def daemon():
     shown, failures = {}, 0
     while failures < 10:
         try:
+            services.save_snapshots()
             tick(shown)
             failures = 0
         except Exception:
