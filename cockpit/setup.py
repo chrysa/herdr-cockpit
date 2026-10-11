@@ -115,25 +115,49 @@ class Setup:
         self.link(os.path.join(self.p.home, DOT_CONFIG, "herdr-auto-title", "config.env"),
                   os.path.join(self.p.rendered, "auto-title.env"))
 
+    def update_settings(self, d, what, edit):
+        """Apply edit(settings) to an account's settings.json when it changes something."""
+        path = os.path.join(d, "settings.json")
+        with open(path) as fh:
+            settings = json.load(fh)
+        before = json.dumps(settings, sort_keys=True)
+        edit(settings)
+        if json.dumps(settings, sort_keys=True) == before or not self.change(f"{what} {os.path.basename(d)}"):
+            return
+        self.backup(path)
+        tmp = path + ".tmp"
+        with open(tmp, "w") as fh:
+            json.dump(settings, fh, indent=2)
+            fh.write("\n")
+        os.replace(tmp, path)
+
     def install_statusline(self):
         script = os.path.join(self.p.rendered, "statusline.sh")
-        for d in self.p.claude_dirs():
-            path = os.path.join(d, "settings.json")
-            with open(path) as fh:
-                settings = json.load(fh)
+
+        def edit(settings):
             line = settings.get("statusLine") or {}
-            if line.get("command") == script:
-                continue
-            if self.change(f"statusLine {os.path.basename(d)} -> {script}"):
-                self.backup(path)
+            if line.get("command") != script:
                 settings["statusLine"] = {"type": "command", "command": script,
                                           "padding": line.get("padding", 0),
                                           "refreshInterval": line.get("refreshInterval", 10)}
-                tmp = path + ".tmp"
-                with open(tmp, "w") as fh:
-                    json.dump(settings, fh, indent=2)
-                    fh.write("\n")
-                os.replace(tmp, path)
+
+        for d in self.p.claude_dirs():
+            self.update_settings(d, f"statusLine -> {script}", edit)
+
+    def install_agent_panel_hooks(self):
+        """agent-panel's To do tab and subagent progress bars need two Claude Code hooks."""
+        hook = os.path.join(self.p.bin, "agent-panel-hook")
+
+        def edit(settings):
+            hooks = settings.setdefault("hooks", {})
+            for event, name in (("SessionStart", "session-start"), ("SubagentStart", "subagent-start")):
+                command = f"{hook} {name}"
+                groups = hooks.setdefault(event, [])
+                if not any(h.get("command") == command for g in groups for h in g.get("hooks", [])):
+                    groups.append({"hooks": [{"type": "command", "command": command, "timeout": 5}]})
+
+        for d in self.p.claude_dirs():
+            self.update_settings(d, "agent-panel hooks", edit)
 
     def install_units(self, palette):
         before = len(self.changes)
@@ -199,6 +223,7 @@ class Setup:
         self.render_templates(palette)
         self.install_config()
         self.install_statusline()
+        self.install_agent_panel_hooks()
         self.install_units(palette)
         self.install_opencode_theme()
         self.install_claude_integration()
