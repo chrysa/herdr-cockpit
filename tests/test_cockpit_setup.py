@@ -61,6 +61,8 @@ def test_first_run_installs_everything(tmp_path):
         settings = json.loads((tmp_path / account / "settings.json").read_text())
         assert settings["statusLine"]["command"] == os.path.join(paths.rendered, "statusline.sh")
         assert settings["keep"] is True
+        hooks = [h["command"] for g in settings["hooks"]["SessionStart"] for h in g["hooks"]]
+        assert hooks == [os.path.join(paths.bin, "agent-panel-hook") + " session-start"]
     unit = (tmp_path / ".config/systemd/user/herdr-config-reload.path").read_text()
     assert os.path.join(paths.rendered, "config.toml") in unit
     assert "{{" not in unit

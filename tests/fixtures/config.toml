@@ -189,6 +189,13 @@ command = '''n="rev-$(date +%H%M%S)"; p=$("$HERDR_BIN_PATH" pane split --current
 description = "reviewer: codex revoit le diff dans un split"
 
 
+# ── Panneau de la conversation (agent-panel) : afficher / cacher ──
+[[keys.command]]
+key = "prefix+ctrl+t"
+type = "plugin_action"
+command = "agent-panel.toggle"
+description = "agent-panel : afficher / cacher"
+
 # ── Services du projet de l'onglet (conteneurs, ports, URL) : chrysa.agent-info ──
 [[keys.command]]
 key = "prefix+ctrl+g"
