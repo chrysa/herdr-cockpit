@@ -5,7 +5,8 @@ def test_git_state_clean_and_dirty(tmp_path, monkeypatch):
     import subprocess
     subprocess.run(["git", "init", "-q", "-b", "main", str(tmp_path)], check=True)
     root, state = header.git_state(str(tmp_path))
-    assert root == str(tmp_path) and state == "⑂ main ✓"
+    assert root == str(tmp_path)
+    assert state == "⑂ main ✓"
     (tmp_path / "new.txt").write_text("x")
     assert header.git_state(str(tmp_path))[1] == "⑂ main ?1"
 
