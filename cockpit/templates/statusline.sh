@@ -3,6 +3,11 @@
 # context / savings / cache. Plan limits and pay-as-you-go cost come from usagebar
 # in herdr's sidebar and limits pane, so they are not repeated here.
 input=$(cat)
+# agent-panel (chrysa fork) already shows all of this for this pane: no footer.
+shown="${XDG_STATE_HOME:-$HOME/.local/state}/agent-panel/shown/${HERDR_PANE_ID:-none}"
+if [[ -f "$shown" ]] && kill -0 "$(<"$shown")" 2>/dev/null; then
+  exit 0
+fi
 dir=$(jq -r '.workspace.current_dir // .cwd // empty' <<<"$input")
 
 segments=()
@@ -52,6 +57,8 @@ if command -v llmtrim >/dev/null; then
   trimmed=$(llmtrim statusline <<<"$input" 2>/dev/null | perl -pe 's/^.*?   //')
   [[ -n "$trimmed" ]] && segments+=("$trimmed")
 fi
+
+[[ -n "$HERDR_PANE_ID" ]] && segments+=("$(printf '\033[2mprefix+ctrl+t panneau\033[0m')")
 
 out=""
 for s in "${segments[@]}"; do out+="${out:+   }$s"; done

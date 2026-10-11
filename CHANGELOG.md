@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- agent-panel now comes from the chrysa fork, which adds header lines: account,
+  model, full folder, git state and the project's services (agent-info `header.py`).
+  While the panel shows an agent, that agent's Claude status line is empty; without
+  the panel it ends with the `prefix+ctrl+t` hint.
+- `prefix+ctrl+t` toggles agent-panel; `setup` registers its To do / progress hooks.
+
 ## v0.5.0 — herdr 0.9.3 (2026-10-11)
 
 - Requires herdr 0.9.3. Second prefix `ctrl+space`, `prefix+ctrl+l` clears a pane.

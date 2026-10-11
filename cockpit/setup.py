@@ -144,6 +144,12 @@ class Setup:
         for d in self.p.claude_dirs():
             self.update_settings(d, f"statusLine -> {script}", edit)
 
+    def install_panel_header(self):
+        """agent-panel (chrysa fork) shows agent-info's header: account, model, folder, git, services."""
+        header = os.path.join(os.path.dirname(ROOT), "agent-info", "header.py")
+        self.write(os.path.join(self.p.home, DOT_CONFIG, "herdr", "plugins", "config", "agent-panel",
+                                "header-command"), header + "\n")
+
     def install_agent_panel_hooks(self):
         """agent-panel's To do tab and subagent progress bars need two Claude Code hooks."""
         hook = os.path.join(self.p.bin, "agent-panel-hook")
@@ -224,6 +230,7 @@ class Setup:
         self.install_config()
         self.install_statusline()
         self.install_agent_panel_hooks()
+        self.install_panel_header()
         self.install_units(palette)
         self.install_opencode_theme()
         self.install_claude_integration()

@@ -123,8 +123,8 @@ ref = "4be9bbbaab1dfbecc81b298d30624052d0c432d1"
 enabled = true
 [[plugin]]
 id = "agent-panel"
-source = "flowy11/agent-panel"
-ref = "cc45980f90a40969ae5ba65ccc27948769cf3b8b"
+source = "chrysa/agent-panel"  # fork of flowy11/agent-panel: header lines + shown marker
+ref = "1acd90f65cb06cf3bb05bcccd0f6c252af489c33"
 enabled = true
 
 [[plugin]]
