@@ -70,6 +70,17 @@ def test_first_run_installs_everything(tmp_path):
     assert "{{" not in unit
 
 
+def test_codex_rule_is_added_once(tmp_path):
+    paths = make_home(tmp_path)
+    (tmp_path / ".codex").mkdir()
+    (tmp_path / ".codex" / "AGENTS.md").write_text("# mine")
+    setup.Setup(paths, run=FakeRun()).apply()
+    setup.Setup(paths, run=FakeRun()).apply()
+    text = (tmp_path / ".codex" / "AGENTS.md").read_text()
+    assert text.startswith("# mine\n")
+    assert text.count("ACTION: none") == 1
+
+
 def test_second_run_is_a_no_op(tmp_path):
     paths = make_home(tmp_path)
     run = FakeRun()

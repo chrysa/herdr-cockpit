@@ -69,12 +69,6 @@ ref = "0da7e74999ba1cc7937b2b1787db1779febef031"
 enabled = true
 
 [[plugin]]
-id = "herdr-remote.relay"
-source = "dcolinmorgan/herdr-remote"
-ref = "5e08c471968dbc3b18e0cdf6770ea00b19b53ad2"
-enabled = true
-
-[[plugin]]
 id = "herdr.auto-title"
 source = "kryptamine/herdr-auto-title"
 ref = "7fcec810280696b8b38b5bd884be2b340c73e02b"

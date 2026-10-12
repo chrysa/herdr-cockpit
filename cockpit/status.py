@@ -65,10 +65,10 @@ def check_plugins(listing=None, manifest=None):
     manifest = plugins.load_manifest() if manifest is None else manifest
     listing = plugins.installed() if listing is None else listing
     actions, drift = plugins.diff(manifest, listing)
+    if drift:  # a changed source or pin also yields reinstall actions: drift says why
+        return "drift", "\n".join(drift)
     if actions:
         return "missing", "; ".join("herdr " + " ".join(a) for a in actions)
-    if drift:
-        return "drift", "\n".join(drift)
     return "ok", f"{len(manifest)} plugins as declared"
 
 

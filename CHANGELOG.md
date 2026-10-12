@@ -6,6 +6,9 @@
   model, full folder, git state and the project's services (agent-info `header.py`).
   While the panel shows an agent, that agent's Claude status line is empty; without
   the panel it ends with the `prefix+ctrl+t` hint.
+- `setup` reinstalls a plugin whose source or pinned commit changed.
+- Codex sessions get agent-panel's `ACTION:` rule in `~/.codex/AGENTS.md`.
+- Dropped `herdr-remote.relay` (no relay running: it only spawned a process per status change).
 - `prefix+ctrl+t` toggles agent-panel; `setup` registers its To do / progress hooks.
 
 ## v0.5.0 — herdr 0.9.3 (2026-10-11)

@@ -1,9 +1,10 @@
 """Reconcile installed herdr plugins with cockpit/plugins.toml.
 
 `diff` is pure: given the manifest and `herdr plugin list --json`, it returns
-the actions setup must run (install, enable, disable) and the drift status must
-report (pinned commit differs, plugin installed but not in the manifest).
-Nothing is ever uninstalled: extra plugins are only reported.
+the actions setup must run (install, reinstall, enable, disable) and the drift
+status must report (pinned source or commit differs, plugin not in the manifest).
+A plugin whose source or pinned commit changed is reinstalled; plugins missing
+from the manifest are only reported, never uninstalled.
 """
 import json
 import os
@@ -40,12 +41,23 @@ def compare(want, current):
     if bool(current.get("enabled", True)) != bool(enabled):
         actions.append(["plugin", "enable" if enabled else "disable", want["id"]])
     source = current.get("source") or {}
-    pinned, actual = want.get("ref"), source.get("resolved_commit")
-    if pinned and source.get("kind") == "github" and actual and actual != pinned:
-        drift.append(f"{want['id']}: installed {actual[:8]}, manifest pins {pinned[:8]}")
-    if not enabled and not current.get("enabled", True):
-        drift.append(f"{want['id']}: installed but disabled — uninstall it and drop it from plugins.toml")
-    return actions, drift
+    if source.get("kind") == "github":
+        repo, wanted_repo = f"{source.get('owner')}/{source.get('repo')}", want["source"]
+        pinned, actual = want.get("ref"), source.get("resolved_commit")
+        if source.get("owner") and repo.lower() != wanted_repo.lower():
+            drift.append(f"{want['id']}: installed from {repo}, manifest wants {wanted_repo}")
+        elif pinned and actual and actual != pinned:
+            drift.append(f"{want['id']}: installed {actual[:8]}, manifest pins {pinned[:8]}")
+        else:
+            return actions, drift + disabled_drift(want, current)
+        return [["plugin", "uninstall", want["id"]]] + missing_actions(want), drift
+    return actions, drift + disabled_drift(want, current)
+
+
+def disabled_drift(want, current):
+    if not want.get("enabled", True) and not current.get("enabled", True):
+        return [f"{want['id']}: installed but disabled — uninstall it and drop it from plugins.toml"]
+    return []
 
 
 def diff(manifest, listing):

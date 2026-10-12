@@ -35,3 +35,28 @@ def test_disabled_but_installed_plugin_is_reported():
     actions, drift = plugins.diff(manifest, [{"plugin_id": "x", "enabled": False}])
     assert actions == []
     assert drift == ["x: installed but disabled — uninstall it and drop it from plugins.toml"]
+
+
+def github(owner, repo, commit):
+    return {"kind": "github", "owner": owner, "repo": repo, "resolved_commit": commit}
+
+
+def test_new_source_is_reinstalled():
+    manifest = [{"id": "x", "source": "fork/x", "ref": "abc"}]
+    listing = [{"plugin_id": "x", "enabled": True, "source": github("up", "x", "abc")}]
+    actions, drift = plugins.diff(manifest, listing)
+    assert actions == [["plugin", "uninstall", "x"], ["plugin", "install", "fork/x", "--ref", "abc", "--yes"]]
+    assert drift == ["x: installed from up/x, manifest wants fork/x"]
+
+
+def test_new_pin_is_reinstalled():
+    manifest = [{"id": "x", "source": "o/x", "ref": "def"}]
+    listing = [{"plugin_id": "x", "enabled": True, "source": github("o", "x", "abc")}]
+    actions, _ = plugins.diff(manifest, listing)
+    assert actions[0] == ["plugin", "uninstall", "x"]
+
+
+def test_matching_pin_needs_nothing():
+    manifest = [{"id": "x", "source": "O/x", "ref": "abc"}]
+    listing = [{"plugin_id": "x", "enabled": True, "source": github("o", "x", "abc")}]
+    assert plugins.diff(manifest, listing) == ([], [])
