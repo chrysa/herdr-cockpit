@@ -29,6 +29,15 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 HOME = os.path.expanduser("~")
 CONFIG = "config.toml"
 DOT_CONFIG = ".config"
+CODEX_TODO_MARK = "<!-- chrysa.cockpit: agent-panel to-do -->"
+CODEX_TODO = f"""{CODEX_TODO_MARK}
+## User to-do list
+
+Whenever the user's required next steps change, end your message with the complete
+current list, one `ACTION: <step>` per line. Keep unfinished items, omit completed
+items, and write `ACTION: none` when the list is empty. Only include things the user
+needs to do, not your own work.
+"""
 UNITS = ("herdr-config-reload.path", "herdr-config-reload.service",
          "herdr-logrotate.service", "herdr-logrotate.timer")
 ENABLE = ("herdr-config-reload.path", "herdr-logrotate.timer")
@@ -150,6 +159,21 @@ class Setup:
         self.write(os.path.join(self.p.home, DOT_CONFIG, "herdr", "plugins", "config", "agent-panel",
                                 "header-command"), header + "\n")
 
+    def install_codex_todo(self):
+        """Codex has no SessionStart hook: agent-panel's To do tab needs its rule in AGENTS.md."""
+        codex = os.path.join(self.p.home, ".codex")
+        if not os.path.isdir(codex):
+            return
+        path = os.path.join(codex, "AGENTS.md")
+        try:
+            with open(path) as fh:
+                current = fh.read()
+        except OSError:
+            current = ""
+        if CODEX_TODO_MARK in current:
+            return
+        self.write(path, current + ("\n" if current and not current.endswith("\n") else "") + CODEX_TODO)
+
     def install_agent_panel_hooks(self):
         """agent-panel's To do tab and subagent progress bars need two Claude Code hooks."""
         hook = os.path.join(self.p.bin, "agent-panel-hook")
@@ -231,6 +255,7 @@ class Setup:
         self.install_statusline()
         self.install_agent_panel_hooks()
         self.install_panel_header()
+        self.install_codex_todo()
         self.install_units(palette)
         self.install_opencode_theme()
         self.install_claude_integration()
