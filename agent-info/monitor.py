@@ -11,7 +11,10 @@ Claude Code: the pane's agent session id locates the transcript under
 Codex: the newest rollout file matching the session. opencode: the configured
 "provider/model" (provider plays the account role).
 
-Commands: ensure (start in the background if needed), daemon, stop.
+Also puts each tab's conversation state (◐ working, ‼ blocked, ✓ done) in front of
+its name.
+
+Commands: ensure (start in the background if needed), daemon, stop, tabs.
 """
 import fcntl
 import glob
@@ -139,6 +142,26 @@ def publish(pane_id, tokens):
     herdr(*args)
 
 
+# Conversation state in front of each tab's name (herdr knows it per tab but does not draw it).
+TAB_ICONS = {"working": "◐", "blocked": "‼", "done": "✓"}
+TAB_PREFIX = re.compile("^(?:[" + "".join(TAB_ICONS.values()) + "] )+")
+
+
+def tab_label(label, status):
+    """Label with the icon of status in front (none when idle); other icons dropped."""
+    base = TAB_PREFIX.sub("", label or "")
+    icon = TAB_ICONS.get(status)
+    return f"{icon} {base}" if icon and base else base
+
+
+def label_tabs():
+    for tab in herdr("tab", "list").get("result", {}).get("tabs", []):
+        label = tab.get("label") or ""
+        wanted = tab_label(label, tab.get("agent_status"))
+        if label and wanted != label:
+            herdr("tab", "rename", tab["tab_id"], wanted)
+
+
 def tick(shown):
     if time.monotonic() - shown.get("_refreshed", 0) > REFRESH_S:
         shown.clear()
@@ -169,6 +192,7 @@ def daemon():
         try:
             services.save_snapshots()
             tick(shown)
+            label_tabs()
             failures = 0
         except Exception:
             failures += 1
@@ -200,7 +224,7 @@ def stop():
 
 
 def main():
-    {"ensure": ensure, "daemon": daemon, "stop": stop}.get(sys.argv[1] if len(sys.argv) > 1 else "ensure", ensure)()
+    {"ensure": ensure, "daemon": daemon, "stop": stop, "tabs": label_tabs}.get(sys.argv[1] if len(sys.argv) > 1 else "ensure", ensure)()
 
 
 if __name__ == "__main__":
