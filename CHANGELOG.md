@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.6.0 — agent-panel fork, tab states (2026-10-14)
 
 - Tab names start with their conversation state: ◐ working, ‼ blocked, ✓ done
   (agent-info; nothing when idle).
