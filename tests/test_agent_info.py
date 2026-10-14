@@ -47,3 +47,14 @@ def test_tick_publishes_only_changes(monkeypatch):
     monitor.tick(shown)
     monitor.tick(shown)
     assert published == [("p1", {"account": "perso", "model": "opus-5.5"})]
+
+
+@pytest.mark.parametrize("label, status, wanted", [
+    ("api", "working", "◐ api"),
+    ("◐ api", "blocked", "‼ api"),
+    ("✓ api", "idle", "api"),
+    ("‼ ◐ api", "done", "✓ api"),
+    ("", "working", ""),
+])
+def test_tab_label(label, status, wanted):
+    assert monitor.tab_label(label, status) == wanted

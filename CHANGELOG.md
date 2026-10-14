@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Tab names start with their conversation state: ◐ working, ‼ blocked, ✓ done
+  (agent-info; nothing when idle).
 - agent-panel now comes from the chrysa fork, which adds header lines: account,
   model, full folder, git state and the project's services (agent-info `header.py`).
   While the panel shows an agent, that agent's Claude status line is empty; without

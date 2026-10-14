@@ -13,6 +13,11 @@ command = ["python3", "monitor.py", "ensure"]
 on = "pane.created"
 command = ["python3", "monitor.py", "ensure"]
 
+# Tab icons follow the conversation state right away, not at the next poll.
+[[events]]
+on = "pane.agent_status_changed"
+command = ["python3", "monitor.py", "tabs"]
+
 [[actions]]
 id = "stop"
 title = "Agent info: stop the token monitor"
