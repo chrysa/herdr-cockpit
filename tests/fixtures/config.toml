@@ -23,7 +23,7 @@ pane_history = true                   # keep pane output across a server restart
 # ── Display ──────────────────────────────────────────────────────────────────
 
 [ui]
-sidebar_width = 30                    # default 26 cuts space names and RTK figures
+sidebar_width = 36                    # maximum; 26 (default) cuts names and RTK figures
 agent_panel_sort = "spaces"           # agents grouped under their space
 status_indicators = "symbols"         # distinct shapes per state, not only colors
 confirm_close = true                  # pinned
@@ -43,46 +43,56 @@ position = "top-right"
 [ui.sound]
 enabled = false
 
-# Spaces: name colored by ecosystem (padam = pro account color, chrysa = perso),
-# branch (default branches dimmed so work branches stand out) and git state,
-# project RTK savings (chrysa.rtk-savings publishes only one of the four
-# variants). Rows without a value disappear. No gap row: ten spaces fit
-# without scrolling on a 56-row terminal instead of six.
+# Spaces, one block per folder, rows without a value disappear:
+#   1. state, name colored by ecosystem (padam = pro account color, chrysa =
+#      perso), branch (default branches dimmed) and git state; herdr shortens the
+#      longest value first, so a long branch is cut before the name;
+#   2. only with agents (agent-info): ‼ blocked and ✓ done counters first, then
+#      "N agents" and the accounts in use, each in its account color;
+#   3. RTK savings alone (chrysa.rtk-savings publishes one of four variants), so
+#      its figure is never cut.
+# An idle space takes two lines, a space with agents three; no gap rows.
 [ui.sidebar.spaces]
 rows = [
-  ["state_icon", { token = "workspace", bold = true, rules = [
+  ["state_icon",
+   { token = "workspace", bold = true, rules = [
       { starts_with = "padam", fg = "#89dceb" },
       { equals = "chrysa", fg = "#f9e2af" },
-    ] }],
-  [{ token = "branch", fg = "#89b4fa", rules = [
+    ] },
+   { token = "branch", fg = "#89b4fa", rules = [
       { equals = "develop", dim = true },
       { equals = "main", dim = true },
       { equals = "master", dim = true },
-    ] }, "git_status"],
+    ] },
+   "git_status"],
+  [{ token = "$waiting", fg = "#f38ba8", bold = true }, { token = "$done", fg = "#89b4fa" },
+   { token = "$agents", fg = "#9399b2" },
+   { token = "$acc_perso", fg = "#f9e2af" }, { token = "$acc_pro", fg = "#89dceb" },
+   { token = "$acc_codex", fg = "#a6e3a1" }, { token = "$acc_other", fg = "#9399b2" }],
   [{ token = "$rtk_hi", fg = "#a6e3a1" }, { token = "$rtk", fg = "#9399b2" },
    { token = "$rtk_low", fg = "#f38ba8" }, { token = "$rtk_sum", fg = "#9399b2" }],
 ]
 
-# Agents: state + conversation title (Claude's own title, follows /rename,
-# spinner stripped), then account, model and PR. The tab name is not used: it
+# Agents, one line each: state, space (colored by ecosystem, agents are sorted by
+# space), account (colored), conversation title (Claude's own, follows /rename,
+# spinner stripped). The model is in the tab bar and the panel header, the branch
+# on the space line, so neither is repeated here. The tab name is not used: it
 # already carries the state icon (agent-info), which would show it twice.
+# agent-info reports "codex" as the account of Codex agents, so one layout fits
+# every agent.
 [ui.sidebar.agents]
 rows = [
-  ["state_icon", "terminal_title_stripped"],
-  [{ token = "$account", fg = "#9399b2", bold = true, rules = [
+  ["state_icon",
+   { token = "workspace", rules = [
+      { starts_with = "padam", fg = "#89dceb" },
+      { equals = "chrysa", fg = "#f9e2af" },
+    ] },
+   { token = "$account", fg = "#9399b2", bold = true, rules = [
       { equals = "perso", fg = "#f9e2af" },
       { equals = "pro", fg = "#89dceb" },
       { equals = "codex", fg = "#a6e3a1" },
     ] },
-   { token = "$model", fg = "#cba6f7" },
-   { token = "$pr", fg = "#89dceb" }],
-]
-
-# Codex has no Claude account: model and PR only.
-[ui.sidebar.agents.rows_by_agent]
-codex = [
-  ["state_icon", "terminal_title_stripped"],
-  [{ token = "$model", fg = "#cba6f7" }, { token = "$pr", fg = "#89dceb" }],
+   "terminal_title_stripped"],
 ]
 
 # ── Keys ─────────────────────────────────────────────────────────────────────
