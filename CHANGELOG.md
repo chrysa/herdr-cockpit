@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 
 - Space folder names are never cut: the folder sits alone on its line and the
   sidebar is 40 columns wide (`sidebar_max_width` raised from herdr's 36). RTK
