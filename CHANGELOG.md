@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Spaces sidebar: names colored by ecosystem (padam in the pro account color,
+  chrysa in the perso one), default branches (`develop`, `main`, `master`) dimmed
+  so work branches stand out, no blank row between spaces, sidebar 30 columns wide
+  (26 cut long names and the RTK figure). On a 56-row terminal ten spaces now fit
+  without scrolling instead of six.
 - Sidebar agent rows show the conversation title (native `terminal_title_stripped`,
   follows `/rename`) instead of usagebar's `$title`, which repeated the tab's state
   icon next to `state_icon` and kept it stale until the agent settled.

@@ -23,6 +23,7 @@ pane_history = true                   # keep pane output across a server restart
 # ── Display ──────────────────────────────────────────────────────────────────
 
 [ui]
+sidebar_width = 30                    # default 26 cuts space names and RTK figures
 agent_panel_sort = "spaces"           # agents grouped under their space
 status_indicators = "symbols"         # distinct shapes per state, not only colors
 confirm_close = true                  # pinned
@@ -42,13 +43,22 @@ position = "top-right"
 [ui.sound]
 enabled = false
 
-# Spaces: state, name, branch, git; worktrees grouped natively; project RTK
-# savings (chrysa.rtk-savings publishes only one of the four variants).
+# Spaces: name colored by ecosystem (padam = pro account color, chrysa = perso),
+# branch (default branches dimmed so work branches stand out) and git state,
+# project RTK savings (chrysa.rtk-savings publishes only one of the four
+# variants). Rows without a value disappear. No gap row: ten spaces fit
+# without scrolling on a 56-row terminal instead of six.
 [ui.sidebar.spaces]
-row_gap = 1
 rows = [
-  ["state_icon", "workspace"],
-  ["branch", "git_status"],
+  ["state_icon", { token = "workspace", bold = true, rules = [
+      { starts_with = "padam", fg = "#89dceb" },
+      { equals = "chrysa", fg = "#f9e2af" },
+    ] }],
+  [{ token = "branch", fg = "#89b4fa", rules = [
+      { equals = "develop", dim = true },
+      { equals = "main", dim = true },
+      { equals = "master", dim = true },
+    ] }, "git_status"],
   [{ token = "$rtk_hi", fg = "#a6e3a1" }, { token = "$rtk", fg = "#9399b2" },
    { token = "$rtk_low", fg = "#f38ba8" }, { token = "$rtk_sum", fg = "#9399b2" }],
 ]
