@@ -83,16 +83,30 @@ def test_topic_prefers_a_real_title(agent, topic):
     assert monitor.topic_tokens(agent, "perso")["topic_perso"] == topic
 
 
-def test_space_tokens_count_attention_only():
+def test_space_theme_prefers_a_blocked_agent_then_the_latest():
     agents = [
-        {"pane_id": "a", "workspace_id": "w1", "agent_status": "blocked"},
-        {"pane_id": "b", "workspace_id": "w1", "agent_status": "done"},
-        {"pane_id": "c", "workspace_id": "w1", "agent_status": "blocked"},
-        {"pane_id": "d", "workspace_id": "w2", "agent_status": "idle"},
+        {"pane_id": "a", "workspace_id": "w1", "agent_status": "idle", "state_change_seq": 9, "terminal_title_stripped": "Latest"},
+        {"pane_id": "b", "workspace_id": "w1", "agent_status": "blocked", "state_change_seq": 2, "terminal_title_stripped": "Needs you"},
+        {"pane_id": "c", "workspace_id": "w1", "agent_status": "working", "state_change_seq": 5, "terminal_title_stripped": "Latest"},
+        {"pane_id": "d", "workspace_id": "w2", "agent_status": "idle", "state_change_seq": 3, "terminal_title_stripped": "Old"},
+        {"pane_id": "e", "workspace_id": "w2", "agent_status": "done", "state_change_seq": 7, "terminal_title_stripped": "New"},
+        {"pane_id": "f", "workspace_id": "w3", "agent_status": "idle", "terminal_title_stripped": "Alone"},
     ]
     spaces = monitor.space_tokens(agents)
-    assert spaces["w1"] == {"waiting": "‼2", "done": "✓1"}
-    assert spaces["w2"] == {"waiting": None, "done": None}
+    assert spaces["w1"] == {"theme": "Needs you", "more": "+1"}
+    assert spaces["w2"] == {"theme": "New", "more": "+1"}
+    assert spaces["w3"] == {"theme": "Alone", "more": None}
+
+
+def test_space_theme_skips_generic_titles_unless_alone():
+    agents = [
+        {"pane_id": "a", "workspace_id": "w1", "agent_status": "idle", "state_change_seq": 9, "terminal_title_stripped": "claude"},
+        {"pane_id": "b", "workspace_id": "w1", "agent_status": "idle", "state_change_seq": 1, "terminal_title_stripped": "Real work"},
+        {"pane_id": "c", "workspace_id": "w2", "agent_status": "idle", "terminal_title_stripped": "claude", "agent": "claude"},
+    ]
+    spaces = monitor.space_tokens(agents)
+    assert spaces["w1"] == {"theme": "Real work", "more": None}
+    assert spaces["w2"] == {"theme": "claude", "more": None}
 
 
 def test_tick_publishes_space_tokens_and_clears_emptied_spaces(monkeypatch):
@@ -107,15 +121,15 @@ def test_tick_publishes_space_tokens_and_clears_emptied_spaces(monkeypatch):
     monitor.tick(shown)
     agents.clear()
     monitor.tick(shown)
-    assert spaces == [("w1", {"waiting": "‼1", "done": None}), ("w1", {})]
+    assert spaces == [("w1", {"theme": "x", "more": None}), ("w1", {})]
 
 
 def test_publish_space_sets_and_clears(monkeypatch):
     calls = []
     monkeypatch.setattr(monitor, "herdr", lambda *args: calls.append(args) or {})
-    monitor.publish_space("w1", {"waiting": "‼2"})
+    monitor.publish_space("w1", {"theme": "Fix\x1b[2J it"})
     args = calls[0]
     assert args[:3] == ("workspace", "report-metadata", "w1")
-    assert "waiting=‼2" in args
+    assert "theme=Fix[2J it" in args
     cleared = [args[i + 1] for i, a in enumerate(args) if a == "--clear-token"]
-    assert set(cleared) == set(monitor.SPACE_TOKENS) - {"waiting"}
+    assert set(cleared) == set(monitor.SPACE_TOKENS) - {"theme"}

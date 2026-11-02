@@ -13,7 +13,7 @@ Codex: the newest rollout file matching the session. opencode: the configured
 
 Also puts each tab's conversation state (◐ working, ‼ blocked, ✓ done) in front of
 its name, publishes the conversation title under a per-account token (so the
-sidebar colors it by account) and per-space blocked / done counters.
+sidebar colors it by account) and one subject per space.
 
 Commands: ensure (start in the background if needed), daemon, stop, tabs.
 """
@@ -174,31 +174,40 @@ TOPIC_TOKENS = tuple(f"topic_{name}" for name in (*NAMED_ACCOUNTS, "other"))
 GENERIC_TITLES = {"", "claude", "codex", "opencode"}
 
 
-def topic_tokens(agent, account):
-    """{topic_<account>: title, other topic tokens: None} for one agent row."""
+def topic_title(agent):
+    """The agent's subject: live terminal title, else the reported session title."""
     live = CONTROL.sub("", agent.get("terminal_title_stripped") or "").strip()
     reported = CONTROL.sub("", agent.get("title") or "").strip()
-    title = live if live.lower() not in GENERIC_TITLES else reported or live or agent.get("agent") or ""
+    return live if live.lower() not in GENERIC_TITLES else reported or live or agent.get("agent") or ""
+
+
+def topic_tokens(agent, account):
+    """{topic_<account>: title, other topic tokens: None} for one agent row."""
+    title = topic_title(agent)
     key = f"topic_{account}" if account in NAMED_ACCOUNTS else "topic_other"
     return {name: (title or None) if name == key else None for name in TOPIC_TOKENS}
 
 
-# Spaces column: blocked / done counters per space (herdr only rolls the state up
-# into one icon).
-SPACE_TOKENS = ("waiting", "done")
+# Spaces column: one subject per space (a blocked agent's first, else the agent that
+# changed state last) and "+N" for its other distinct subjects; the folder and RTK
+# go on the line below.
+SPACE_TOKENS = ("theme", "more")
 
 
 def space_tokens(agents):
     """workspace_id -> Spaces-column tokens, from the agent list."""
-    counts = {}
+    by_space = {}
     for agent in agents:
-        space = counts.setdefault(agent.get("workspace_id"), {"blocked": 0, "done": 0})
-        status = agent.get("agent_status")
-        if status in space:
-            space[status] += 1
-    return {ws: {"waiting": f"‼{c['blocked']}" if c["blocked"] else None,
-                 "done": f"✓{c['done']}" if c["done"] else None}
-            for ws, c in counts.items()}
+        by_space.setdefault(agent.get("workspace_id"), []).append(agent)
+    tokens = {}
+    for ws, members in by_space.items():
+        ranked = sorted(members, key=lambda a: (a.get("agent_status") == "blocked", a.get("state_change_seq") or 0),
+                        reverse=True)
+        subjects = list(dict.fromkeys(topic_title(a) for a in ranked))
+        real = [s for s in subjects if s.lower() not in GENERIC_TITLES] or subjects
+        others = len(real) - 1
+        tokens[ws] = {"theme": real[0] or None, "more": f"+{others}" if others > 0 else None}
+    return tokens
 
 
 def publish_space(workspace_id, tokens):
@@ -230,7 +239,7 @@ def tick(shown):
         shown.pop(gone, None)
         if gone.startswith("ws:"):
             try:
-                publish_space(gone[3:], {})  # last agent left: clear the space's counters
+                publish_space(gone[3:], {})  # last agent left: clear the space's subject
             except RuntimeError:
                 pass  # space closed meanwhile
 

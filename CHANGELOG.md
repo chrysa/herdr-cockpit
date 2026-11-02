@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Compact spaces: the space's subject on top (a blocked agent's first, else the
+  latest, "+N" for the others), then state, folder and RTK on one line; an idle
+  space takes one line. The ‼ / ✓ counters are dropped: the state icon and the
+  blocked agent's subject already say it.
 - Lighter sidebar: a space takes two lines (state, name, ‼ / ✓ counters; RTK);
   branch, agent count and accounts leave the Spaces column. An agent line starts
   with its subject (conversation title) in the color of its account, then the

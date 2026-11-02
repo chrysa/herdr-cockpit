@@ -10,7 +10,8 @@ Three small things herdr and the plugin marketplace do not cover reliably:
   the conversation title of each agent under the token of its account
   (`$topic_perso`, `$topic_pro`, `$topic_codex`, `$topic_other`, one set, the
   others cleared) so the sidebar colors the subject by account; and per space
-  `$waiting` ("‼1", blocked) and `$done` ("✓1"), cleared when the last agent leaves.
+  `$theme` (a blocked agent's subject first, else the latest one) and `$more`
+  ("+2" other subjects), cleared when the last agent leaves.
 - **Services pane** (`prefix+ctrl+g`): containers of the tab's git project (compose
   working dir or bind mounts inside it) and processes listening on a port from
   inside it, with their URLs. `docker ps` and `ss` run in background threads.

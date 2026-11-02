@@ -43,22 +43,23 @@ position = "top-right"
 [ui.sound]
 enabled = false
 
-# Spaces, two lines per folder:
-#   1. state, name colored by ecosystem (padam = pro account color, chrysa =
-#      perso), then ‼ blocked and ✓ done counters when there are any (agent-info);
-#   2. RTK savings (chrysa.rtk-savings publishes one of four variants).
-# Branch, agent count and accounts are left out: the agent lines below say who
-# works where, and the branch shows in the tab title.
+# Spaces, compact:
+#   1. only with agents: the space's subject (agent-info: a blocked agent's
+#      first, else the latest), "+N" for its other subjects;
+#   2. state, the folder colored by ecosystem (padam = pro account color, chrysa =
+#      perso) and its RTK savings (chrysa.rtk-savings, one of four variants).
+# The state icon sits on line 2 because it always has a value: on line 1 it
+# would keep an empty line for idle spaces. An idle space takes one line, a
+# space with agents two.
 [ui.sidebar.spaces]
 rows = [
+  [{ token = "$theme", bold = true }, { token = "$more", fg = "#9399b2" }],
   ["state_icon",
-   { token = "workspace", bold = true, rules = [
+   { token = "workspace", rules = [
       { starts_with = "padam", fg = "#89dceb" },
       { equals = "chrysa", fg = "#f9e2af" },
     ] },
-   { token = "$waiting", fg = "#f38ba8", bold = true },
-   { token = "$done", fg = "#89b4fa" }],
-  [{ token = "$rtk_hi", fg = "#a6e3a1" }, { token = "$rtk", fg = "#9399b2" },
+   { token = "$rtk_hi", fg = "#a6e3a1" }, { token = "$rtk", fg = "#9399b2" },
    { token = "$rtk_low", fg = "#f38ba8" }, { token = "$rtk_sum", fg = "#9399b2" }],
 ]
 
