@@ -23,7 +23,8 @@ pane_history = true                   # keep pane output across a server restart
 # ── Display ──────────────────────────────────────────────────────────────────
 
 [ui]
-sidebar_width = 36                    # maximum; 26 (default) cuts names and RTK figures
+sidebar_width = 40                    # the longest folder name fits on an indented line
+sidebar_max_width = 40                # herdr caps the width at 36 by default
 agent_panel_sort = "spaces"           # agents grouped under their space
 status_indicators = "symbols"         # distinct shapes per state, not only colors
 confirm_close = true                  # pinned
@@ -46,11 +47,12 @@ enabled = false
 # Spaces, compact:
 #   1. only with agents: the space's subject (agent-info: a blocked agent's
 #      first, else the latest), "+N" for its other subjects;
-#   2. state, the folder colored by ecosystem (padam = pro account color, chrysa =
-#      perso) and its RTK savings (chrysa.rtk-savings, one of four variants).
+#   2. state and the folder alone, colored by ecosystem (padam = pro account
+#      color, chrysa = perso), so the name is never cut;
+# RTK savings are not shown here: they stay in the RTK pane (prefix+ctrl+r) and
+# the Claude status line.
 # The state icon sits on line 2 because it always has a value: on line 1 it
-# would keep an empty line for idle spaces. An idle space takes one line, a
-# space with agents two.
+# would keep an empty line for idle spaces. An idle space takes one line.
 [ui.sidebar.spaces]
 rows = [
   [{ token = "$theme", bold = true }, { token = "$more", fg = "#9399b2" }],
@@ -58,9 +60,7 @@ rows = [
    { token = "workspace", rules = [
       { starts_with = "padam", fg = "#89dceb" },
       { equals = "chrysa", fg = "#f9e2af" },
-    ] },
-   { token = "$rtk_hi", fg = "#a6e3a1" }, { token = "$rtk", fg = "#9399b2" },
-   { token = "$rtk_low", fg = "#f38ba8" }, { token = "$rtk_sum", fg = "#9399b2" }],
+    ] }],
 ]
 
 # Agents, one line each: state, then the subject (conversation title, follows
