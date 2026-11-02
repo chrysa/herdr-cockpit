@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Space folder names are never cut: the folder sits alone on its line and the
+  sidebar is 40 columns wide (`sidebar_max_width` raised from herdr's 36). RTK
+  savings leave the sidebar (the gauge and `∑` read as noise); they stay in the
+  RTK pane (`prefix+ctrl+r`) and the Claude status line.
 - Compact spaces: the space's subject on top (a blocked agent's first, else the
   latest, "+N" for the others), then state, folder and RTK on one line; an idle
   space takes one line. The ‼ / ✓ counters are dropped: the state icon and the
