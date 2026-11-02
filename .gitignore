@@ -11,3 +11,6 @@ __pycache__/
 secrets/
 .claude/settings.local.json
 CLAUDE.local.md
+
+# graphify knowledge graph (local, derived)
+graphify-out/
