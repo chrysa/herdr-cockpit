@@ -12,8 +12,8 @@ Codex: the newest rollout file matching the session. opencode: the configured
 "provider/model" (provider plays the account role).
 
 Also puts each tab's conversation state (◐ working, ‼ blocked, ✓ done) in front of
-its name, and publishes per-space tokens for the Spaces column: agent count,
-blocked / done counters and the accounts in use.
+its name, publishes the conversation title under a per-account token (so the
+sidebar colors it by account) and per-space blocked / done counters.
 
 Commands: ensure (start in the background if needed), daemon, stop, tabs.
 """
@@ -37,7 +37,7 @@ POLL_S = 8
 TTL_MS = POLL_S * 20 * 1000
 REFRESH_S = TTL_MS / 1000 / 3  # republish unchanged tokens before herdr expires them
 TAIL_BYTES = 256 * 1024
-TOKENS = ("account", "model")
+TOKENS = ("account", "model", "topic_perso", "topic_pro", "topic_codex", "topic_other")
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 HOME = os.path.expanduser("~")
 STATE_DIR = os.path.expanduser(f"~/.local/state/{PLUGIN_ID}")
@@ -166,35 +166,39 @@ def label_tabs():
             herdr("tab", "rename", tab["tab_id"], wanted)
 
 
-# Spaces column: agent count, attention counters and accounts per space (herdr only
-# rolls the state up into one icon). One token per account so each keeps its color.
-SPACE_TOKENS = ("agents", "waiting", "done", "acc_perso", "acc_pro", "acc_codex", "acc_other")
+# Agents column: the conversation title, published under the token of its account
+# (one is set, the others cleared) so the sidebar colors the title by account with
+# fixed per-token colors; herdr rules can only match a token's own value.
 NAMED_ACCOUNTS = ("perso", "pro", "codex")
+TOPIC_TOKENS = tuple(f"topic_{name}" for name in (*NAMED_ACCOUNTS, "other"))
+GENERIC_TITLES = {"", "claude", "codex", "opencode"}
 
 
-def space_tokens(agents, accounts):
-    """workspace_id -> Spaces-column tokens, from the agent list and each pane's account."""
-    spaces = {}
+def topic_tokens(agent, account):
+    """{topic_<account>: title, other topic tokens: None} for one agent row."""
+    live = CONTROL.sub("", agent.get("terminal_title_stripped") or "").strip()
+    reported = CONTROL.sub("", agent.get("title") or "").strip()
+    title = live if live.lower() not in GENERIC_TITLES else reported or live or agent.get("agent") or ""
+    key = f"topic_{account}" if account in NAMED_ACCOUNTS else "topic_other"
+    return {name: (title or None) if name == key else None for name in TOPIC_TOKENS}
+
+
+# Spaces column: blocked / done counters per space (herdr only rolls the state up
+# into one icon).
+SPACE_TOKENS = ("waiting", "done")
+
+
+def space_tokens(agents):
+    """workspace_id -> Spaces-column tokens, from the agent list."""
+    counts = {}
     for agent in agents:
-        space = spaces.setdefault(agent.get("workspace_id"), {"n": 0, "blocked": 0, "done": 0, "accounts": set()})
-        space["n"] += 1
+        space = counts.setdefault(agent.get("workspace_id"), {"blocked": 0, "done": 0})
         status = agent.get("agent_status")
-        if status in ("blocked", "done"):
+        if status in space:
             space[status] += 1
-        account = CONTROL.sub("", accounts.get(agent["pane_id"]) or "")
-        if account:
-            space["accounts"].add(account)
-    tokens = {}
-    for ws, s in spaces.items():
-        others = sorted(s["accounts"] - set(NAMED_ACCOUNTS))
-        tokens[ws] = {
-            "agents": f"{s['n']} agent{'s' if s['n'] > 1 else ''}",
-            "waiting": f"‼{s['blocked']}" if s["blocked"] else None,
-            "done": f"✓{s['done']}" if s["done"] else None,
-            **{f"acc_{name}": name if name in s["accounts"] else None for name in NAMED_ACCOUNTS},
-            "acc_other": " ".join(others) or None,
-        }
-    return tokens
+    return {ws: {"waiting": f"‼{c['blocked']}" if c["blocked"] else None,
+                 "done": f"✓{c['done']}" if c["done"] else None}
+            for ws, c in counts.items()}
 
 
 def publish_space(workspace_id, tokens):
@@ -210,15 +214,13 @@ def tick(shown):
         shown.clear()
         shown["_refreshed"] = time.monotonic()
     agents = herdr("agent", "list").get("result", {}).get("agents", [])
-    accounts = {}
     for agent in agents:
         model, account = agent_info(agent)
-        accounts[agent["pane_id"]] = account
-        tokens = {"account": account, "model": model}
+        tokens = {"account": account, "model": model, **topic_tokens(agent, account)}
         if shown.get(agent["pane_id"]) != tokens:
             publish(agent["pane_id"], tokens)
             shown[agent["pane_id"]] = tokens
-    spaces = {f"ws:{ws}": tokens for ws, tokens in space_tokens(agents, accounts).items() if ws}
+    spaces = {f"ws:{ws}": tokens for ws, tokens in space_tokens(agents).items() if ws}
     for key, tokens in spaces.items():
         if shown.get(key) != tokens:
             publish_space(key[3:], tokens)

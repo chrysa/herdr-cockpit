@@ -39,14 +39,15 @@ def test_publish_strips_control_characters_and_clears_empty(monkeypatch):
 
 def test_tick_publishes_only_changes(monkeypatch):
     published = []
-    agents = [{"pane_id": "p1", "agent": "x"}]
+    agents = [{"pane_id": "p1", "agent": "x", "terminal_title_stripped": "Fix the parser"}]
     monkeypatch.setattr(monitor, "herdr", lambda *args: {"result": {"agents": agents}} if args[:2] == ("agent", "list") else {})
     monkeypatch.setattr(monitor, "agent_info", lambda agent: ("opus-5.5", "perso"))
     monkeypatch.setattr(monitor, "publish", lambda pane, tokens: published.append((pane, tokens)))
     shown = {"_refreshed": 10 ** 12}
     monitor.tick(shown)
     monitor.tick(shown)
-    assert published == [("p1", {"account": "perso", "model": "opus-5.5"})]
+    assert published == [("p1", {"account": "perso", "model": "opus-5.5", "topic_perso": "Fix the parser",
+                                 "topic_pro": None, "topic_codex": None, "topic_other": None})]
 
 
 @pytest.mark.parametrize("label, status, wanted", [
@@ -60,26 +61,38 @@ def test_tab_label(label, status, wanted):
     assert monitor.tab_label(label, status) == wanted
 
 
-def test_space_tokens_count_agents_attention_and_accounts():
+@pytest.mark.parametrize("account, key", [
+    ("perso", "topic_perso"), ("pro", "topic_pro"), ("codex", "topic_codex"),
+    ("omniroute", "topic_other"), (None, "topic_other"),
+])
+def test_topic_lands_in_the_token_of_its_account(account, key):
+    tokens = monitor.topic_tokens({"terminal_title_stripped": "Fix the parser"}, account)
+    assert tokens[key] == "Fix the parser"
+    assert [k for k, v in tokens.items() if v] == [key]
+    assert set(monitor.TOPIC_TOKENS) <= set(monitor.TOKENS)  # publish() clears the others
+
+
+@pytest.mark.parametrize("agent, topic", [
+    ({"terminal_title_stripped": "Fix\x1b[2J it", "title": "other"}, "Fix[2J it"),
+    ({"terminal_title_stripped": "", "title": "Session title"}, "Session title"),
+    ({"terminal_title_stripped": "claude", "title": "Session title"}, "Session title"),
+    ({"terminal_title_stripped": "claude", "agent": "claude"}, "claude"),
+    ({"agent": "codex"}, "codex"),
+])
+def test_topic_prefers_a_real_title(agent, topic):
+    assert monitor.topic_tokens(agent, "perso")["topic_perso"] == topic
+
+
+def test_space_tokens_count_attention_only():
     agents = [
         {"pane_id": "a", "workspace_id": "w1", "agent_status": "blocked"},
         {"pane_id": "b", "workspace_id": "w1", "agent_status": "done"},
-        {"pane_id": "c", "workspace_id": "w1", "agent_status": "working"},
+        {"pane_id": "c", "workspace_id": "w1", "agent_status": "blocked"},
         {"pane_id": "d", "workspace_id": "w2", "agent_status": "idle"},
-        {"pane_id": "e", "workspace_id": "w2", "agent_status": "idle"},
     ]
-    accounts = {"a": "perso", "b": "pro", "c": "perso", "d": "omniroute", "e": None}
-    spaces = monitor.space_tokens(agents, accounts)
-    assert spaces["w1"] == {"agents": "3 agents", "waiting": "‼1", "done": "✓1",
-                            "acc_perso": "perso", "acc_pro": "pro", "acc_codex": None, "acc_other": None}
-    assert spaces["w2"] == {"agents": "2 agents", "waiting": None, "done": None,
-                            "acc_perso": None, "acc_pro": None, "acc_codex": None, "acc_other": "omniroute"}
-
-
-def test_space_tokens_singular_and_control_characters():
-    agents = [{"pane_id": "a", "workspace_id": "w1", "agent_status": "idle"}]
-    assert monitor.space_tokens(agents, {"a": "ev\x1bil"})["w1"]["agents"] == "1 agent"
-    assert monitor.space_tokens(agents, {"a": "ev\x1bil"})["w1"]["acc_other"] == "evil"
+    spaces = monitor.space_tokens(agents)
+    assert spaces["w1"] == {"waiting": "‼2", "done": "✓1"}
+    assert spaces["w2"] == {"waiting": None, "done": None}
 
 
 def test_tick_publishes_space_tokens_and_clears_emptied_spaces(monkeypatch):
@@ -94,17 +107,15 @@ def test_tick_publishes_space_tokens_and_clears_emptied_spaces(monkeypatch):
     monitor.tick(shown)
     agents.clear()
     monitor.tick(shown)
-    assert [ws for ws, _ in spaces] == ["w1", "w1"]
-    assert spaces[0][1]["waiting"] == "‼1" and spaces[0][1]["acc_pro"] == "pro"
-    assert spaces[1][1] == {}
+    assert spaces == [("w1", {"waiting": "‼1", "done": None}), ("w1", {})]
 
 
 def test_publish_space_sets_and_clears(monkeypatch):
     calls = []
     monkeypatch.setattr(monitor, "herdr", lambda *args: calls.append(args) or {})
-    monitor.publish_space("w1", {"agents": "2 agents"})
+    monitor.publish_space("w1", {"waiting": "‼2"})
     args = calls[0]
     assert args[:3] == ("workspace", "report-metadata", "w1")
-    assert "agents=2 agents" in args
+    assert "waiting=‼2" in args
     cleared = [args[i + 1] for i, a in enumerate(args) if a == "--clear-token"]
-    assert set(cleared) == set(monitor.SPACE_TOKENS) - {"agents"}
+    assert set(cleared) == set(monitor.SPACE_TOKENS) - {"waiting"}
