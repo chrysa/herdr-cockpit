@@ -77,16 +77,23 @@ codex = [
 
 # ── Keys ─────────────────────────────────────────────────────────────────────
 # Two prefixes: ctrl+b and ctrl+space. `prefix+?` lists every binding below.
+# Every custom key sits behind the prefix, so panes get all other keys.
 # alt chords are avoided for custom commands (alt sends ESC in xterm);
-# prefix+r stays herdr's resize mode.
+# prefix+r stays herdr's resize mode, prefix+shift+r its config reload.
+# A key taken from a herdr default is said so, and that action is moved here:
+# herdr drops a shadowed default without any warning.
 
 [keys]
 prefix = ["ctrl+b", "ctrl+space"]
 clear_pane = "prefix+ctrl+l"          # clear screen and scrollback, keep the prompt
 focus_agent = "prefix+alt+1..9"
-next_agent = "prefix+shift+j"
-previous_agent = "prefix+shift+k"
+next_agent = "prefix+shift+j"         # herdr default: swap_pane_down
+previous_agent = "prefix+shift+k"     # herdr default: swap_pane_up
+swap_pane_down = "prefix+shift+down"
+swap_pane_up = "prefix+shift+up"
 switch_workspace = "prefix+shift+1..9"
+new_workspace = "prefix+shift+c"      # its default prefix+shift+n is the navigator
+rename_workspace = "prefix+shift+e"   # its default prefix+shift+w is worktrunk
 
 # Agents column filters (chrysa.cockpit, native agent.view.set; they combine).
 [[keys.command]]
@@ -139,13 +146,13 @@ command = '"$HERDR_BIN_PATH" plugin pane open --plugin chrysa.rtk-savings --entr
 description = "pane: RTK savings"
 
 [[keys.command]]
-key = "ctrl+shift+u"
+key = "prefix+shift+u"
 type = "plugin_action"
 command = "usagebar.open-limits"
 description = "pane: usage limits (5h / 7d / 30d per account)"
 
 [[keys.command]]
-key = "ctrl+shift+m"
+key = "prefix+ctrl+u"
 type = "plugin_action"
 command = "usagebar.refresh"
 description = "usage: refresh sidebar meters"
@@ -158,7 +165,7 @@ command = '''n="rev-$(date +%H%M%S)"; p=$("$HERDR_BIN_PATH" pane split --current
 description = "review: Codex reviews the diff in a split"
 
 [[keys.command]]
-key = "prefix+shift+r"
+key = "prefix+shift+v"
 type = "plugin_action"
 command = "persiyanov.reviewr.toggle"
 description = "review: diff sidebar (reviewr)"
@@ -177,7 +184,7 @@ description = "files: viewer in a split"
 
 # Navigation and worktrees.
 [[keys.command]]
-key = "prefix+shift+n"
+key = "prefix+shift+n"                # herdr default: new_workspace
 type = "plugin_action"
 command = "herdr-navigator.open"
 description = "navigator: fuzzy jump"
@@ -195,7 +202,7 @@ command = "herdr-navigator.jump-back"
 description = "navigator: jump back"
 
 [[keys.command]]
-key = "prefix+shift+w"
+key = "prefix+shift+w"                # herdr default: rename_workspace
 type = "plugin_action"
 command = "worktrunk.open"
 description = "worktree: switch / create (worktrunk)"
