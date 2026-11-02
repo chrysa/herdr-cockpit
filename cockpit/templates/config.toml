@@ -43,15 +43,12 @@ position = "top-right"
 [ui.sound]
 enabled = false
 
-# Spaces, one block per folder, rows without a value disappear:
+# Spaces, two lines per folder:
 #   1. state, name colored by ecosystem (padam = pro account color, chrysa =
-#      perso), branch (default branches dimmed) and git state; herdr shortens the
-#      longest value first, so a long branch is cut before the name;
-#   2. only with agents (agent-info): ‼ blocked and ✓ done counters first, then
-#      "N agents" and the accounts in use, each in its account color;
-#   3. RTK savings alone (chrysa.rtk-savings publishes one of four variants), so
-#      its figure is never cut.
-# An idle space takes two lines, a space with agents three; no gap rows.
+#      perso), then ‼ blocked and ✓ done counters when there are any (agent-info);
+#   2. RTK savings (chrysa.rtk-savings publishes one of four variants).
+# Branch, agent count and accounts are left out: the agent lines below say who
+# works where, and the branch shows in the tab title.
 [ui.sidebar.spaces]
 rows = [
   ["state_icon",
@@ -59,40 +56,23 @@ rows = [
       { starts_with = "padam", fg = "{{accounts.pro}}" },
       { equals = "chrysa", fg = "{{accounts.perso}}" },
     ] },
-   { token = "branch", fg = "{{colors.blue}}", rules = [
-      { equals = "develop", dim = true },
-      { equals = "main", dim = true },
-      { equals = "master", dim = true },
-    ] },
-   "git_status"],
-  [{ token = "$waiting", fg = "{{colors.red}}", bold = true }, { token = "$done", fg = "{{colors.blue}}" },
-   { token = "$agents", fg = "{{colors.overlay}}" },
-   { token = "$acc_perso", fg = "{{accounts.perso}}" }, { token = "$acc_pro", fg = "{{accounts.pro}}" },
-   { token = "$acc_codex", fg = "{{accounts.codex}}" }, { token = "$acc_other", fg = "{{accounts.other}}" }],
+   { token = "$waiting", fg = "{{colors.red}}", bold = true },
+   { token = "$done", fg = "{{colors.blue}}" }],
   [{ token = "$rtk_hi", fg = "{{colors.green}}" }, { token = "$rtk", fg = "{{colors.overlay}}" },
    { token = "$rtk_low", fg = "{{colors.red}}" }, { token = "$rtk_sum", fg = "{{colors.overlay}}" }],
 ]
 
-# Agents, one line each: state, space (colored by ecosystem, agents are sorted by
-# space), account (colored), conversation title (Claude's own, follows /rename,
-# spinner stripped). The model is in the tab bar and the panel header, the branch
-# on the space line, so neither is repeated here. The tab name is not used: it
-# already carries the state icon (agent-info), which would show it twice.
-# agent-info reports "codex" as the account of Codex agents, so one layout fits
-# every agent.
+# Agents, one line each: state, then the subject (conversation title, follows
+# /rename) in the color of its account (perso yellow, pro sky, codex green,
+# other grey), then the space, dimmed. agent-info publishes the title under one
+# token per account because herdr rules can only match a token's own value.
+# The model is in the tab bar and the panel header, not repeated here.
 [ui.sidebar.agents]
 rows = [
   ["state_icon",
-   { token = "workspace", rules = [
-      { starts_with = "padam", fg = "{{accounts.pro}}" },
-      { equals = "chrysa", fg = "{{accounts.perso}}" },
-    ] },
-   { token = "$account", fg = "{{accounts.other}}", bold = true, rules = [
-      { equals = "perso", fg = "{{accounts.perso}}" },
-      { equals = "pro", fg = "{{accounts.pro}}" },
-      { equals = "codex", fg = "{{accounts.codex}}" },
-    ] },
-   "terminal_title_stripped"],
+   { token = "$topic_perso", fg = "{{accounts.perso}}" }, { token = "$topic_pro", fg = "{{accounts.pro}}" },
+   { token = "$topic_codex", fg = "{{accounts.codex}}" }, { token = "$topic_other", fg = "{{accounts.other}}" },
+   { token = "workspace", dim = true }],
 ]
 
 # ── Keys ─────────────────────────────────────────────────────────────────────

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Lighter sidebar: a space takes two lines (state, name, ‼ / ✓ counters; RTK);
+  branch, agent count and accounts leave the Spaces column. An agent line starts
+  with its subject (conversation title) in the color of its account, then the
+  space, dimmed; the account word and the model are no longer repeated.
 - Compact sidebar (Notion requests): spaces show `‼ blocked` / `✓ done` counters,
   "N agents" and the accounts in use, each in its color (agent-info publishes them);
   branch and git state share the name line, RTK keeps its own line so its figure is
