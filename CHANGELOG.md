@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Compact sidebar (Notion requests): spaces show `‼ blocked` / `✓ done` counters,
+  "N agents" and the accounts in use, each in its color (agent-info publishes them);
+  branch and git state share the name line, RTK keeps its own line so its figure is
+  never cut; idle spaces take two lines. Agents take one line: state, space,
+  account, conversation title (the model stays in the tab bar and the panel, the
+  PR token is dropped from the line). Sidebar 36 columns wide.
 - Spaces sidebar: names colored by ecosystem (padam in the pro account color,
   chrysa in the perso one), default branches (`develop`, `main`, `master`) dimmed
   so work branches stand out, no blank row between spaces, sidebar 30 columns wide

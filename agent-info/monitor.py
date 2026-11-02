@@ -12,10 +12,12 @@ Codex: the newest rollout file matching the session. opencode: the configured
 "provider/model" (provider plays the account role).
 
 Also puts each tab's conversation state (◐ working, ‼ blocked, ✓ done) in front of
-its name.
+its name, and publishes per-space tokens for the Spaces column: agent count,
+blocked / done counters and the accounts in use.
 
 Commands: ensure (start in the background if needed), daemon, stop, tabs.
 """
+
 import fcntl
 import glob
 import json
@@ -107,8 +109,10 @@ def codex_info(session_id):
 
 
 def opencode_info(cwd):
-    candidates = [os.path.join(cwd or "", "opencode.json"),
-                  os.path.join(os.environ.get("XDG_CONFIG_HOME", f"{HOME}/.config"), "opencode", "opencode.json")]
+    candidates = [
+        os.path.join(cwd or "", "opencode.json"),
+        os.path.join(os.environ.get("XDG_CONFIG_HOME", f"{HOME}/.config"), "opencode", "opencode.json"),
+    ]
     for path in candidates:
         try:
             with open(path) as fh:
@@ -162,20 +166,71 @@ def label_tabs():
             herdr("tab", "rename", tab["tab_id"], wanted)
 
 
+# Spaces column: agent count, attention counters and accounts per space (herdr only
+# rolls the state up into one icon). One token per account so each keeps its color.
+SPACE_TOKENS = ("agents", "waiting", "done", "acc_perso", "acc_pro", "acc_codex", "acc_other")
+NAMED_ACCOUNTS = ("perso", "pro", "codex")
+
+
+def space_tokens(agents, accounts):
+    """workspace_id -> Spaces-column tokens, from the agent list and each pane's account."""
+    spaces = {}
+    for agent in agents:
+        space = spaces.setdefault(agent.get("workspace_id"), {"n": 0, "blocked": 0, "done": 0, "accounts": set()})
+        space["n"] += 1
+        status = agent.get("agent_status")
+        if status in ("blocked", "done"):
+            space[status] += 1
+        account = CONTROL.sub("", accounts.get(agent["pane_id"]) or "")
+        if account:
+            space["accounts"].add(account)
+    tokens = {}
+    for ws, s in spaces.items():
+        others = sorted(s["accounts"] - set(NAMED_ACCOUNTS))
+        tokens[ws] = {
+            "agents": f"{s['n']} agent{'s' if s['n'] > 1 else ''}",
+            "waiting": f"‼{s['blocked']}" if s["blocked"] else None,
+            "done": f"✓{s['done']}" if s["done"] else None,
+            **{f"acc_{name}": name if name in s["accounts"] else None for name in NAMED_ACCOUNTS},
+            "acc_other": " ".join(others) or None,
+        }
+    return tokens
+
+
+def publish_space(workspace_id, tokens):
+    args = ["workspace", "report-metadata", workspace_id, "--source", SOURCE, "--ttl-ms", str(TTL_MS)]
+    for name in SPACE_TOKENS:
+        value = CONTROL.sub("", tokens.get(name) or "")
+        args += ["--token", f"{name}={value}"] if value else ["--clear-token", name]
+    herdr(*args)
+
+
 def tick(shown):
     if time.monotonic() - shown.get("_refreshed", 0) > REFRESH_S:
         shown.clear()
         shown["_refreshed"] = time.monotonic()
     agents = herdr("agent", "list").get("result", {}).get("agents", [])
+    accounts = {}
     for agent in agents:
         model, account = agent_info(agent)
+        accounts[agent["pane_id"]] = account
         tokens = {"account": account, "model": model}
         if shown.get(agent["pane_id"]) != tokens:
             publish(agent["pane_id"], tokens)
             shown[agent["pane_id"]] = tokens
-    live = {a["pane_id"] for a in agents}
+    spaces = {f"ws:{ws}": tokens for ws, tokens in space_tokens(agents, accounts).items() if ws}
+    for key, tokens in spaces.items():
+        if shown.get(key) != tokens:
+            publish_space(key[3:], tokens)
+            shown[key] = tokens
+    live = {a["pane_id"] for a in agents} | set(spaces)
     for gone in set(shown) - live - {"_refreshed"}:
         shown.pop(gone, None)
+        if gone.startswith("ws:"):
+            try:
+                publish_space(gone[3:], {})  # last agent left: clear the space's counters
+            except RuntimeError:
+                pass  # space closed meanwhile
 
 
 def daemon():
@@ -212,9 +267,13 @@ def ensure():
     if running_pid():
         return
     os.makedirs(STATE_DIR, exist_ok=True)
-    subprocess.Popen([sys.executable, os.path.abspath(__file__), "daemon"],
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL, start_new_session=True)
+    subprocess.Popen(
+        [sys.executable, os.path.abspath(__file__), "daemon"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
 
 
 def stop():
@@ -224,7 +283,9 @@ def stop():
 
 
 def main():
-    {"ensure": ensure, "daemon": daemon, "stop": stop, "tabs": label_tabs}.get(sys.argv[1] if len(sys.argv) > 1 else "ensure", ensure)()
+    {"ensure": ensure, "daemon": daemon, "stop": stop, "tabs": label_tabs}.get(
+        sys.argv[1] if len(sys.argv) > 1 else "ensure", ensure
+    )()
 
 
 if __name__ == "__main__":
