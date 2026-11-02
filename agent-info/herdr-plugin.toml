@@ -1,8 +1,8 @@
 id = "chrysa.agent-info"
 name = "Agent Info"
-version = "0.6.0"
+version = "0.7.0"
 min_herdr_version = "0.7.0"
-description = "Publishes the Claude account ($account) and LLM model ($model) of each agent pane for the sidebar, and a pane listing the tab project's containers and listening ports with their URLs. Local reads only - no network, no telemetry."
+description = "Publishes the Claude account ($account), LLM model ($model) and subject colored by account ($topic_*) of each agent pane, the subject of each space ($theme, $more), and a pane listing the tab project's containers and listening ports with their URLs. Local reads only - no network, no telemetry."
 platforms = ["macos", "linux"]
 
 [[startup]]
