@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- Sidebar agent rows show the conversation title (native `terminal_title_stripped`,
+  follows `/rename`) instead of usagebar's `$title`, which repeated the tab's state
+  icon next to `state_icon` and kept it stale until the agent settled.
+- `config.toml` template regrouped (settings, display, keys) with English comments;
+  settings equal to herdr's defaults dropped (`show_agent_labels_on_pane_borders`,
+  agents `row_gap`); every custom key has a `group: action` description, RTK pane
+  included, so `prefix+?` reads as one list.
+- Keys: no custom key shadows a herdr default any more (herdr drops a shadowed
+  default without warning). reviewr moves to `prefix+shift+v`, giving back
+  `prefix+shift+r` (reload config); `new_workspace` → `prefix+shift+c`,
+  `rename_workspace` → `prefix+shift+e`, `swap_pane_down/up` →
+  `prefix+shift+down/up`. usagebar keys move behind the prefix
+  (`prefix+shift+u` limits, `prefix+ctrl+u` refresh) so panes keep `ctrl+shift+u/m`.
+  `tests/test_cockpit_keys.py` checks collisions against herdr 0.9.3 defaults.
+
 ## v0.6.0 — agent-panel fork, tab states (2026-10-14)
 
 - Tab names start with their conversation state: ◐ working, ‼ blocked, ✓ done
