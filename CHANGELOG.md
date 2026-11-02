@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Sidebar agent rows show the conversation title (native `terminal_title_stripped`,
+  follows `/rename`) instead of usagebar's `$title`, which repeated the tab's state
+  icon next to `state_icon` and kept it stale until the agent settled.
+- `config.toml` template regrouped (settings, display, keys) with English comments;
+  settings equal to herdr's defaults dropped (`show_agent_labels_on_pane_borders`,
+  agents `row_gap`); every custom key has a `group: action` description, RTK pane
+  included, so `prefix+?` reads as one list.
+
 ## v0.6.0 — agent-panel fork, tab states (2026-10-14)
 
 - Tab names start with their conversation state: ◐ working, ‼ blocked, ✓ done
