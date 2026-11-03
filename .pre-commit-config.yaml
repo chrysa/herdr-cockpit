@@ -1,0 +1,205 @@
+default_language_version:
+  python: python3.14
+fail_fast: false
+minimum_pre_commit_version: 4.1.0
+repos:
+- hooks:
+  - id: check-json
+  - exclude: ^.github/ISSUE_TEMPLATE/
+    id: check-yaml
+  - id: trailing-whitespace
+  - id: end-of-file-fixer
+  - id: detect-private-key
+  - args:
+    - --branch
+    - main
+    id: no-commit-to-branch
+  repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+- hooks:
+  - args:
+    - --fix
+    id: markdownlint
+    stages:
+    - manual
+  repo: https://github.com/igorshubovych/markdownlint-cli
+  rev: v0.48.0
+- hooks:
+  - id: makefile-check
+  - exclude: ^(\.github/|workflows/|templates/|docker-compose)|(^|/)(pnpm-lock|yarn|uv|poetry)\.(yaml|lock)$|(^|/)\.pre-commit-config\.yaml$
+    id: yaml-sorter
+  - id: json-sorter
+  - id: env-file-check
+  - id: env-example-sync
+  - id: adr-gate
+  - id: claude-skill-frontmatter
+  - id: claude-agent-frontmatter
+  - id: claude-mcp-config
+  - id: debugger-detection
+    exclude: (^|/)tests?/|^(README\.md|docs/)
+  - id: python-print-detection
+    exclude: (^|/)tests?/|^(README\.md|docs/)|(^|/)quality_gate\.py$|^\.claude/ape/
+  - id: python-pprint-detection
+    exclude: (^|/)tests?/|^(README\.md|docs/)|(^|/)quality_gate\.py$|^\.claude/ape/
+  - id: no-bare-except
+  - id: python-logger-detection
+    exclude: (^|/)tests?/|^(README\.md|docs/)
+  - id: python-unreachable-code
+  - id: python-no-unittest-import
+  - id: python-untyped-raise
+    exclude: (^|/)tests?/
+  - id: python-mutable-default
+  - id: python-dispatch-ladder
+  - id: claude-assets-present
+  - id: no-hardcoded-localhost
+    exclude: tests?/|\.test\.|\.spec\.
+  - id: regression-gate
+    stages:
+    - pre-push
+  - id: fastapi-missing-response-model
+    exclude: (^|/)tests/
+  - id: fastapi-missing-links
+    exclude: (^|/)tests/
+  - id: no-sync-in-async
+  - id: dockerfile-no-latest
+  - id: console-log-detection
+  - id: console-debug-detection
+  - id: react-console-error-detection
+  - id: no-console-warn
+  - id: ts-unreachable-code
+  - id: import-no-relative-parent
+  - id: react-no-async-in-useeffect
+  - id: react-direct-dom
+  repo: https://github.com/chrysa/pre-commit-tools
+  rev: v0.2.0-253
+- hooks:
+  - id: gitleaks
+  repo: https://github.com/gitleaks/gitleaks
+  rev: v8.30.0
+- hooks:
+  - id: conventional-pre-commit
+    stages:
+    - commit-msg
+    args:
+    - feat
+    - fix
+    - docs
+    - style
+    - refactor
+    - test
+    - chore
+    - perf
+    - revert
+    - ci
+  repo: https://github.com/compilerla/conventional-pre-commit
+  rev: v4.4.0
+- hooks:
+  - id: gitversion-canonical-drift
+    name: GitVersion.yml canonical drift
+    entry: scripts/check-canonical-drift.sh GitVersion.yml templates/GitVersion.yml
+    language: system
+    pass_filenames: false
+    files: ^(GitVersion\.yml|templates/GitVersion\.yml)$
+  - id: cliff-canonical-drift
+    name: cliff.toml canonical drift
+    entry: scripts/check-canonical-drift.sh cliff.toml templates/cliff.toml
+    language: system
+    pass_filenames: false
+    files: ^(cliff\.toml|templates/cliff\.toml)$
+  - id: quality-gate-canonical-drift
+    name: quality_gate.py canonical drift
+    entry: scripts/check-canonical-drift.sh scripts/quality_gate.py templates/quality_gate.py
+    language: system
+    pass_filenames: false
+    files: ^(scripts/quality_gate\.py|templates/quality_gate\.py)$
+  - id: domains-drift
+    name: GV-015 table vs standards/domains.yaml drift
+    entry: python -m scripts.check_domains_drift
+    language: python
+    pass_filenames: false
+    files: ^(standards/domains\.yaml|standards/annexes/GOVERNANCE\.md)$
+    additional_dependencies:
+    - pyyaml==6.0.2
+  - id: managed-skills-agents-drift
+    name: managed skill/agent copies match their canonical source
+    entry: scripts/check-managed-drift.sh
+    language: system
+    pass_filenames: false
+    files: ^(\.claude/skills/|\.claude/agents/|templates/claude/agents/)
+  # The agent views (slim CLAUDE.md core, .claude/rules/<domain>.md, AGENTS.md,
+  # .github/copilot-instructions.md) are GENERATED from standards/STANDARDS.chrysa.md by
+  # scripts/gen_agent_views.py. This gate regenerates them and fails if any committed view
+  # differs — so the canon, the mapping and every view stay one source. Host-native, no
+  # Docker; pyyaml is the only dependency (same as domains-drift).
+  - id: agent-views-drift
+    name: agent views (CLAUDE core / .claude/rules / AGENTS / copilot) match the canon
+    entry: python -m scripts.gen_agent_views --check
+    language: python
+    pass_filenames: false
+    files: ^(standards/(STANDARDS\.chrysa\.md|CORE\.chrysa\.md|rule-domains\.yaml|rules/.*)|scripts/gen_agent_views\.py|CLAUDE\.md|AGENTS\.md|\.github/copilot-instructions\.md)$
+    additional_dependencies:
+    - pyyaml==6.0.2
+  - id: gen-context-files-canonical-drift
+    name: gen_context_files.py canonical drift
+    entry: scripts/check-canonical-drift.sh scripts/gen_context_files.py templates/gen_context_files.py
+    language: system
+    pass_filenames: false
+    files: ^(scripts/gen_context_files\.py|templates/gen_context_files\.py)$
+  # The per-repo context files (handover, context-map, llms digest, ai-instructions) are
+  # GENERATED from the repo's own content by scripts/gen_context_files.py (ADR D-0012).
+  # This gate regenerates them and fails if any committed file drifted — mirrors
+  # agent-views-drift. Host-native; pyyaml only reads the in-repo repos.yml when present.
+  - id: context-files-drift
+    name: context files (handover / context-map / llms-full / ai-instructions) match the repo
+    entry: python -m scripts.gen_context_files --check
+    language: python
+    pass_filenames: false
+    files: ^(scripts/gen_context_files\.py|handover\.md|context-map\.json|llms-full\.txt|ai-instructions\.md|README\.md|CLAUDE\.md|CHANGELOG\.md|pyproject\.toml|package\.json|repos\.yml|docs/adr/.*)$
+    additional_dependencies:
+    - pyyaml==6.0.2
+  - id: pii-scan
+    name: PII (GDPR) detection (Presidio)
+    entry: python -m scripts.pii_scan
+    language: python
+    pass_filenames: true
+    require_serial: true
+    exclude: ^(graphify|sys|tests/pii/fixtures/|.*(pnpm-lock\.yaml|package-lock\.json|yarn\.lock|poetry\.lock|uv\.lock)$)
+    additional_dependencies:
+    - presidio-analyzer==2.2.359
+    - click==8.4.2
+    - fr_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.8.0/fr_core_news_sm-3.8.0-py3-none-any.whl
+    - en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+  repo: local
+- repo: https://github.com/chrysa/guideline-checker
+  rev: v1.30.10
+  hooks:
+  - id: guideline-check
+    args:
+    - check
+    - --fail-on
+    - error
+    - --baseline
+    - .guideline-baseline.json
+- repo: local
+  hooks:
+  - id: claude-config-drift
+    name: claude config drift (advisory)
+    language: system
+    entry: node .claude/hooks/claude-config-drift.cjs
+    always_run: true
+    pass_filenames: false
+    verbose: true
+  - id: graphify-auto-update
+    name: graphify auto-update (post-merge/checkout)
+    language: system
+    entry: node .claude/hooks/graphify-auto-update.cjs
+    always_run: true
+    pass_filenames: false
+    stages:
+    - post-merge
+    - post-checkout
+exclude: (^|/)quality_gate\.py$|^\.claude/ape/|^\.claude/_extracted/
+default_install_hook_types:
+- pre-commit
+- post-merge
+- post-checkout
