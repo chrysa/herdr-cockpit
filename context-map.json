@@ -1,0 +1,26 @@
+{
+  "adrs": [
+    "0001-native-first.md"
+  ],
+  "contracts": [
+    "standards"
+  ],
+  "ddd_level": "(not available)",
+  "dependencies": {},
+  "depends_on_shared_standards": true,
+  "description": "Herdr plugins for a readable multi-agent cockpit",
+  "entry_points": [],
+  "key_directories": [
+    ".claude",
+    ".github",
+    ".guardrails",
+    "agent-info",
+    "cockpit",
+    "docs",
+    "tests",
+    "work"
+  ],
+  "name": "herdr-cockpit",
+  "profiles": [],
+  "schema": "chrysa.context-map/1"
+}
