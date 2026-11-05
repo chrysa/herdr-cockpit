@@ -33,6 +33,7 @@ import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import services  # noqa: E402
+import events  # noqa: E402
 import subagents  # noqa: E402
 
 PLUGIN_ID = "chrysa.agent-info"
@@ -97,8 +98,16 @@ def last_match(path, pattern):
     return hits[-1] if hits else None
 
 
+TRANSCRIPTS = {}  # session id -> transcript path: the daemon ticks often, globbing is not free
+
+
 def claude_transcript(session_id):
+    known = TRANSCRIPTS.get(session_id)
+    if known and os.path.exists(known):
+        return known
     paths = [p for d in claude_dirs() for p in glob.glob(f"{d}/projects/*/{session_id}.jsonl")]
+    if paths:
+        TRANSCRIPTS[session_id] = paths[0]
     return paths[0] if paths else None
 
 
@@ -258,7 +267,8 @@ def desktop_notify(title, body):
     subprocess.run(cmd, capture_output=True, timeout=5, check=False)
 
 
-def notify_blocked(agents, state, labels_by_ws):
+def notify_blocked(agents, state, labels_by_ws, names=None):
+    names = names or {}
     blocked = {f"{a['pane_id']}:{a.get('state_change_seq')}": a for a in agents if a.get("agent_status") == "blocked"}
     for key, agent in blocked.items():
         if key in state["notified"]:
@@ -266,7 +276,7 @@ def notify_blocked(agents, state, labels_by_ws):
         state["notified"].add(key)
         if NOTIFY and not state["first"] and not agent.get("focused"):
             space = labels_by_ws.get(agent.get("workspace_id")) or "herdr"
-            desktop_notify(f"Agent en attente · {space}", topic_title(agent))
+            desktop_notify(f"Agent en attente · {space}", names.get(agent["pane_id"]) or topic_title(agent))
     state["notified"].intersection_update(blocked)
 
 
@@ -330,12 +340,16 @@ def release_tabs():
             herdr("tab", "rename", tab["tab_id"], "")
 
 
-# Agents column: the conversation title, published under the token of its account
-# (one is set, the others cleared) so the sidebar colors the title by account with
+# Agents column: the agent's name (agent_name), published under the token of its
+# account (one is set, the others cleared) so the sidebar colors it by account with
 # fixed per-token colors; herdr rules can only match a token's own value.
 NAMED_ACCOUNTS = ("perso", "pro", "codex")
 TOPIC_TOKENS = tuple(f"topic_{name}" for name in (*NAMED_ACCOUNTS, "other"))
 GENERIC_TITLES = {"", "claude", "codex", "opencode"}
+# herdr.auto-title names a tab "<context> › <activity>" from the conversation and
+# cuts it to its max length; a name at least this long that starts the
+# conversation title is taken as derived from it, not chosen by hand.
+DERIVED_MIN = 12
 
 
 def topic_title(agent):
@@ -345,11 +359,37 @@ def topic_title(agent):
     return live if live.lower() not in GENERIC_TITLES else reported or live or agent.get("agent") or ""
 
 
-def topic_tokens(agent, account):
-    """{topic_<account>: title, other topic tokens: None} for one agent row."""
+def agent_name(agent, tab_label, shared=False):
+    """The agent's name in the sidebar: its tab's name, as in the tab bar.
+
+    The conversation title instead when the tab is unnamed or generic, or when its
+    name was derived from that title (auto-title cuts it; the title is complete).
+    A tab holding several agents adds each one's title so their rows differ.
+    """
     title = topic_title(agent)
+    label = CONTROL.sub("", tab_label or "").strip()
+    activity = label.rsplit(" › ", 1)[-1].strip()
+    derived = activity == title or (len(activity) >= DERIVED_MIN and title.startswith(activity))
+    if label.lower() in GENERIC_TITLES or label.isdigit() or derived:
+        return title
+    return f"{label} · {title}" if shared and title and title != label else label
+
+
+def agent_names(agents, tabs):
+    """pane_id -> sidebar name, from `herdr tab list` tabs."""
+    labels = {t.get("tab_id"): t.get("label") or "" for t in tabs}
+    per_tab = {}
+    for agent in agents:
+        per_tab[agent.get("tab_id")] = per_tab.get(agent.get("tab_id"), 0) + 1
+    return {a["pane_id"]: agent_name(a, labels.get(a.get("tab_id"), ""), per_tab[a.get("tab_id")] > 1)
+            for a in agents}
+
+
+def topic_tokens(agent, account, name=None):
+    """{topic_<account>: name, other topic tokens: None} for one agent row."""
+    title = name or topic_title(agent)
     key = f"topic_{account}" if account in NAMED_ACCOUNTS else "topic_other"
-    return {name: (title or None) if name == key else None for name in TOPIC_TOKENS}
+    return {token: (title or None) if token == key else None for token in TOPIC_TOKENS}
 
 
 # Spaces column, lines 2+: only the agents waiting on you (blocked), longest wait
@@ -400,7 +440,8 @@ def name_tokens(label, labels, busy):
 def space_tokens(agents, details=None):
     """workspace_id -> count and waiting-agent tokens, for every space that holds agents.
 
-    details: pane_id -> {"account": ..., "subs": [subagent statuses]} (missing: other, none).
+    details: pane_id -> {"account": ..., "subs": [subagent statuses], "name": sidebar name}
+    (missing: other account, no subagents, conversation title).
     """
     details = details or {}
     by_space = {}
@@ -410,7 +451,7 @@ def space_tokens(agents, details=None):
     for ws, members in by_space.items():
         waiting = sorted((a for a in members if a.get("agent_status") == "blocked"),
                          key=lambda a: a.get("state_change_seq") or 0)
-        lines = [f"‼ {topic_title(a) or 'agent'}" for a in waiting]
+        lines = [f"‼ {details.get(a.get('pane_id'), {}).get('name') or topic_title(a) or 'agent'}" for a in waiting]
         extra = len(lines) - WAIT_ROWS
         groups = {}
         for agent in members:
@@ -436,7 +477,7 @@ def publish_space(workspace_id, tokens):
 
 def new_state():
     """Daemon memory across ticks: state ages and the blocked states already notified."""
-    return {"since": {}, "notified": set(), "first": True, "logs": {}}
+    return {"since": {}, "notified": set(), "first": True, "logs": {}, "watch": [], "panes": []}
 
 
 def tick(shown, state=None, now=None):
@@ -447,22 +488,28 @@ def tick(shown, state=None, now=None):
         shown["_refreshed"] = time.monotonic()
     agents = herdr("agent", "list").get("result", {}).get("agents", [])
     track_since(state["since"], agents, now)
+    names = agent_names(agents, herdr("tab", "list").get("result", {}).get("tabs", []))
     details = {}
     for agent in agents:
         model, account = agent_info(agent)
         subs = agent_subagents(agent, state["logs"], now)
-        details[agent["pane_id"]] = {"account": account, "subs": [s["status"] for s in subs]}
-        tokens = {"account": account, "model": model, **topic_tokens(agent, account),
+        name = names[agent["pane_id"]]
+        details[agent["pane_id"]] = {"account": account, "subs": [s["status"] for s in subs], "name": name}
+        tokens = {"account": account, "model": model, **topic_tokens(agent, account, name),
                   "age": age_label(now - state["since"][agent["pane_id"]][2]), "doing": agent_doing(agent),
                   **sub_tokens(subs)}
         if shown.get(agent["pane_id"]) != tokens:
             publish(agent["pane_id"], tokens)
             shown[agent["pane_id"]] = tokens
     state["logs"] = {path: log for path, log in state["logs"].items() if os.path.exists(path)}
+    # What wakes the daemon besides herdr events: each Claude transcript and its
+    # subagents folder (a new subagent adds a file there).
+    state["watch"] = [p for path in state["logs"] for p in (path, os.path.join(path.removesuffix(".jsonl"), "subagents"))]
+    state["panes"] = [a["pane_id"] for a in agents]
     subjects = space_tokens(agents, details)
     workspaces = herdr("workspace", "list").get("result", {}).get("workspaces", [])
     labels = [CONTROL.sub("", w.get("label") or "") for w in workspaces]
-    notify_blocked(agents, state, {w.get("workspace_id"): label for w, label in zip(workspaces, labels)})
+    notify_blocked(agents, state, {w.get("workspace_id"): label for w, label in zip(workspaces, labels)}, names)
     state["first"] = False
     spaces = {
         f"ws:{w['workspace_id']}": {**dict.fromkeys(AGENT_TOKENS), **subjects.get(w["workspace_id"], {}),
@@ -499,17 +546,32 @@ def daemon():
         release_tabs()
     except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired):
         pass  # names left prefixed stay as they are; nothing else depends on it
+    stream, snapshots_at = events.EventStream(), 0.0
     while failures < 10:
         try:
-            services.save_snapshots()
+            if time.monotonic() - snapshots_at >= POLL_S:  # docker ps / ss: slow, not urgent
+                services.save_snapshots()
+                snapshots_at = time.monotonic()
             tick(shown, state)
             if json.dumps(state["since"]) != saved:
                 save_since(state["since"])
                 saved = json.dumps(state["since"])
+            stream.follow(state["panes"])
             failures = 0
         except Exception:
             failures += 1
-        time.sleep(POLL_S)
+        wait_for_change(stream, state["watch"], POLL_S)
+
+
+def wait_for_change(stream, watch, longest):
+    """Until a herdr event, a watched file changes, or longest seconds (ages, stalls)."""
+    deadline = time.monotonic() + longest
+    before = events.file_signature(watch)
+    while time.monotonic() < deadline:
+        if stream.wait(min(events.FILE_CHECK_S, max(0.0, deadline - time.monotonic()))):
+            return
+        if events.file_signature(watch) != before:
+            return
 
 
 def running_pid():

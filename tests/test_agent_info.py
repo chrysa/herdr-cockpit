@@ -282,3 +282,31 @@ def test_sub_tokens_list_then_overflow():
     subs = [{"status": s, "description": f"S{i}"} for i, s in enumerate(["running", "stalled", "done", "done"])]
     assert monitor.sub_tokens(subs) == {"sub1": "⑂ ● S0", "sub2": "⑂ ◌ S1", "sub3": "⑂ ✓ S2", "sub_more": "⑂ +1"}
     assert monitor.sub_tokens([]) == {"sub1": None, "sub2": None, "sub3": None, "sub_more": None}
+
+
+@pytest.mark.parametrize("tab, shared, name", [
+    ("herdr", False, "herdr"),  # named by hand: the tab's name
+    ("Herdr, space et chat inversé", False, "Herdr, space et chat inversés"),  # auto-title cut it
+    ("padam › Herdr, space et chat", False, "Herdr, space et chat inversés"),  # auto-title context › activity
+    ("Herdr", False, "Herdr"),  # short hand name that starts the title stays
+    ("", False, "Herdr, space et chat inversés"),
+    ("claude", False, "Herdr, space et chat inversés"),
+    ("3", False, "Herdr, space et chat inversés"),
+    ("herdr", True, "herdr · Herdr, space et chat inversés"),  # several agents in the tab
+])
+def test_agent_name_follows_the_tab(tab, shared, name):
+    agent = {"terminal_title_stripped": "Herdr, space et chat inversés"}
+    assert monitor.agent_name(agent, tab, shared) == name
+
+
+def test_agent_names_marks_shared_tabs():
+    agents = [{"pane_id": "a", "tab_id": "t1", "terminal_title_stripped": "One"},
+              {"pane_id": "b", "tab_id": "t1", "terminal_title_stripped": "Two"},
+              {"pane_id": "c", "tab_id": "t2", "terminal_title_stripped": "Three"}]
+    tabs = [{"tab_id": "t1", "label": "audit"}, {"tab_id": "t2", "label": "vscode"}]
+    assert monitor.agent_names(agents, tabs) == {"a": "audit · One", "b": "audit · Two", "c": "vscode"}
+
+
+def test_waiting_line_uses_the_sidebar_name():
+    agents = [{"pane_id": "a", "workspace_id": "w1", "agent_status": "blocked", "terminal_title_stripped": "Long title"}]
+    assert monitor.space_tokens(agents, {"a": {"name": "audit"}})["w1"]["wait1"] == "‼ audit"

@@ -78,7 +78,7 @@ rows = [
 ]
 
 # Agents: state, how long in that state (dim, "12m"; agent-info measures it),
-# then the subject (conversation title, follows /rename) in the color of its
+# then the name (the tab's, else the conversation title) in the color of its
 # account (perso yellow, pro sky, codex green, other grey). agent-info publishes
 # the title under one token per account because herdr rules can only match a
 # token's own value. A working Claude agent gets a dim second line with its

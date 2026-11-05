@@ -18,6 +18,12 @@ What herdr and the plugin marketplace do not cover reliably:
   ("⑂ ● Security review") and `$sub_more`, from `<session>/subagents/` and the
   main transcript's `<task-notification>` entries, read incrementally
   (`subagents.py`, same state rules as agent-panel).
+- **Agent names** follow the tab name (the conversation title when the tab is
+  unnamed or auto-title derived its name from it).
+- **Real time**: `events.py` subscribes to herdr events over the socket (one
+  status subscription per agent pane, reopened when panes change) and watches
+  Claude transcript mtimes every 0.5 s; without a socket it falls back to the
+  8 s poll.
 - **Space names** under one of six tokens, `$space_<busy|idle>_<pro|perso|other>`
   (busy = holds agents), so the sidebar can bold busy spaces and dim idle ones in
   their ecosystem color; a space named after another plus "-suffix" shows

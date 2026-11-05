@@ -34,6 +34,12 @@
   ⊘ killed, ✓ done), 3 max then "⑂ +N". New `agent-info/subagents.py` reads
   Claude's subagent files and the main transcript incrementally, with the
   agent-panel rules.
+- Agents are named after their tab, as in the tab bar (`audit`, `vscode`): the
+  conversation title only when the tab is unnamed or auto-title derived its
+  name from that title (and cut it); a tab with several agents adds each title.
+- Real time: the agent-info daemon wakes on herdr events (agent status, panes,
+  tabs, spaces) and on Claude transcript writes instead of every 8 s; a change
+  reaches the sidebar in about a second. docker/ss snapshots stay every 8 s.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 
