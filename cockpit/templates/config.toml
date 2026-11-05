@@ -78,7 +78,8 @@ rows = [
 ]
 
 # Agents: state, how long in that state (dim, "12m"; agent-info measures it),
-# then the name (the tab's, else the conversation title) in the color of its
+# then the branch's PR (gh-pr, "#123 ✓"), then the name (the tab's, else the
+# conversation title) in the color of its
 # account (perso yellow, pro sky, codex green, other grey). agent-info publishes
 # the title under one token per account because herdr rules can only match a
 # token's own value. A working Claude agent gets a dim second line with its
@@ -89,7 +90,7 @@ rows = [
 # The model is in the tab bar and the panel header, not repeated here.
 [ui.sidebar.agents]
 rows = [
-  ["state_icon", { token = "$age", dim = true },
+  ["state_icon", { token = "$age", dim = true }, { token = "$pr", fg = "{{colors.overlay}}" },
    { token = "$topic_perso", fg = "{{accounts.perso}}" }, { token = "$topic_pro", fg = "{{accounts.pro}}" },
    { token = "$topic_codex", fg = "{{accounts.codex}}" }, { token = "$topic_other", fg = "{{accounts.other}}" }],
   [{ token = "$doing", dim = true }],
@@ -117,7 +118,8 @@ swap_pane_down = "prefix+shift+down"
 swap_pane_up = "prefix+shift+up"
 switch_workspace = "prefix+shift+1..9"
 new_workspace = "prefix+shift+c"      # its default prefix+shift+n is the navigator
-rename_workspace = "prefix+shift+e"   # its default prefix+shift+w is worktrunk
+open_worktree = "prefix+ctrl+w"       # native worktrees (unset by default); new_worktree = prefix+shift+g
+remove_worktree = "prefix+alt+w"      # asks for confirmation
 
 # Agents column filters (chrysa.cockpit, native agent.view.set; they combine).
 [[keys.command]]
@@ -224,18 +226,6 @@ key = "prefix+ctrl+o"
 type = "plugin_action"
 command = "herdr-navigator.jump-back"
 description = "navigator: jump back"
-
-[[keys.command]]
-key = "prefix+shift+w"                # herdr default: rename_workspace
-type = "plugin_action"
-command = "worktrunk.open"
-description = "worktree: switch / create (worktrunk)"
-
-[[keys.command]]
-key = "prefix+ctrl+w"
-type = "plugin_action"
-command = "worktrunk.remove"
-description = "worktree: remove (worktrunk)"
 
 # Transcripts.
 [[keys.command]]

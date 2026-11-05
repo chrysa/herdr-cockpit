@@ -4,12 +4,6 @@
 # chrysa/* plugins may be linked from a local checkout instead (`herdr plugin link`).
 
 [[plugin]]
-id = "caioniehues.herdmates"
-source = "caioniehues/herdmates"
-ref = "9469ab2abeea4d593906ff7eebb8af22cd22b8e0"
-enabled = true
-
-[[plugin]]
 id = "chrysa.agent-info"
 source = "chrysa/herdr-cockpit/agent-info"
 ref = "v0.7.0"
@@ -24,24 +18,6 @@ enabled = true
 [[plugin]]
 id = "chrysa.rtk-savings"
 source = "chrysa/herdr-rtk-savings"
-enabled = true
-
-[[plugin]]
-id = "com.herdr.agent-config-manager"
-source = "Phoobobo/herdr-agent-config-manager"
-ref = "1c5416fdeabf194af0375e25cf49f8f4c28a55fa"
-enabled = true
-
-[[plugin]]
-id = "dev.volpestyle.mermaid-preview"
-source = "Volpestyle/herdr-plugin-mermaid-preview"
-ref = "517f4307e9f9f6dac0b0e072206657c94760636c"
-enabled = true
-
-[[plugin]]
-id = "espalier.worktree"
-source = "ruttydm/herdr-espalier"
-ref = "30e25b5c23d8c5b339c1618904366d29a0c30eb0"
 enabled = true
 
 [[plugin]]
@@ -60,12 +36,6 @@ enabled = true
 id = "herdr-navigator"
 source = "thanhdat77/herdr-navigator"
 ref = "9bdf30f03f53730e6232377a3fca3bdc6ed9f3ca"
-enabled = true
-
-[[plugin]]
-id = "herdr-plugin-workspace-manager"
-source = "razajamil/herdr-plugin-workspace-manager"
-ref = "0da7e74999ba1cc7937b2b1787db1779febef031"
 enabled = true
 
 [[plugin]]
@@ -99,22 +69,11 @@ ref = "4c090225af706bf3aaa24b39fea890a72994f40f"
 enabled = true
 
 [[plugin]]
-id = "ray.plugin-manager"
-source = "speardragon/herdr-plugin-manager"
-ref = "b887396d7bd1358afcba595298af7ef352f650d0"
-enabled = true
-
-[[plugin]]
 id = "usagebar"
 source = "senna-lang/herdr-agent-usage"
 ref = "517ee5e207c162aeb7c2cc8358084691e56ec0a5"
 enabled = true
 
-[[plugin]]
-id = "worktrunk"
-source = "devashish2203/herdr-worktrunk"
-ref = "4be9bbbaab1dfbecc81b298d30624052d0c432d1"
-enabled = true
 [[plugin]]
 id = "agent-panel"
 source = "chrysa/agent-panel"  # fork of flowy11/agent-panel: header lines + shown marker

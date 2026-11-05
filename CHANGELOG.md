@@ -42,6 +42,13 @@
   reaches the sidebar in about a second. docker/ss snapshots stay every 8 s.
 - The cockpit plugin no longer runs `daemon.py` (removed in v0.4.0) at startup and
   on every space focus, where it failed each time; agent-info starts its own daemon.
+- Plugins trimmed from 21 to 14 after an audit: herdmates, agent-config-manager,
+  mermaid-preview, espalier, workspace-manager, plugin-manager (unused, or doing
+  nothing here) and worktrunk (`wt` not installed) are no longer declared.
+- Worktrees use herdr's native actions: `open_worktree` prefix+ctrl+w,
+  `remove_worktree` prefix+alt+w (`new_worktree` stays prefix+shift+g);
+  `rename_workspace` is back on its default prefix+shift+w.
+- Agent lines show the branch's PR from gh-pr (`$pr`, "#123 ✓") before the name.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 
