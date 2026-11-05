@@ -45,22 +45,23 @@ position = "top-right"
 enabled = false
 
 # Spaces, compact:
-#   1. only with agents: the space's subject (agent-info: a blocked agent's
-#      first, else the latest), "+N" for its other subjects;
-#   2. state and the folder alone, colored by ecosystem (padam = pro account
-#      color, chrysa = perso), so the name is never cut;
+#   1. state and the folder alone, bold, colored by ecosystem (padam = pro
+#      account color, chrysa = perso), so the name is never cut and reads as
+#      the space's title;
+#   2. only with agents: the space's subject (agent-info: a blocked agent's
+#      first, else the latest), "+N" for its other subjects.
 # RTK savings are not shown here: they stay in the RTK pane (prefix+ctrl+r) and
 # the Claude status line.
-# The state icon sits on line 2 because it always has a value: on line 1 it
-# would keep an empty line for idle spaces. An idle space takes one line.
+# Line 1 always has a value; line 2 is empty for idle spaces and herdr drops
+# empty rows, so an idle space takes one line.
 [ui.sidebar.spaces]
 rows = [
-  [{ token = "$theme", bold = true }, { token = "$more", fg = "{{colors.overlay}}" }],
   ["state_icon",
-   { token = "workspace", rules = [
+   { token = "workspace", bold = true, rules = [
       { starts_with = "padam", fg = "{{accounts.pro}}" },
       { equals = "chrysa", fg = "{{accounts.perso}}" },
     ] }],
+  [{ token = "$theme" }, { token = "$more", fg = "{{colors.overlay}}" }],
 ]
 
 # Agents, one line each: state, then the subject (conversation title, follows

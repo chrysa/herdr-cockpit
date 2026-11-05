@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Spaces: the folder comes first, bold, as the space's title; the subject
+  ("+N" for the others) moves under it. An idle space still takes one line.
+- Agents column: shows only the selected space by default (`prefix+ctrl+x`
+  toggles it, `prefix+ctrl+z` shows every agent).
+
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 
 - Space folder names are never cut: the folder sits alone on its line and the

@@ -8,7 +8,24 @@ import agent_view  # noqa: E402
 
 
 def test_no_filter_when_nothing_selected():
-    assert agent_view.build_filter(dict(agent_view.DEFAULT)) is None
+    assert agent_view.build_filter(dict(agent_view.NONE)) is None
+
+
+def test_default_shows_only_the_selected_space(monkeypatch, tmp_path):
+    monkeypatch.setattr(agent_view, "STATE", str(tmp_path / "missing.json"))
+    assert agent_view.build_filter(agent_view.load()) == {
+        "op": "eq", "field": "workspace_id", "value": {"context": "current_workspace_id"}}
+
+
+def test_reset_shows_every_agent(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(agent_view, "STATE_DIR", str(tmp_path))
+    monkeypatch.setattr(agent_view, "STATE", str(tmp_path / "agent-view.json"))
+    monkeypatch.setattr(agent_view, "call", lambda method, params: calls.append((method, params)) or {})
+    monkeypatch.setattr(sys, "argv", ["agent_view.py", "reset"])
+    agent_view.main()
+    assert calls[0][0] == "agent.view.clear"
+    assert agent_view.load() == agent_view.NONE
 
 
 def test_single_filter_is_not_wrapped():
@@ -24,7 +41,8 @@ def test_filters_combine_with_all():
 
 def test_label():
     assert agent_view.label({"profile": "perso", "active": True, "space": False}) == "perso · actifs"
-    assert agent_view.label(dict(agent_view.DEFAULT)) == "tous profils"
+    assert agent_view.label(dict(agent_view.NONE)) == "tous"
+    assert agent_view.label(dict(agent_view.DEFAULT)) == "ce space"
 
 
 def test_sort_only_view_keeps_every_agent(monkeypatch):

@@ -5,7 +5,8 @@ Three independent filters, combined with "all":
 - profile: the Claude account an agent runs on (`$account` token from
   chrysa.agent-info), cycled through the accounts currently seen;
 - active: only agents working or blocked;
-- space: only agents of the space selected in herdr.
+- space: only agents of the space selected in herdr (on by default, so the
+  column follows the selected space; `reset` shows every agent).
 State lives in the plugin state dir and is re-applied at startup, since herdr
 drops the view when the server exits.
 
@@ -19,7 +20,8 @@ import sys
 SOURCE = "plugin:chrysa.cockpit"
 STATE_DIR = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.expanduser("~/.local/state/chrysa.cockpit")
 STATE = os.path.join(STATE_DIR, "agent-view.json")
-DEFAULT = {"profile": "", "active": False, "space": False, "attention": False}
+NONE = {"profile": "", "active": False, "space": False, "attention": False}
+DEFAULT = {**NONE, "space": True}  # state before any key is pressed
 
 
 def call(method, params):
@@ -66,11 +68,12 @@ def build_filter(state):
 
 
 def label(state):
-    parts = [state["profile"] or "tous profils"]
-    parts += ["tri attention"] if state.get("attention") else []
+    """Short: herdr draws it over the Agents header and cuts the title when long."""
+    parts = [state["profile"]] if state["profile"] else []
+    parts += ["attention"] if state.get("attention") else []
     parts += ["actifs"] if state["active"] else []
-    parts += ["space courant"] if state["space"] else []
-    return " · ".join(parts)
+    parts += ["ce space"] if state["space"] else []
+    return " · ".join(parts) or "tous"
 
 
 def accounts():
@@ -109,7 +112,7 @@ def main():
     elif command in ("active", "space"):
         state[command] = not state[command]
     elif command == "reset":
-        state = dict(DEFAULT)
+        state = dict(NONE)
     if command != "apply":
         save(state)
     apply(state)

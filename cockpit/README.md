@@ -55,7 +55,7 @@ the built-in Agents column itself (sidebar, collapsed sidebar, navigation):
 |---|---|
 | `prefix+ctrl+p` | next Claude profile: all → perso → pro… (accounts seen on agents) |
 | `prefix+ctrl+a` | only active agents (working, blocked) |
-| `prefix+ctrl+x` | only the space selected in herdr |
+| `prefix+ctrl+x` | only the space selected in herdr (on by default) |
 | `prefix+ctrl+s` | sort by attention / by space order |
 | `prefix+ctrl+z` | show every agent |
 
