@@ -16,6 +16,7 @@ import json
 import os
 import socket
 import sys
+import time
 
 SOURCE = "plugin:chrysa.cockpit"
 STATE_DIR = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.expanduser("~/.local/state/chrysa.cockpit")
@@ -119,9 +120,21 @@ def main():
         state = dict(NONE)
     if command != "apply":
         save(state)
-    apply(state)
+    apply_when_ready(state) if command == "apply" else apply(state)
     if command != "apply":
         notify(state)
+
+
+def apply_when_ready(state, wait_s=10.0, step_s=0.5, sleep=time.sleep):
+    """apply(), retried while the herdr socket is not up yet (server just starting)."""
+    deadline = time.monotonic() + wait_s
+    while True:
+        try:
+            return apply(state)
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise
+            sleep(step_s)
 
 
 if __name__ == "__main__":

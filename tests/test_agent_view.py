@@ -68,3 +68,27 @@ def test_sort_only_view_keeps_every_agent(monkeypatch):
     assert method == "agent.view.set"
     assert params["filter"] == {"op": "exists", "field": "pane_id"}
     assert params["sort"][0] == {"field": "attention", "order": "desc"}
+
+
+def test_apply_waits_for_the_socket_at_startup(monkeypatch):
+    attempts = []
+
+    def flaky(state):
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise ConnectionRefusedError("server starting")
+        return {"result": {"active": True}}
+
+    monkeypatch.setattr(agent_view, "apply", flaky)
+    assert agent_view.apply_when_ready(dict(agent_view.DEFAULT), sleep=lambda s: None) == {"result": {"active": True}}
+    assert len(attempts) == 3
+
+
+def test_apply_gives_up_after_the_wait(monkeypatch):
+    monkeypatch.setattr(agent_view, "apply", lambda state: (_ for _ in ()).throw(FileNotFoundError("no socket")))
+    try:
+        agent_view.apply_when_ready(dict(agent_view.DEFAULT), wait_s=0, sleep=lambda s: None)
+    except FileNotFoundError:
+        pass
+    else:
+        raise AssertionError("expected the socket error")

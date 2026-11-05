@@ -22,6 +22,12 @@ command = ["sh", "-c", "python3 setup.py | ${PAGER:-less -R}"]
 platforms = ["linux", "macos"]
 command = ["python3", "agent_view.py", "apply"]
 
+# herdr forgets the view when its server restarts; re-applied on every space switch
+# too (idempotent), so a missed startup run never leaves the column unfiltered.
+[[events]]
+on = "workspace.focused"
+command = ["python3", "agent_view.py", "apply"]
+
 [[actions]]
 id = "agents-profile"
 title = "Agents: next Claude profile (all, perso, pro…)"
