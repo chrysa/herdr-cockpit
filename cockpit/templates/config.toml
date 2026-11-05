@@ -66,15 +66,16 @@ rows = [
 
 # Agents, one line each: state, then the subject (conversation title, follows
 # /rename) in the color of its account (perso yellow, pro sky, codex green,
-# other grey), then the space, dimmed. agent-info publishes the title under one
-# token per account because herdr rules can only match a token's own value.
+# other grey). agent-info publishes the title under one token per account
+# because herdr rules can only match a token's own value.
+# No space name: the column shows the selected space by default (agent_view),
+# so the whole width goes to the title.
 # The model is in the tab bar and the panel header, not repeated here.
 [ui.sidebar.agents]
 rows = [
   ["state_icon",
    { token = "$topic_perso", fg = "{{accounts.perso}}" }, { token = "$topic_pro", fg = "{{accounts.pro}}" },
-   { token = "$topic_codex", fg = "{{accounts.codex}}" }, { token = "$topic_other", fg = "{{accounts.other}}" },
-   { token = "workspace", dim = true }],
+   { token = "$topic_codex", fg = "{{accounts.codex}}" }, { token = "$topic_other", fg = "{{accounts.other}}" }],
 ]
 
 # ── Keys ─────────────────────────────────────────────────────────────────────

@@ -8,6 +8,8 @@
   toggles it, `prefix+ctrl+z` shows every agent), in herdr's native
   "priority" order: an active view drops herdr's own sort, so the view now
   carries it (`prefix+ctrl+s` switches to the spaces order). Short view label.
+- Agent lines drop the dimmed space name: the column shows one space by
+  default, so the conversation title gets the whole width.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 
