@@ -5,7 +5,9 @@
 - Spaces: the folder comes first, bold, as the space's title; the subject
   ("+N" for the others) moves under it. An idle space still takes one line.
 - Agents column: shows only the selected space by default (`prefix+ctrl+x`
-  toggles it, `prefix+ctrl+z` shows every agent).
+  toggles it, `prefix+ctrl+z` shows every agent), in herdr's native
+  "priority" order: an active view drops herdr's own sort, so the view now
+  carries it (`prefix+ctrl+s` switches to the spaces order). Short view label.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

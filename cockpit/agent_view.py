@@ -21,7 +21,9 @@ SOURCE = "plugin:chrysa.cockpit"
 STATE_DIR = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.expanduser("~/.local/state/chrysa.cockpit")
 STATE = os.path.join(STATE_DIR, "agent-view.json")
 NONE = {"profile": "", "active": False, "space": False, "attention": False}
-DEFAULT = {**NONE, "space": True}  # state before any key is pressed
+# State before any key is pressed: the selected space, in herdr's "priority"
+# order (an active view replaces herdr's own sort, so the view carries it).
+DEFAULT = {**NONE, "space": True, "attention": True}
 
 
 def call(method, params):
@@ -70,9 +72,9 @@ def build_filter(state):
 def label(state):
     """Short: herdr draws it over the Agents header and cuts the title when long."""
     parts = [state["profile"]] if state["profile"] else []
-    parts += ["attention"] if state.get("attention") else []
     parts += ["actifs"] if state["active"] else []
     parts += ["ce space"] if state["space"] else []
+    parts += ["priorité"] if state.get("attention") else []
     return " · ".join(parts) or "tous"
 
 
@@ -83,7 +85,10 @@ def accounts():
     return [""] + sorted(a for a in found if a)
 
 
+# herdr's two native orders ("priority" = attention queue, "spaces" = layout
+# order), given explicitly because an active view drops herdr's own sort.
 SORT_ATTENTION = [{"field": "attention", "order": "desc"}, {"field": "state_change_seq", "order": "desc"}]
+SORT_SPACES = [{"field": "workspace_order"}, {"field": "tab_order"}, {"field": "pane_order"}]
 
 
 def apply(state):
@@ -91,9 +96,8 @@ def apply(state):
     if query is None and not state.get("attention"):
         return call("agent.view.clear", {"source": SOURCE})
     params = {"source": SOURCE, "label": label(state),
-              "filter": query or {"op": "exists", "field": "pane_id"}}
-    if state.get("attention"):
-        params["sort"] = SORT_ATTENTION
+              "filter": query or {"op": "exists", "field": "pane_id"},
+              "sort": SORT_ATTENTION if state.get("attention") else SORT_SPACES}
     return call("agent.view.set", params)
 
 

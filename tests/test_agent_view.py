@@ -42,7 +42,22 @@ def test_filters_combine_with_all():
 def test_label():
     assert agent_view.label({"profile": "perso", "active": True, "space": False}) == "perso · actifs"
     assert agent_view.label(dict(agent_view.NONE)) == "tous"
-    assert agent_view.label(dict(agent_view.DEFAULT)) == "ce space"
+    assert agent_view.label(dict(agent_view.DEFAULT)) == "ce space · priorité"
+
+
+def test_default_keeps_the_native_priority_order(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(agent_view, "STATE", str(tmp_path / "missing.json"))
+    monkeypatch.setattr(agent_view, "call", lambda method, params: calls.append((method, params)) or {})
+    agent_view.apply(agent_view.load())
+    assert calls[-1][1]["sort"] == agent_view.SORT_ATTENTION
+
+
+def test_space_order_is_explicit_when_filtered(monkeypatch):
+    calls = []
+    monkeypatch.setattr(agent_view, "call", lambda method, params: calls.append((method, params)) or {})
+    agent_view.apply({"profile": "", "active": False, "space": True, "attention": False})
+    assert calls[-1][1]["sort"] == agent_view.SORT_SPACES
 
 
 def test_sort_only_view_keeps_every_agent(monkeypatch):
