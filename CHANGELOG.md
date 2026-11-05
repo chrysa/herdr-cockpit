@@ -10,6 +10,11 @@
   carries it (`prefix+ctrl+s` switches to the spaces order). Short view label.
 - Agent lines drop the dimmed space name: the column shows one space by
   default, so the conversation title gets the whole width.
+- Busy spaces stand out: agent-info publishes each space name under a
+  busy (bold) or idle (dim) token per ecosystem color. A space named after
+  another plus "-suffix" shows "↳ suffix" (`padam-av-GHA` → `↳ GHA`), so long
+  names are no longer cut.
+- `agent_panel_sort = "priority"`: herdr's own order matches the Agents view.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

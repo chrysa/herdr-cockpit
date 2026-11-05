@@ -25,7 +25,7 @@ pane_history = true                   # keep pane output across a server restart
 [ui]
 sidebar_width = 40                    # the longest folder name fits on an indented line
 sidebar_max_width = 40                # herdr caps the width at 36 by default
-agent_panel_sort = "spaces"           # agents grouped under their space
+agent_panel_sort = "priority"         # attention queue, the order agent_view also uses
 status_indicators = "symbols"         # distinct shapes per state, not only colors
 confirm_close = true                  # pinned
 # Right of the tab bar: account · model · context of the focused agent.
@@ -45,9 +45,13 @@ position = "top-right"
 enabled = false
 
 # Spaces, compact:
-#   1. state and the folder alone, bold, colored by ecosystem (padam = pro
-#      account color, chrysa = perso), so the name is never cut and reads as
-#      the space's title;
+#   1. state and the name, colored by ecosystem (padam = pro account color,
+#      chrysa = perso): bold when the space holds agents, dim when idle, so busy
+#      spaces stand out. A space named after another plus "-suffix" shows
+#      "↳ suffix" (padam-av-GHA under padam-av), so long names are not cut.
+#      agent-info publishes the name under one of six tokens (busy/idle x
+#      ecosystem) because herdr row styles are static and rules only match a
+#      token's own value;
 #   2. only with agents: the space's subject (agent-info: a blocked agent's
 #      first, else the latest), "+N" for its other subjects.
 # RTK savings are not shown here: they stay in the RTK pane (prefix+ctrl+r) and
@@ -57,10 +61,10 @@ enabled = false
 [ui.sidebar.spaces]
 rows = [
   ["state_icon",
-   { token = "workspace", bold = true, rules = [
-      { starts_with = "padam", fg = "#89dceb" },
-      { equals = "chrysa", fg = "#f9e2af" },
-    ] }],
+   { token = "$space_busy_pro", fg = "#89dceb", bold = true }, { token = "$space_busy_perso", fg = "#f9e2af", bold = true },
+   { token = "$space_busy_other", bold = true },
+   { token = "$space_idle_pro", fg = "#89dceb", dim = true }, { token = "$space_idle_perso", fg = "#f9e2af", dim = true },
+   { token = "$space_idle_other", dim = true }],
   [{ token = "$theme" }, { token = "$more", fg = "#9399b2" }],
 ]
 

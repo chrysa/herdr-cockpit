@@ -188,10 +188,33 @@ def topic_tokens(agent, account):
     return {name: (title or None) if name == key else None for name in TOPIC_TOKENS}
 
 
-# Spaces column: one subject per space (a blocked agent's first, else the agent that
-# changed state last) and "+N" for its other distinct subjects; the folder and RTK
-# go on the line below.
-SPACE_TOKENS = ("theme", "more")
+# Spaces column, line 2: one subject per space (a blocked agent's first, else the
+# agent that changed state last) and "+N" for its other distinct subjects.
+# Line 1: the space name under one of six tokens, busy (holds agents, bold) or idle
+# (dim) x ecosystem color, one set and the others cleared: herdr row styles are
+# static and rules only match a token's own value, so the state and the ecosystem
+# must be in the token name. A space named after another one plus "-suffix" (e.g.
+# padam-av-GHA next to padam-av) shows "↳ suffix" so long names are not cut.
+ECOSYSTEMS = (("pro", lambda name: name.startswith("padam")), ("perso", lambda name: name == "chrysa"))
+NAME_TOKENS = tuple(f"space_{state}_{eco}" for state in ("busy", "idle") for eco in ("pro", "perso", "other"))
+SPACE_TOKENS = ("theme", "more", *NAME_TOKENS)
+
+
+def ecosystem(label):
+    return next((eco for eco, matches in ECOSYSTEMS if matches(label)), "other")
+
+
+def short_name(label, labels):
+    """label, or "↳ suffix" when another space's label plus "-" prefixes it (longest wins)."""
+    parents = [p for p in labels if p and p != label and label.startswith(p + "-")]
+    return f"↳ {label[len(max(parents, key=len)) + 1:]}" if parents else label
+
+
+def name_tokens(label, labels, busy):
+    """{space_<busy|idle>_<ecosystem>: shown name, the other name tokens: None}."""
+    key = f"space_{'busy' if busy else 'idle'}_{ecosystem(label)}"
+    shown = short_name(label, labels) if label else None
+    return {name: shown if name == key else None for name in NAME_TOKENS}
 
 
 def space_tokens(agents):
@@ -229,7 +252,14 @@ def tick(shown):
         if shown.get(agent["pane_id"]) != tokens:
             publish(agent["pane_id"], tokens)
             shown[agent["pane_id"]] = tokens
-    spaces = {f"ws:{ws}": tokens for ws, tokens in space_tokens(agents).items() if ws}
+    subjects = space_tokens(agents)
+    workspaces = herdr("workspace", "list").get("result", {}).get("workspaces", [])
+    labels = [CONTROL.sub("", w.get("label") or "") for w in workspaces]
+    spaces = {
+        f"ws:{w['workspace_id']}": {"theme": None, "more": None, **subjects.get(w["workspace_id"], {}),
+                                    **name_tokens(label, labels, w["workspace_id"] in subjects)}
+        for w, label in zip(workspaces, labels) if w.get("workspace_id")
+    }
     for key, tokens in spaces.items():
         if shown.get(key) != tokens:
             publish_space(key[3:], tokens)
@@ -239,7 +269,7 @@ def tick(shown):
         shown.pop(gone, None)
         if gone.startswith("ws:"):
             try:
-                publish_space(gone[3:], {})  # last agent left: clear the space's subject
+                publish_space(gone[3:], {})  # space no longer listed: clear its tokens
             except RuntimeError:
                 pass  # space closed meanwhile
 

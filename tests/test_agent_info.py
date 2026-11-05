@@ -109,19 +109,54 @@ def test_space_theme_skips_generic_titles_unless_alone():
     assert spaces["w2"] == {"theme": "claude", "more": None}
 
 
+def names(**set_):
+    return {name: set_.get(name) for name in monitor.NAME_TOKENS}
+
+
 def test_tick_publishes_space_tokens_and_clears_emptied_spaces(monkeypatch):
     spaces = []
     agents = [{"pane_id": "p1", "workspace_id": "w1", "agent_status": "blocked", "agent": "x"}]
-    monkeypatch.setattr(monitor, "herdr", lambda *args: {"result": {"agents": agents}} if args[:2] == ("agent", "list") else {})
+    workspaces = [{"workspace_id": "w1", "label": "chrysa"}, {"workspace_id": "w2", "label": "padam-av"}]
+    replies = {("agent", "list"): {"result": {"agents": agents}},
+               ("workspace", "list"): {"result": {"workspaces": workspaces}}}
+    monkeypatch.setattr(monitor, "herdr", lambda *args: replies.get(args[:2], {}))
     monkeypatch.setattr(monitor, "agent_info", lambda agent: ("opus-5.5", "pro"))
     monkeypatch.setattr(monitor, "publish", lambda pane, tokens: None)
     monkeypatch.setattr(monitor, "publish_space", lambda ws, tokens: spaces.append((ws, tokens)))
     shown = {"_refreshed": 10 ** 12}
     monitor.tick(shown)
-    monitor.tick(shown)
+    monitor.tick(shown)  # unchanged: nothing republished
     agents.clear()
     monitor.tick(shown)
-    assert spaces == [("w1", {"theme": "x", "more": None}), ("w1", {})]
+    workspaces.pop()
+    monitor.tick(shown)
+    assert spaces == [
+        ("w1", {"theme": "x", "more": None, **names(space_busy_perso="chrysa")}),
+        ("w2", {"theme": None, "more": None, **names(space_idle_pro="padam-av")}),
+        ("w1", {"theme": None, "more": None, **names(space_idle_perso="chrysa")}),
+        ("w2", {}),  # space closed: tokens cleared
+    ]
+
+
+@pytest.mark.parametrize("label, eco", [
+    ("padam-av", "pro"), ("padam-av-GHA", "pro"), ("chrysa", "perso"), ("chrysa-x", "other"), ("heya", "other"),
+])
+def test_ecosystem(label, eco):
+    assert monitor.ecosystem(label) == eco
+
+
+def test_short_name_drops_the_longest_parent_prefix():
+    labels = ["padam-av", "padam-av-GHA", "padam-av-GHA-ci", "heya", "padam"]
+    assert monitor.short_name("padam-av-GHA", labels) == "↳ GHA"
+    assert monitor.short_name("padam-av-GHA-ci", labels) == "↳ ci"
+    assert monitor.short_name("padam-av", labels) == "↳ av"
+    assert monitor.short_name("heya", labels) == "heya"
+
+
+def test_name_tokens_set_exactly_one():
+    tokens = monitor.name_tokens("padam-av-GHA", ["padam-av", "padam-av-GHA"], busy=False)
+    assert tokens == names(space_idle_pro="↳ GHA")
+    assert monitor.name_tokens("", [""], busy=True) == names()
 
 
 def test_publish_space_sets_and_clears(monkeypatch):
