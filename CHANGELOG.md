@@ -53,6 +53,10 @@
   The mark comes off by giving a hand-named tab its name back, or by clearing an
   auto-title name so auto-title names the tab afresh; auto-title's own rules,
   checked live, so no tab gets stuck on a stale name.
+- Plugin pins moved: usagebar v0.5.24, reviewr v0.49.1, memex v0.32.0,
+  file-viewer v1.18.0, navigator v0.3.6 head; every bound action still exists.
+  auto-title stays on v0.5.0 (v0.20.0 names panes by default and renames every
+  pane on first start).
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

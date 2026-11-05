@@ -29,13 +29,13 @@ enabled = true
 [[plugin]]
 id = "herdr-file-viewer"
 source = "smarzban/herdr-file-viewer"
-ref = "78441da81e63d5fc416ab63fa99d006161595523"
+ref = "4c2add6d952e81abc9ba4bbb9ff90107a626098c"
 enabled = true
 
 [[plugin]]
 id = "herdr-navigator"
 source = "thanhdat77/herdr-navigator"
-ref = "9bdf30f03f53730e6232377a3fca3bdc6ed9f3ca"
+ref = "e12a97c5d9ddcd76ba18c985909ffeb4827afa6a"
 enabled = true
 
 [[plugin]]
@@ -53,7 +53,7 @@ enabled = true
 [[plugin]]
 id = "nicosuave.memex"
 source = "nicosuave/memex"
-ref = "ecb846dd76195fb07ab94f3077308d68290df65a"
+ref = "4c8d37dc5092c5f82a8de2ffe597a9bb3f5c9fda"
 enabled = true
 
 [[plugin]]
@@ -65,13 +65,13 @@ enabled = true
 [[plugin]]
 id = "persiyanov.reviewr"
 source = "persiyanov/herdr-reviewr"
-ref = "4c090225af706bf3aaa24b39fea890a72994f40f"
+ref = "92c51e2bd4e2caf42fa00bc193ae2f48955df64f"
 enabled = true
 
 [[plugin]]
 id = "usagebar"
 source = "senna-lang/herdr-agent-usage"
-ref = "517ee5e207c162aeb7c2cc8358084691e56ec0a5"
+ref = "063ff7bf03979fc1b1498bd6dec422175655c01b"
 enabled = true
 
 [[plugin]]
