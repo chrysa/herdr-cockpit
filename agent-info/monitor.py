@@ -281,7 +281,7 @@ def daemon():
     shown, failures = {}, 0
     try:
         release_tabs()
-    except Exception:
+    except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired):
         pass  # names left prefixed stay as they are; nothing else depends on it
     while failures < 10:
         try:
