@@ -142,18 +142,55 @@ def test_desktop_notify_escapes_markup(monkeypatch):
                      ["notify-send", "--app-name=herdr", "--", "Agent · x", "-u critical"]]
 
 
-def test_release_tabs_clears_only_prefixed_names(monkeypatch):
+def rename_calls(monkeypatch, tabs):
     calls = []
-    tabs = [{"tab_id": "t1", "label": "◐ chrysa"}, {"tab_id": "t2", "label": "‼ ✓ api"},
-            {"tab_id": "t3", "label": "config"}, {"tab_id": "t4", "label": ""}]
 
     def fake(*args):
         calls.append(args)
         return {"result": {"tabs": tabs}} if args[:2] == ("tab", "list") else {}
 
     monkeypatch.setattr(monitor, "herdr", fake)
-    monitor.release_tabs()
-    assert [c for c in calls if c[:2] == ("tab", "rename")] == [("tab", "rename", "t1", ""), ("tab", "rename", "t2", "")]
+    return calls
+
+
+def test_mark_tabs_marks_only_blocked_tabs(monkeypatch):
+    tabs = [{"tab_id": "t1", "label": "audit", "agent_status": "blocked"},
+            {"tab_id": "t2", "label": "Améliorations", "agent_status": "blocked"},
+            {"tab_id": "t3", "label": "vscode", "agent_status": "working"},
+            {"tab_id": "t4", "label": "", "agent_status": "blocked"},
+            {"tab_id": "t5", "label": "‼ done already", "agent_status": "blocked"}]
+    calls, marked = rename_calls(monkeypatch, tabs), {}
+    assert monitor.mark_tabs(tabs, marked, hand={"t1"}) is True
+    assert calls == [("tab", "rename", "t1", "‼ audit"), ("tab", "rename", "t2", "‼ Améliorations")]
+    assert marked == {"t1": "hand", "t2": "auto"}
+
+
+def test_unmark_gives_hand_names_back_and_auto_names_to_auto_title(monkeypatch):
+    tabs = [{"tab_id": "t1", "label": "‼ audit", "agent_status": "working"},
+            {"tab_id": "t2", "label": "‼ Améliorations", "agent_status": "done"},
+            {"tab_id": "t3", "label": "‼ unknown", "agent_status": "idle"}]
+    calls, marked = rename_calls(monkeypatch, tabs), {"t1": "hand", "t2": "auto", "gone": "auto"}
+    monitor.mark_tabs(tabs, marked, hand=set())
+    assert calls == [("tab", "rename", "t1", "audit"),
+                     ("tab", "rename", "t2", ""),  # cleared: auto-title names it afresh
+                     ("tab", "rename", "t3", "unknown")]  # not ours on record: keep the name
+    assert marked == {}
+
+
+def test_hand_named_reads_auto_title_locks(tmp_path, monkeypatch):
+    monkeypatch.setattr(monitor, "AUTO_TITLE_DIR", str(tmp_path))
+    (tmp_path / "manual-names.json").write_text('{"locked_tabs": {"w1:t1": "audit"}}')
+    assert monitor.hand_named() == {"w1:t1"}
+    custom = tmp_path / "custom.json"
+    custom.write_text('{"locked_tabs": {"w2:t1": "x"}}')
+    (tmp_path / "config.env").write_text(f"# c\nHERDR_AUTO_TITLE_MANUAL_FILE={custom}\n")
+    assert monitor.hand_named() == {"w2:t1"}
+    custom.write_text("not json")
+    assert monitor.hand_named() == set()
+
+
+def test_agent_name_ignores_the_mark():
+    assert monitor.agent_name({"terminal_title_stripped": "Long title"}, "‼ audit") == "audit"
 
 
 @pytest.mark.parametrize("account, key", [

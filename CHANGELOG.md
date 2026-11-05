@@ -49,6 +49,10 @@
   `remove_worktree` prefix+alt+w (`new_worktree` stays prefix+shift+g);
   `rename_workspace` is back on its default prefix+shift+w.
 - Agent lines show the branch's PR from gh-pr (`$pr`, "#123 ✓") before the name.
+- Tabs whose agent waits on you carry "‼" in front of their name, and only those.
+  The mark comes off by giving a hand-named tab its name back, or by clearing an
+  auto-title name so auto-title names the tab afresh; auto-title's own rules,
+  checked live, so no tab gets stuck on a stale name.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

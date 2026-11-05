@@ -13,10 +13,11 @@ Codex: the newest rollout file matching the session. opencode: the configured
 
 Also publishes the conversation title under a per-account token (so the sidebar
 colors it by account), and per space a subject and its name (busy/idle x
-ecosystem). Tab names are left to herdr.auto-title.
+ecosystem). Tab names are herdr.auto-title's; this only puts "‼" in front of
+the ones whose agent waits on you.
 
 Commands: ensure (start in the background if needed), daemon, stop,
-tabs (clear tab names an older version prefixed with ◐ ‼ ✓).
+tabs (one pass of the "‼" mark on tabs waiting on you).
 """
 
 import fcntl
@@ -32,8 +33,8 @@ import time
 import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import services  # noqa: E402
 import events  # noqa: E402
+import services  # noqa: E402
 import subagents  # noqa: E402
 
 PLUGIN_ID = "chrysa.agent-info"
@@ -326,18 +327,86 @@ def publish(pane_id, tokens):
     herdr(*args)
 
 
-# Tab names belong to herdr.auto-title alone. This plugin used to put the
-# conversation state (◐ ‼ ✓) in front of them, but auto-title reads any rename it
-# did not make as the user's and stops naming that tab for good. The state stays
-# in the sidebar (Agents column, Spaces state icon).
-OLD_TAB_PREFIX = re.compile("^(?:[◐‼✓] )+")
+# A tab whose agent waits on you (herdr's tab agent_status "blocked") carries
+# TAB_MARK in front of its name, and only that one. Tab names are otherwise
+# herdr.auto-title's, which leaves a tab renamed by anyone else alone and names it
+# again once its name is cleared (both documented). So the mark comes off a tab
+# auto-title named by clearing the name (auto-title names it afresh), and off a tab
+# the user named by putting the name back without it (it stays theirs). Which kind
+# a tab is comes from auto-title's lock file, read when the mark goes on, and is
+# kept in MARKED so a daemon restart takes the mark off the right way.
+TAB_MARK = "‼ "
+MARKED = os.path.join(STATE_DIR, "marked-tabs.json")  # tab_id -> "hand" | "auto"
+AUTO_TITLE_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", f"{HOME}/.config"), "herdr-auto-title")
 
 
-def release_tabs():
-    """Clear tab names this plugin prefixed, once: auto-title names cleared tabs again."""
-    for tab in herdr("tab", "list").get("result", {}).get("tabs", []):
-        if OLD_TAB_PREFIX.match(tab.get("label") or ""):
-            herdr("tab", "rename", tab["tab_id"], "")
+def manual_file():
+    """auto-title's lock file: HERDR_AUTO_TITLE_MANUAL_FILE in its config.env, else the default."""
+    try:
+        with open(os.path.join(AUTO_TITLE_DIR, "config.env")) as fh:
+            for line in fh:
+                key, _, value = line.strip().partition("=")
+                if key == "HERDR_AUTO_TITLE_MANUAL_FILE" and value:
+                    return value
+    except OSError:
+        pass
+    return os.path.join(AUTO_TITLE_DIR, "manual-names.json")
+
+
+def hand_named():
+    """Tab ids auto-title leaves alone because someone renamed them."""
+    try:
+        with open(manual_file()) as fh:
+            locked = json.load(fh).get("locked_tabs") or {}
+        return set(locked) if isinstance(locked, dict) else set()
+    except (OSError, ValueError, AttributeError):
+        return set()
+
+
+def load_marked():
+    try:
+        with open(MARKED) as fh:
+            data = json.load(fh)
+        return {k: v for k, v in data.items() if v in ("hand", "auto")} if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_marked(marked):
+    os.makedirs(STATE_DIR, exist_ok=True)
+    tmp = MARKED + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(marked, fh)
+    os.replace(tmp, MARKED)
+
+
+def mark_tabs(tabs, marked, hand=None):
+    """Rename tabs so that exactly the blocked ones carry TAB_MARK; True if marked changed."""
+    before = dict(marked)
+    live = set()
+    for tab in tabs:
+        tab_id, label = tab.get("tab_id"), tab.get("label") or ""
+        if not tab_id:
+            continue
+        live.add(tab_id)
+        blocked = tab.get("agent_status") == "blocked"
+        if blocked and label and not label.startswith(TAB_MARK):
+            hand = hand_named() if hand is None else hand
+            try:
+                herdr("tab", "rename", tab_id, TAB_MARK + label)
+                marked[tab_id] = "hand" if tab_id in hand else "auto"
+            except RuntimeError:
+                pass  # closed meanwhile
+        elif not blocked and label.startswith(TAB_MARK):
+            kind = marked.get(tab_id, "hand")  # unknown: keep the name rather than lose it
+            try:
+                herdr("tab", "rename", tab_id, label[len(TAB_MARK):] if kind == "hand" else "")
+                marked.pop(tab_id, None)
+            except RuntimeError:
+                pass
+    for gone in set(marked) - live:
+        del marked[gone]
+    return marked != before
 
 
 # Agents column: the agent's name (agent_name), published under the token of its
@@ -367,7 +436,7 @@ def agent_name(agent, tab_label, shared=False):
     A tab holding several agents adds each one's title so their rows differ.
     """
     title = topic_title(agent)
-    label = CONTROL.sub("", tab_label or "").strip()
+    label = CONTROL.sub("", tab_label or "").removeprefix(TAB_MARK).strip()
     activity = label.rsplit(" › ", 1)[-1].strip()
     derived = activity == title or (len(activity) >= DERIVED_MIN and title.startswith(activity))
     if label.lower() in GENERIC_TITLES or label.isdigit() or derived:
@@ -477,7 +546,7 @@ def publish_space(workspace_id, tokens):
 
 def new_state():
     """Daemon memory across ticks: state ages and the blocked states already notified."""
-    return {"since": {}, "notified": set(), "first": True, "logs": {}, "watch": [], "panes": []}
+    return {"since": {}, "notified": set(), "first": True, "logs": {}, "watch": [], "panes": [], "marked": {}}
 
 
 def tick(shown, state=None, now=None):
@@ -488,7 +557,10 @@ def tick(shown, state=None, now=None):
         shown["_refreshed"] = time.monotonic()
     agents = herdr("agent", "list").get("result", {}).get("agents", [])
     track_since(state["since"], agents, now)
-    names = agent_names(agents, herdr("tab", "list").get("result", {}).get("tabs", []))
+    tabs = herdr("tab", "list").get("result", {}).get("tabs", [])
+    if mark_tabs(tabs, state["marked"]):
+        save_marked(state["marked"])
+    names = agent_names(agents, tabs)
     details = {}
     for agent in agents:
         model, account = agent_info(agent)
@@ -540,12 +612,8 @@ def daemon():
     with open(PID, "w") as fh:
         fh.write(str(os.getpid()))
     shown, failures = {}, 0
-    state = {**new_state(), "since": load_since()}
+    state = {**new_state(), "since": load_since(), "marked": load_marked()}
     saved = json.dumps(state["since"])
-    try:
-        release_tabs()
-    except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired):
-        pass  # names left prefixed stay as they are; nothing else depends on it
     stream, snapshots_at = events.EventStream(), 0.0
     while failures < 10:
         try:
@@ -572,6 +640,13 @@ def wait_for_change(stream, watch, longest):
             return
         if events.file_signature(watch) != before:
             return
+
+
+def mark_tabs_once():
+    """One mark pass outside the daemon (`monitor.py tabs`)."""
+    marked = load_marked()
+    if mark_tabs(herdr("tab", "list").get("result", {}).get("tabs", []), marked):
+        save_marked(marked)
 
 
 def running_pid():
@@ -603,7 +678,7 @@ def stop():
 
 
 def main():
-    {"ensure": ensure, "daemon": daemon, "stop": stop, "tabs": release_tabs}.get(
+    {"ensure": ensure, "daemon": daemon, "stop": stop, "tabs": mark_tabs_once}.get(
         sys.argv[1] if len(sys.argv) > 1 else "ensure", ensure
     )()
 

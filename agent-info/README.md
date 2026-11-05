@@ -18,6 +18,11 @@ What herdr and the plugin marketplace do not cover reliably:
   ("⑂ ● Security review") and `$sub_more`, from `<session>/subagents/` and the
   main transcript's `<task-notification>` entries, read incrementally
   (`subagents.py`, same state rules as agent-panel).
+- **"‼" on tabs waiting on you** (herdr's tab `agent_status` = blocked). A tab
+  herdr.auto-title named gets its name cleared when the wait ends, so auto-title
+  names it again; a tab you named gets your name back. Which kind a tab is comes
+  from auto-title's `manual-names.json` and is kept in
+  `~/.local/state/chrysa.agent-info/marked-tabs.json`.
 - **Agent names** follow the tab name (the conversation title when the tab is
   unnamed or auto-title derived its name from it).
 - **Real time**: `events.py` subscribes to herdr events over the socket (one
