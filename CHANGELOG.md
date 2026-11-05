@@ -19,6 +19,11 @@
   names. herdr.auto-title read each such rename as the user's and locked the
   tab for good; at startup agent-info clears the names it prefixed so
   auto-title takes them back. The state stays in the sidebar.
+- Information surfaced from agents: a desktop notification when an agent starts
+  waiting on you (once per wait, not for the focused pane; `AGENT_INFO_NOTIFY=0`
+  turns it off); "‼N" in red on a space with N agents waiting; how long each
+  agent has been in its state ("12m"); a dim second line with a working Claude
+  agent's last tool call ("Edit monitor.py").
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

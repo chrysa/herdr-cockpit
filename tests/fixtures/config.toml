@@ -51,7 +51,7 @@ enabled = false
 #      "↳ suffix" (padam-av-GHA under padam-av), so long names are not cut.
 #      agent-info publishes the name under one of six tokens (busy/idle x
 #      ecosystem) because herdr row styles are static and rules only match a
-#      token's own value;
+#      token's own value; then "‼N" in red when N agents wait on you;
 #   2. only with agents: the space's subject (agent-info: a blocked agent's
 #      first, else the latest), "+N" for its other subjects.
 # RTK savings are not shown here: they stay in the RTK pane (prefix+ctrl+r) and
@@ -64,22 +64,26 @@ rows = [
    { token = "$space_busy_pro", fg = "#89dceb", bold = true }, { token = "$space_busy_perso", fg = "#f9e2af", bold = true },
    { token = "$space_busy_other", bold = true },
    { token = "$space_idle_pro", fg = "#89dceb", dim = true }, { token = "$space_idle_perso", fg = "#f9e2af", dim = true },
-   { token = "$space_idle_other", dim = true }],
+   { token = "$space_idle_other", dim = true },
+   { token = "$blocked", fg = "#f38ba8", bold = true }],
   [{ token = "$theme" }, { token = "$more", fg = "#9399b2" }],
 ]
 
-# Agents, one line each: state, then the subject (conversation title, follows
-# /rename) in the color of its account (perso yellow, pro sky, codex green,
-# other grey). agent-info publishes the title under one token per account
-# because herdr rules can only match a token's own value.
+# Agents: state, how long in that state (dim, "12m"; agent-info measures it),
+# then the subject (conversation title, follows /rename) in the color of its
+# account (perso yellow, pro sky, codex green, other grey). agent-info publishes
+# the title under one token per account because herdr rules can only match a
+# token's own value. A working Claude agent gets a dim second line with its
+# last tool call ("Edit monitor.py"); other agents take one line.
 # No space name: the column shows the selected space by default (agent_view),
 # so the whole width goes to the title.
 # The model is in the tab bar and the panel header, not repeated here.
 [ui.sidebar.agents]
 rows = [
-  ["state_icon",
+  ["state_icon", { token = "$age", dim = true },
    { token = "$topic_perso", fg = "#f9e2af" }, { token = "$topic_pro", fg = "#89dceb" },
    { token = "$topic_codex", fg = "#a6e3a1" }, { token = "$topic_other", fg = "#9399b2" }],
+  [{ token = "$doing", dim = true }],
 ]
 
 # ── Keys ─────────────────────────────────────────────────────────────────────

@@ -24,10 +24,12 @@ import glob
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
 import time
+import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import services  # noqa: E402
@@ -38,7 +40,7 @@ POLL_S = 8
 TTL_MS = POLL_S * 20 * 1000
 REFRESH_S = TTL_MS / 1000 / 3  # republish unchanged tokens before herdr expires them
 TAIL_BYTES = 256 * 1024
-TOKENS = ("account", "model", "topic_perso", "topic_pro", "topic_codex", "topic_other")
+TOKENS = ("account", "model", "topic_perso", "topic_pro", "topic_codex", "topic_other", "age", "doing")
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 HOME = os.path.expanduser("~")
 STATE_DIR = os.path.expanduser(f"~/.local/state/{PLUGIN_ID}")
@@ -92,13 +94,154 @@ def last_match(path, pattern):
     return hits[-1] if hits else None
 
 
+def claude_transcript(session_id):
+    paths = [p for d in claude_dirs() for p in glob.glob(f"{d}/projects/*/{session_id}.jsonl")]
+    return paths[0] if paths else None
+
+
 def claude_info(session_id):
-    for path in [p for d in claude_dirs() for p in glob.glob(f"{d}/projects/*/{session_id}.jsonl")]:
-        config_dir = os.path.realpath(path).split("/projects/")[0]
-        account = os.path.basename(config_dir).removeprefix(".claude").lstrip("-.") or "default"
-        model = last_match(path, r'"model":\s*"(claude-[^"]+|[a-z][^"]*)"')
-        return (short_model(model) if model and model != "<synthetic>" else None), account
-    return None, None
+    path = claude_transcript(session_id)
+    if not path:
+        return None, None
+    config_dir = os.path.realpath(path).split("/projects/")[0]
+    account = os.path.basename(config_dir).removeprefix(".claude").lstrip("-.") or "default"
+    model = last_match(path, r'"model":\s*"(claude-[^"]+|[a-z][^"]*)"')
+    return (short_model(model) if model and model != "<synthetic>" else None), account
+
+
+# Agents column, line 2 (working Claude agents only): the session's last tool call,
+# from the transcript tail ("Edit monitor.py", "Bash Run the tests").
+DOING_MAX = 38
+FILE_TOOLS = {"Read", "Edit", "Write", "MultiEdit", "NotebookEdit"}
+
+
+def describe_tool(name, args):
+    if name in FILE_TOOLS:
+        detail = os.path.basename(str(args.get("file_path") or args.get("notebook_path") or ""))
+    elif name == "Bash":
+        detail = args.get("description") or args.get("command") or ""
+    elif name in ("Grep", "Glob"):
+        detail = args.get("pattern") or ""
+    elif name in ("Agent", "Task"):
+        detail = args.get("description") or ""
+    elif name == "WebSearch":
+        detail = args.get("query") or ""
+    elif name == "WebFetch":
+        detail = urllib.parse.urlsplit(str(args.get("url") or "")).netloc
+    else:
+        detail = ""
+    if name.startswith("mcp__"):
+        name = name.split("__")[-1]
+    text = " ".join(CONTROL.sub(" ", f"{name} {detail}").split())
+    return text if len(text) <= DOING_MAX else text[: DOING_MAX - 1] + "…"
+
+
+def last_tool(path):
+    """The last main-thread tool call in a Claude transcript tail, described, or None."""
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            fh.seek(max(0, fh.tell() - TAIL_BYTES))
+            lines = fh.read().decode("utf-8", "replace").splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines):
+        if '"tool_use"' not in line:
+            continue
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue  # the tail's first line is usually cut
+        content = (entry.get("message") or {}).get("content")
+        if entry.get("type") != "assistant" or entry.get("isSidechain") or not isinstance(content, list):
+            continue
+        calls = [c for c in content if isinstance(c, dict) and c.get("type") == "tool_use"]
+        if calls:
+            return describe_tool(str(calls[-1].get("name") or ""), calls[-1].get("input") or {})
+    return None
+
+
+def agent_doing(agent):
+    session = (agent.get("agent_session") or {}).get("value")
+    if agent.get("agent_status") != "working" or agent.get("agent") != "claude" or not session:
+        return None
+    path = claude_transcript(session)
+    return last_tool(path) if path else None
+
+
+# Agents column: how long the agent has been in its state ("12m", "3h05", "2j").
+# herdr reports no timestamps, so the daemon notes when each (status,
+# state_change_seq) was first seen and keeps it in SINCE across restarts.
+SINCE = os.path.join(STATE_DIR, "since.json")
+
+
+def age_label(seconds):
+    minutes = int(seconds // 60)
+    if minutes < 1:
+        return None
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    return f"{hours}h{minutes % 60:02d}" if hours < 24 else f"{hours // 24}j"
+
+
+def track_since(since, agents, now):
+    """since[pane] = [status, state_change_seq, first seen], reset when either changes."""
+    for agent in agents:
+        key = [agent.get("agent_status"), agent.get("state_change_seq")]
+        entry = since.get(agent["pane_id"])
+        if not entry or entry[:2] != key:
+            since[agent["pane_id"]] = [*key, now]
+    for gone in set(since) - {a["pane_id"] for a in agents}:
+        del since[gone]
+
+
+def load_since():
+    try:
+        with open(SINCE) as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_since(since):
+    tmp = SINCE + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(since, fh)
+    os.replace(tmp, SINCE)
+
+
+# Desktop notification when an agent starts waiting on you: herdr's own toasts stay
+# inside herdr. Once per blocked state, never for the focused pane nor for agents
+# already blocked when the daemon starts. AGENT_INFO_NOTIFY=0 turns it off.
+NOTIFY = os.environ.get("AGENT_INFO_NOTIFY", "1") != "0"
+
+
+def desktop_notify(title, body):
+    def clean(text):  # notify-send bodies take markup: agent text must not
+        return CONTROL.sub("", text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    if shutil.which("notify-send"):
+        cmd = ["notify-send", "--app-name=herdr", clean(title), clean(body)]
+    elif shutil.which("osascript"):
+        cmd = ["osascript", "-e", "on run argv", "-e",
+               "display notification (item 2 of argv) with title (item 1 of argv)", "-e", "end run",
+               CONTROL.sub("", title), CONTROL.sub("", body)]
+    else:
+        return
+    subprocess.run(cmd, capture_output=True, timeout=5, check=False)
+
+
+def notify_blocked(agents, state, labels_by_ws):
+    blocked = {f"{a['pane_id']}:{a.get('state_change_seq')}": a for a in agents if a.get("agent_status") == "blocked"}
+    for key, agent in blocked.items():
+        if key in state["notified"]:
+            continue
+        state["notified"].add(key)
+        if NOTIFY and not state["first"] and not agent.get("focused"):
+            space = labels_by_ws.get(agent.get("workspace_id")) or "herdr"
+            desktop_notify(f"Agent en attente · {space}", topic_title(agent))
+    state["notified"].intersection_update(blocked)
 
 
 def codex_info(session_id):
@@ -192,7 +335,7 @@ def topic_tokens(agent, account):
 # padam-av-GHA next to padam-av) shows "↳ suffix" so long names are not cut.
 ECOSYSTEMS = (("pro", lambda name: name.startswith("padam")), ("perso", lambda name: name == "chrysa"))
 NAME_TOKENS = tuple(f"space_{state}_{eco}" for state in ("busy", "idle") for eco in ("pro", "perso", "other"))
-SPACE_TOKENS = ("theme", "more", *NAME_TOKENS)
+SPACE_TOKENS = ("theme", "more", "blocked", *NAME_TOKENS)  # blocked: "‼N" agents waiting
 
 
 def ecosystem(label):
@@ -224,7 +367,9 @@ def space_tokens(agents):
         subjects = list(dict.fromkeys(topic_title(a) for a in ranked))
         real = [s for s in subjects if s.lower() not in GENERIC_TITLES] or subjects
         others = len(real) - 1
-        tokens[ws] = {"theme": real[0] or None, "more": f"+{others}" if others > 0 else None}
+        waiting = sum(a.get("agent_status") == "blocked" for a in members)
+        tokens[ws] = {"theme": real[0] or None, "more": f"+{others}" if others > 0 else None,
+                      "blocked": f"‼{waiting}" if waiting else None}
     return tokens
 
 
@@ -236,20 +381,31 @@ def publish_space(workspace_id, tokens):
     herdr(*args)
 
 
-def tick(shown):
+def new_state():
+    """Daemon memory across ticks: state ages and the blocked states already notified."""
+    return {"since": {}, "notified": set(), "first": True}
+
+
+def tick(shown, state=None, now=None):
+    state = new_state() if state is None else state
+    now = time.time() if now is None else now
     if time.monotonic() - shown.get("_refreshed", 0) > REFRESH_S:
         shown.clear()
         shown["_refreshed"] = time.monotonic()
     agents = herdr("agent", "list").get("result", {}).get("agents", [])
+    track_since(state["since"], agents, now)
     for agent in agents:
         model, account = agent_info(agent)
-        tokens = {"account": account, "model": model, **topic_tokens(agent, account)}
+        tokens = {"account": account, "model": model, **topic_tokens(agent, account),
+                  "age": age_label(now - state["since"][agent["pane_id"]][2]), "doing": agent_doing(agent)}
         if shown.get(agent["pane_id"]) != tokens:
             publish(agent["pane_id"], tokens)
             shown[agent["pane_id"]] = tokens
     subjects = space_tokens(agents)
     workspaces = herdr("workspace", "list").get("result", {}).get("workspaces", [])
     labels = [CONTROL.sub("", w.get("label") or "") for w in workspaces]
+    notify_blocked(agents, state, {w.get("workspace_id"): label for w, label in zip(workspaces, labels)})
+    state["first"] = False
     spaces = {
         f"ws:{w['workspace_id']}": {"theme": None, "more": None, **subjects.get(w["workspace_id"], {}),
                                     **name_tokens(label, labels, w["workspace_id"] in subjects)}
@@ -279,6 +435,8 @@ def daemon():
     with open(PID, "w") as fh:
         fh.write(str(os.getpid()))
     shown, failures = {}, 0
+    state = {**new_state(), "since": load_since()}
+    saved = json.dumps(state["since"])
     try:
         release_tabs()
     except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired):
@@ -286,7 +444,10 @@ def daemon():
     while failures < 10:
         try:
             services.save_snapshots()
-            tick(shown)
+            tick(shown, state)
+            if json.dumps(state["since"]) != saved:
+                save_since(state["since"])
+                saved = json.dumps(state["since"])
             failures = 0
         except Exception:
             failures += 1

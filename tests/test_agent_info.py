@@ -47,7 +47,96 @@ def test_tick_publishes_only_changes(monkeypatch):
     monitor.tick(shown)
     monitor.tick(shown)
     assert published == [("p1", {"account": "perso", "model": "opus-5.5", "topic_perso": "Fix the parser",
-                                 "topic_pro": None, "topic_codex": None, "topic_other": None})]
+                                 "topic_pro": None, "topic_codex": None, "topic_other": None,
+                                 "age": None, "doing": None})]
+
+
+def test_tick_publishes_the_age_of_the_state(monkeypatch):
+    published = []
+    agents = [{"pane_id": "p1", "agent": "x", "agent_status": "done", "state_change_seq": 4}]
+    monkeypatch.setattr(monitor, "herdr", lambda *args: {"result": {"agents": agents}} if args[:2] == ("agent", "list") else {})
+    monkeypatch.setattr(monitor, "agent_info", lambda agent: (None, "perso"))
+    monkeypatch.setattr(monitor, "publish", lambda pane, tokens: published.append(tokens["age"]))
+    shown, state = {"_refreshed": 10 ** 12}, monitor.new_state()
+    monitor.tick(shown, state, now=1000)
+    monitor.tick(shown, state, now=1000 + 12 * 60)
+    agents[0]["state_change_seq"] = 5  # new state: the age starts again
+    monitor.tick(shown, state, now=1000 + 13 * 60)
+    assert published == [None, "12m", None]
+
+
+@pytest.mark.parametrize("seconds, label", [(59, None), (60, "1m"), (3599, "59m"), (3900, "1h05"), (2 * 86400, "2j")])
+def test_age_label(seconds, label):
+    assert monitor.age_label(seconds) == label
+
+
+def test_since_survives_a_restart(tmp_path, monkeypatch):
+    monkeypatch.setattr(monitor, "SINCE", str(tmp_path / "since.json"))
+    monitor.save_since({"p1": ["done", 4, 1000.0]})
+    assert monitor.load_since() == {"p1": ["done", 4, 1000.0]}
+    (tmp_path / "since.json").write_text("not json")
+    assert monitor.load_since() == {}
+
+
+@pytest.mark.parametrize("name, args, text", [
+    ("Edit", {"file_path": "/a/b/monitor.py"}, "Edit monitor.py"),
+    ("Bash", {"command": "uv run pytest -q", "description": "Run the tests"}, "Bash Run the tests"),
+    ("Bash", {"command": "ls\n-la"}, "Bash ls -la"),
+    ("Grep", {"pattern": "def tick"}, "Grep def tick"),
+    ("WebFetch", {"url": "https://herdr.dev/llms.txt"}, "WebFetch herdr.dev"),
+    ("mcp__github__get_issue", {}, "get_issue"),
+    ("Bash", {"description": "x" * 60}, "Bash " + "x" * 32 + "…"),
+])
+def test_describe_tool(name, args, text):
+    assert monitor.describe_tool(name, args) == text
+
+
+def test_last_tool_reads_the_main_thread_tail(tmp_path):
+    path = tmp_path / "s.jsonl"
+    lines = [
+        {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Read", "input": {"file_path": "/x/a.py"}}]}},
+        {"type": "assistant", "isSidechain": True,
+         "message": {"content": [{"type": "tool_use", "name": "Grep", "input": {"pattern": "sub"}}]}},
+        {"type": "user", "message": {"content": [{"type": "tool_result", "content": "ok"}]}},
+    ]
+    path.write_text('{"cut": "tool_use' + "\n" + "\n".join(json.dumps(e) for e in lines) + "\n")
+    assert monitor.last_tool(str(path)) == "Read a.py"
+    assert monitor.last_tool(str(tmp_path / "missing.jsonl")) is None
+
+
+def test_doing_only_for_working_claude_agents(monkeypatch):
+    monkeypatch.setattr(monitor, "claude_transcript", lambda session: "/t.jsonl")
+    monkeypatch.setattr(monitor, "last_tool", lambda path: "Edit a.py")
+    agent = {"agent": "claude", "agent_status": "working", "agent_session": {"value": "s1"}}
+    assert monitor.agent_doing(agent) == "Edit a.py"
+    assert monitor.agent_doing({**agent, "agent_status": "idle"}) is None
+    assert monitor.agent_doing({**agent, "agent": "codex"}) is None
+
+
+def test_notify_blocked_once_never_focused_nor_at_startup(monkeypatch):
+    sent = []
+    monkeypatch.setattr(monitor, "NOTIFY", True)
+    monkeypatch.setattr(monitor, "desktop_notify", lambda title, body: sent.append((title, body)))
+    state = monitor.new_state()
+    old = {"pane_id": "p0", "workspace_id": "w1", "agent_status": "blocked", "state_change_seq": 1}
+    monitor.notify_blocked([old], state, {"w1": "chrysa"})  # first tick: already blocked, no alert
+    state["first"] = False
+    new = {"pane_id": "p1", "workspace_id": "w1", "agent_status": "blocked", "state_change_seq": 7,
+           "terminal_title_stripped": "Needs you"}
+    focused = {"pane_id": "p2", "workspace_id": "w1", "agent_status": "blocked", "state_change_seq": 8, "focused": True}
+    monitor.notify_blocked([old, new, focused], state, {"w1": "chrysa"})
+    monitor.notify_blocked([old, new, focused], state, {"w1": "chrysa"})
+    assert sent == [("Agent en attente · chrysa", "Needs you")]
+    monitor.notify_blocked([], state, {})
+    assert state["notified"] == set()
+
+
+def test_desktop_notify_escapes_markup(monkeypatch):
+    calls = []
+    monkeypatch.setattr(monitor.shutil, "which", lambda name: "/bin/notify-send" if name == "notify-send" else None)
+    monkeypatch.setattr(monitor.subprocess, "run", lambda cmd, **kw: calls.append(cmd))
+    monitor.desktop_notify("Agent · x", "<b>Fix</b> & \x1b[2Jgo")
+    assert calls == [["notify-send", "--app-name=herdr", "Agent · x", "&lt;b&gt;Fix&lt;/b&gt; &amp; [2Jgo"]]
 
 
 def test_release_tabs_clears_only_prefixed_names(monkeypatch):
@@ -96,9 +185,9 @@ def test_space_theme_prefers_a_blocked_agent_then_the_latest():
         {"pane_id": "f", "workspace_id": "w3", "agent_status": "idle", "terminal_title_stripped": "Alone"},
     ]
     spaces = monitor.space_tokens(agents)
-    assert spaces["w1"] == {"theme": "Needs you", "more": "+1"}
-    assert spaces["w2"] == {"theme": "New", "more": "+1"}
-    assert spaces["w3"] == {"theme": "Alone", "more": None}
+    assert spaces["w1"] == {"theme": "Needs you", "more": "+1", "blocked": "‼1"}
+    assert spaces["w2"] == {"theme": "New", "more": "+1", "blocked": None}
+    assert spaces["w3"] == {"theme": "Alone", "more": None, "blocked": None}
 
 
 def test_space_theme_skips_generic_titles_unless_alone():
@@ -108,8 +197,8 @@ def test_space_theme_skips_generic_titles_unless_alone():
         {"pane_id": "c", "workspace_id": "w2", "agent_status": "idle", "terminal_title_stripped": "claude", "agent": "claude"},
     ]
     spaces = monitor.space_tokens(agents)
-    assert spaces["w1"] == {"theme": "Real work", "more": None}
-    assert spaces["w2"] == {"theme": "claude", "more": None}
+    assert spaces["w1"] == {"theme": "Real work", "more": None, "blocked": None}
+    assert spaces["w2"] == {"theme": "claude", "more": None, "blocked": None}
 
 
 def names(**set_):
@@ -134,7 +223,7 @@ def test_tick_publishes_space_tokens_and_clears_emptied_spaces(monkeypatch):
     workspaces.pop()
     monitor.tick(shown)
     assert spaces == [
-        ("w1", {"theme": "x", "more": None, **names(space_busy_perso="chrysa")}),
+        ("w1", {"theme": "x", "more": None, "blocked": "‼1", **names(space_busy_perso="chrysa")}),
         ("w2", {"theme": None, "more": None, **names(space_idle_pro="padam-av")}),
         ("w1", {"theme": None, "more": None, **names(space_idle_perso="chrysa")}),
         ("w2", {}),  # space closed: tokens cleared

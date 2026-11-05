@@ -1,6 +1,6 @@
 # agent-info (`chrysa.agent-info`)
 
-Three small things herdr and the plugin marketplace do not cover reliably:
+What herdr and the plugin marketplace do not cover reliably:
 
 - **`$account` and `$model` tokens** on every agent row, read from local session
   files: the Claude config dir in use (`~/.claude-perso` → `perso`), Codex, or the
@@ -12,6 +12,17 @@ Three small things herdr and the plugin marketplace do not cover reliably:
   others cleared) so the sidebar colors the subject by account; and per space
   `$theme` (a blocked agent's subject first, else the latest one) and `$more`
   ("+2" other subjects), cleared when the last agent leaves.
+- **Space names** under one of six tokens, `$space_<busy|idle>_<pro|perso|other>`
+  (busy = holds agents), so the sidebar can bold busy spaces and dim idle ones in
+  their ecosystem color; a space named after another plus "-suffix" shows
+  "↳ suffix". `$blocked` ("‼2") counts the agents waiting on you.
+- **State age and current action**: `$age` ("12m", "3h05", "2j") since the agent
+  entered its state, measured by the daemon (herdr reports no timestamps) and kept
+  in `~/.local/state/chrysa.agent-info/since.json`; `$doing`, the last tool call of
+  a working Claude session ("Edit monitor.py"), from the transcript tail.
+- **Desktop notification** (`notify-send`, `osascript` on macOS) when an agent
+  starts waiting on you: once per blocked state, not for the focused pane nor for
+  agents already blocked when the daemon starts. `AGENT_INFO_NOTIFY=0` turns it off.
 - **Services pane** (`prefix+ctrl+g`): containers of the tab's git project (compose
   working dir or bind mounts inside it) and processes listening on a port from
   inside it, with their URLs. `docker ps` and `ss` run in background threads.
