@@ -51,7 +51,7 @@ enabled = false
 #      "↳ suffix" (padam-av-GHA under padam-av), so long names are not cut.
 #      agent-info publishes the name under one of six tokens (busy/idle x
 #      ecosystem) because herdr row styles are static and rules only match a
-#      token's own value;
+#      token's own value; then "◉N" in grey, the number of agents in the space;
 #   2+. only the agents waiting on you (blocked), one red "‼ subject" line
 #      each, longest wait first, at most 3 then "+N en attente". Every other
 #      agent is in the Agents column, so no space line reads like an agent.
@@ -65,7 +65,8 @@ rows = [
    { token = "$space_busy_pro", fg = "{{accounts.pro}}", bold = true }, { token = "$space_busy_perso", fg = "{{accounts.perso}}", bold = true },
    { token = "$space_busy_other", bold = true },
    { token = "$space_idle_pro", fg = "{{accounts.pro}}", dim = true }, { token = "$space_idle_perso", fg = "{{accounts.perso}}", dim = true },
-   { token = "$space_idle_other", dim = true }],
+   { token = "$space_idle_other", dim = true },
+   { token = "$agents", fg = "{{colors.overlay}}" }],
   [{ token = "$wait1", fg = "{{colors.red}}" }],
   [{ token = "$wait2", fg = "{{colors.red}}" }],
   [{ token = "$wait3", fg = "{{colors.red}}" }],

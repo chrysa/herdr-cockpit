@@ -177,9 +177,9 @@ def test_topic_prefers_a_real_title(agent, topic):
     assert monitor.topic_tokens(agent, "perso")["topic_perso"] == topic
 
 
-def waits(*lines, more=None):
+def waits(*lines, more=None, agents=None):
     return {**{f"wait{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, monitor.WAIT_ROWS + 1)},
-            "wait_more": more}
+            "wait_more": more, "agents": agents}
 
 
 def test_spaces_list_only_waiting_agents_longest_wait_first():
@@ -190,14 +190,14 @@ def test_spaces_list_only_waiting_agents_longest_wait_first():
         {"pane_id": "d", "workspace_id": "w2", "agent_status": "done", "state_change_seq": 7, "terminal_title_stripped": "Done"},
     ]
     spaces = monitor.space_tokens(agents)
-    assert spaces["w1"] == waits("‼ First", "‼ Later")
-    assert spaces["w2"] == waits()
+    assert spaces["w1"] == waits("‼ First", "‼ Later", agents="◉3")
+    assert spaces["w2"] == waits(agents="◉1")
 
 
 def test_spaces_cap_waiting_lines():
     agents = [{"pane_id": f"p{i}", "workspace_id": "w1", "agent_status": "blocked", "state_change_seq": i,
                "terminal_title_stripped": f"T{i}"} for i in range(5)]
-    assert monitor.space_tokens(agents)["w1"] == waits("‼ T0", "‼ T1", "‼ T2", more="+2 en attente")
+    assert monitor.space_tokens(agents)["w1"] == waits("‼ T0", "‼ T1", "‼ T2", more="+2 en attente", agents="◉5")
 
 
 def names(**set_):
@@ -222,7 +222,7 @@ def test_tick_publishes_space_tokens_and_clears_emptied_spaces(monkeypatch):
     workspaces.pop()
     monitor.tick(shown)
     assert spaces == [
-        ("w1", {**waits("‼ x"), **names(space_busy_perso="chrysa")}),
+        ("w1", {**waits("‼ x", agents="◉1"), **names(space_busy_perso="chrysa")}),
         ("w2", {**waits(), **names(space_idle_pro="padam-av")}),
         ("w1", {**waits(), **names(space_idle_perso="chrysa")}),
         ("w2", {}),  # space closed: tokens cleared

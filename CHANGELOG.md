@@ -27,6 +27,7 @@
   under the space (longest wait first, 3 max then "+N en attente"), instead of
   the latest subject, which read like an agent line. Every other agent is in
   the Agents column; a space with nobody waiting takes one line.
+- "◉N" in grey after a space name: the number of agents in it.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

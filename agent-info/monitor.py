@@ -339,7 +339,8 @@ ECOSYSTEMS = (("pro", lambda name: name.startswith("padam")), ("perso", lambda n
 NAME_TOKENS = tuple(f"space_{state}_{eco}" for state in ("busy", "idle") for eco in ("pro", "perso", "other"))
 WAIT_ROWS = 3
 WAIT_TOKENS = (*(f"wait{i}" for i in range(1, WAIT_ROWS + 1)), "wait_more")
-SPACE_TOKENS = (*WAIT_TOKENS, *NAME_TOKENS)
+AGENT_TOKENS = (*WAIT_TOKENS, "agents")  # agents: "◉3" after the name, 3 agents in the space
+SPACE_TOKENS = (*AGENT_TOKENS, *NAME_TOKENS)
 
 
 def ecosystem(label):
@@ -371,7 +372,8 @@ def space_tokens(agents):
         lines = [f"‼ {topic_title(a) or 'agent'}" for a in waiting]
         extra = len(lines) - WAIT_ROWS
         tokens[ws] = {**{f"wait{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, WAIT_ROWS + 1)},
-                      "wait_more": f"+{extra} en attente" if extra > 0 else None}
+                      "wait_more": f"+{extra} en attente" if extra > 0 else None,
+                      "agents": f"◉{len(members)}"}
     return tokens
 
 
@@ -409,7 +411,7 @@ def tick(shown, state=None, now=None):
     notify_blocked(agents, state, {w.get("workspace_id"): label for w, label in zip(workspaces, labels)})
     state["first"] = False
     spaces = {
-        f"ws:{w['workspace_id']}": {**dict.fromkeys(WAIT_TOKENS), **subjects.get(w["workspace_id"], {}),
+        f"ws:{w['workspace_id']}": {**dict.fromkeys(AGENT_TOKENS), **subjects.get(w["workspace_id"], {}),
                                     **name_tokens(label, labels, w["workspace_id"] in subjects)}
         for w, label in zip(workspaces, labels) if w.get("workspace_id")
     }

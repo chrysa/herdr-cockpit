@@ -11,7 +11,8 @@ What herdr and the plugin marketplace do not cover reliably:
   (`$topic_perso`, `$topic_pro`, `$topic_codex`, `$topic_other`, one set, the
   others cleared) so the sidebar colors the subject by account; and per space
   `$wait1`..`$wait3` ("‼ subject" of each agent waiting on you, longest wait
-  first) and `$wait_more` ("+2 en attente"), cleared when nobody waits.
+  first), `$wait_more` ("+2 en attente"), cleared when nobody waits, and
+  `$agents` ("◉3", agents in the space).
 - **Space names** under one of six tokens, `$space_<busy|idle>_<pro|perso|other>`
   (busy = holds agents), so the sidebar can bold busy spaces and dim idle ones in
   their ecosystem color; a space named after another plus "-suffix" shows
