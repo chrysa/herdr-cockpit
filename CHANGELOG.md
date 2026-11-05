@@ -40,6 +40,8 @@
 - Real time: the agent-info daemon wakes on herdr events (agent status, panes,
   tabs, spaces) and on Claude transcript writes instead of every 8 s; a change
   reaches the sidebar in about a second. docker/ss snapshots stay every 8 s.
+- The cockpit plugin no longer runs `daemon.py` (removed in v0.4.0) at startup and
+  on every space focus, where it failed each time; agent-info starts its own daemon.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 
