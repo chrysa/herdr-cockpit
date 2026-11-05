@@ -51,22 +51,25 @@ enabled = false
 #      "↳ suffix" (padam-av-GHA under padam-av), so long names are not cut.
 #      agent-info publishes the name under one of six tokens (busy/idle x
 #      ecosystem) because herdr row styles are static and rules only match a
-#      token's own value; then "‼N" in red when N agents wait on you;
-#   2. only with agents: the space's subject (agent-info: a blocked agent's
-#      first, else the latest), "+N" for its other subjects.
+#      token's own value;
+#   2+. only the agents waiting on you (blocked), one red "‼ subject" line
+#      each, longest wait first, at most 3 then "+N en attente". Every other
+#      agent is in the Agents column, so no space line reads like an agent.
 # RTK savings are not shown here: they stay in the RTK pane (prefix+ctrl+r) and
 # the Claude status line.
-# Line 1 always has a value; line 2 is empty for idle spaces and herdr drops
-# empty rows, so an idle space takes one line.
+# Line 1 always has a value; herdr drops empty rows, so a space with nobody
+# waiting takes one line.
 [ui.sidebar.spaces]
 rows = [
   ["state_icon",
    { token = "$space_busy_pro", fg = "#89dceb", bold = true }, { token = "$space_busy_perso", fg = "#f9e2af", bold = true },
    { token = "$space_busy_other", bold = true },
    { token = "$space_idle_pro", fg = "#89dceb", dim = true }, { token = "$space_idle_perso", fg = "#f9e2af", dim = true },
-   { token = "$space_idle_other", dim = true },
-   { token = "$blocked", fg = "#f38ba8", bold = true }],
-  [{ token = "$theme" }, { token = "$more", fg = "#9399b2" }],
+   { token = "$space_idle_other", dim = true }],
+  [{ token = "$wait1", fg = "#f38ba8" }],
+  [{ token = "$wait2", fg = "#f38ba8" }],
+  [{ token = "$wait3", fg = "#f38ba8" }],
+  [{ token = "$wait_more", fg = "#f38ba8", dim = true }],
 ]
 
 # Agents: state, how long in that state (dim, "12m"; agent-info measures it),

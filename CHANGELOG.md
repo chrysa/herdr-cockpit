@@ -21,9 +21,12 @@
   auto-title takes them back. The state stays in the sidebar.
 - Information surfaced from agents: a desktop notification when an agent starts
   waiting on you (once per wait, not for the focused pane; `AGENT_INFO_NOTIFY=0`
-  turns it off); "‼N" in red on a space with N agents waiting; how long each
-  agent has been in its state ("12m"); a dim second line with a working Claude
-  agent's last tool call ("Edit monitor.py").
+  turns it off); how long each agent has been in its state ("12m"); a dim
+  second line with a working Claude agent's last tool call ("Edit monitor.py").
+- Spaces list only the agents waiting on you: one red "‼ subject" line each
+  under the space (longest wait first, 3 max then "+N en attente"), instead of
+  the latest subject, which read like an agent line. Every other agent is in
+  the Agents column; a space with nobody waiting takes one line.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

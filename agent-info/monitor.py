@@ -222,7 +222,8 @@ def desktop_notify(title, body):
     def clean(text):  # notify-send bodies take markup: agent text must not
         return CONTROL.sub("", text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     if shutil.which("notify-send"):
-        cmd = ["notify-send", "--app-name=herdr", clean(title), clean(body)]
+        # "--": a terminal title starting with "-" must not be read as an option
+        cmd = ["notify-send", "--app-name=herdr", "--", clean(title), clean(body)]
     elif shutil.which("osascript"):
         cmd = ["osascript", "-e", "on run argv", "-e",
                "display notification (item 2 of argv) with title (item 1 of argv)", "-e", "end run",
@@ -326,8 +327,9 @@ def topic_tokens(agent, account):
     return {name: (title or None) if name == key else None for name in TOPIC_TOKENS}
 
 
-# Spaces column, line 2: one subject per space (a blocked agent's first, else the
-# agent that changed state last) and "+N" for its other distinct subjects.
+# Spaces column, lines 2+: only the agents waiting on you (blocked), longest wait
+# first, one line each ("‼ subject"), at most WAIT_ROWS, then "+N en attente".
+# Every other agent is in the Agents column, so no space line reads like an agent.
 # Line 1: the space name under one of six tokens, busy (holds agents, bold) or idle
 # (dim) x ecosystem color, one set and the others cleared: herdr row styles are
 # static and rules only match a token's own value, so the state and the ecosystem
@@ -335,7 +337,9 @@ def topic_tokens(agent, account):
 # padam-av-GHA next to padam-av) shows "↳ suffix" so long names are not cut.
 ECOSYSTEMS = (("pro", lambda name: name.startswith("padam")), ("perso", lambda name: name == "chrysa"))
 NAME_TOKENS = tuple(f"space_{state}_{eco}" for state in ("busy", "idle") for eco in ("pro", "perso", "other"))
-SPACE_TOKENS = ("theme", "more", "blocked", *NAME_TOKENS)  # blocked: "‼N" agents waiting
+WAIT_ROWS = 3
+WAIT_TOKENS = (*(f"wait{i}" for i in range(1, WAIT_ROWS + 1)), "wait_more")
+SPACE_TOKENS = (*WAIT_TOKENS, *NAME_TOKENS)
 
 
 def ecosystem(label):
@@ -356,20 +360,18 @@ def name_tokens(label, labels, busy):
 
 
 def space_tokens(agents):
-    """workspace_id -> Spaces-column tokens, from the agent list."""
+    """workspace_id -> waiting-agent lines, for every space that holds agents."""
     by_space = {}
     for agent in agents:
         by_space.setdefault(agent.get("workspace_id"), []).append(agent)
     tokens = {}
     for ws, members in by_space.items():
-        ranked = sorted(members, key=lambda a: (a.get("agent_status") == "blocked", a.get("state_change_seq") or 0),
-                        reverse=True)
-        subjects = list(dict.fromkeys(topic_title(a) for a in ranked))
-        real = [s for s in subjects if s.lower() not in GENERIC_TITLES] or subjects
-        others = len(real) - 1
-        waiting = sum(a.get("agent_status") == "blocked" for a in members)
-        tokens[ws] = {"theme": real[0] or None, "more": f"+{others}" if others > 0 else None,
-                      "blocked": f"‼{waiting}" if waiting else None}
+        waiting = sorted((a for a in members if a.get("agent_status") == "blocked"),
+                         key=lambda a: a.get("state_change_seq") or 0)
+        lines = [f"‼ {topic_title(a) or 'agent'}" for a in waiting]
+        extra = len(lines) - WAIT_ROWS
+        tokens[ws] = {**{f"wait{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, WAIT_ROWS + 1)},
+                      "wait_more": f"+{extra} en attente" if extra > 0 else None}
     return tokens
 
 
@@ -407,7 +409,7 @@ def tick(shown, state=None, now=None):
     notify_blocked(agents, state, {w.get("workspace_id"): label for w, label in zip(workspaces, labels)})
     state["first"] = False
     spaces = {
-        f"ws:{w['workspace_id']}": {"theme": None, "more": None, **subjects.get(w["workspace_id"], {}),
+        f"ws:{w['workspace_id']}": {**dict.fromkeys(WAIT_TOKENS), **subjects.get(w["workspace_id"], {}),
                                     **name_tokens(label, labels, w["workspace_id"] in subjects)}
         for w, label in zip(workspaces, labels) if w.get("workspace_id")
     }
