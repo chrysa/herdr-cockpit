@@ -27,7 +27,13 @@
   under the space (longest wait first, 3 max then "+N en attente"), instead of
   the latest subject, which read like an agent line. Every other agent is in
   the Agents column; a space with nobody waiting takes one line.
-- "◉N" in grey after a space name: the number of agents in it.
+- Spaces count agents and subagents per state, one group per account in its
+  color ("‼1 ◐2 ○1 ⑂●2✓1"), on the line under the name.
+- Agents column lists each Claude agent's subagents active in the last 30 min
+  with their state ("⑂ ● Security review"; ● running, ◌ stalled, ✗ failed,
+  ⊘ killed, ✓ done), 3 max then "⑂ +N". New `agent-info/subagents.py` reads
+  Claude's subagent files and the main transcript incrementally, with the
+  agent-panel rules.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

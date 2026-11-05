@@ -48,7 +48,8 @@ def test_tick_publishes_only_changes(monkeypatch):
     monitor.tick(shown)
     assert published == [("p1", {"account": "perso", "model": "opus-5.5", "topic_perso": "Fix the parser",
                                  "topic_pro": None, "topic_codex": None, "topic_other": None,
-                                 "age": None, "doing": None})]
+                                 "age": None, "doing": None, "sub1": None, "sub2": None, "sub3": None,
+                                 "sub_more": None})]
 
 
 def test_tick_publishes_the_age_of_the_state(monkeypatch):
@@ -177,9 +178,9 @@ def test_topic_prefers_a_real_title(agent, topic):
     assert monitor.topic_tokens(agent, "perso")["topic_perso"] == topic
 
 
-def waits(*lines, more=None, agents=None):
+def waits(*lines, more=None, **counts):
     return {**{f"wait{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, monitor.WAIT_ROWS + 1)},
-            "wait_more": more, "agents": agents}
+            "wait_more": more, **{f"count_{name}": counts.get(name) for name in ("perso", "pro", "codex", "other")}}
 
 
 def test_spaces_list_only_waiting_agents_longest_wait_first():
@@ -190,14 +191,14 @@ def test_spaces_list_only_waiting_agents_longest_wait_first():
         {"pane_id": "d", "workspace_id": "w2", "agent_status": "done", "state_change_seq": 7, "terminal_title_stripped": "Done"},
     ]
     spaces = monitor.space_tokens(agents)
-    assert spaces["w1"] == waits("‼ First", "‼ Later", agents="◉3")
-    assert spaces["w2"] == waits(agents="◉1")
+    assert spaces["w1"] == waits("‼ First", "‼ Later", other="‼2 ◐1")
+    assert spaces["w2"] == waits(other="✓1")
 
 
 def test_spaces_cap_waiting_lines():
     agents = [{"pane_id": f"p{i}", "workspace_id": "w1", "agent_status": "blocked", "state_change_seq": i,
                "terminal_title_stripped": f"T{i}"} for i in range(5)]
-    assert monitor.space_tokens(agents)["w1"] == waits("‼ T0", "‼ T1", "‼ T2", more="+2 en attente", agents="◉5")
+    assert monitor.space_tokens(agents)["w1"] == waits("‼ T0", "‼ T1", "‼ T2", more="+2 en attente", other="‼5")
 
 
 def names(**set_):
@@ -222,7 +223,7 @@ def test_tick_publishes_space_tokens_and_clears_emptied_spaces(monkeypatch):
     workspaces.pop()
     monitor.tick(shown)
     assert spaces == [
-        ("w1", {**waits("‼ x", agents="◉1"), **names(space_busy_perso="chrysa")}),
+        ("w1", {**waits("‼ x", pro="‼1"), **names(space_busy_perso="chrysa")}),
         ("w2", {**waits(), **names(space_idle_pro="padam-av")}),
         ("w1", {**waits(), **names(space_idle_perso="chrysa")}),
         ("w2", {}),  # space closed: tokens cleared
@@ -259,3 +260,25 @@ def test_publish_space_sets_and_clears(monkeypatch):
     assert "wait1=Fix[2J it" in args
     cleared = [args[i + 1] for i, a in enumerate(args) if a == "--clear-token"]
     assert set(cleared) == set(monitor.SPACE_TOKENS) - {"wait1"}
+
+
+def test_space_counts_group_agents_and_subagents_by_account():
+    agents = [
+        {"pane_id": "a", "workspace_id": "w1", "agent_status": "working"},
+        {"pane_id": "b", "workspace_id": "w1", "agent_status": "idle"},
+        {"pane_id": "c", "workspace_id": "w1", "agent_status": "done"},
+        {"pane_id": "d", "workspace_id": "w1", "agent_status": "idle"},
+    ]
+    details = {"a": {"account": "perso", "subs": ["running", "running", "done"]},
+               "b": {"account": "perso", "subs": []},
+               "c": {"account": "pro", "subs": ["failed"]},
+               "d": {"account": "default", "subs": []}}
+    tokens = monitor.space_tokens(agents, details)["w1"]
+    assert {k: v for k, v in tokens.items() if k.startswith("count_")} == {
+        "count_perso": "◐1 ○1 ⑂●2✓1", "count_pro": "✓1 ⑂✗1", "count_codex": None, "count_other": "○1"}
+
+
+def test_sub_tokens_list_then_overflow():
+    subs = [{"status": s, "description": f"S{i}"} for i, s in enumerate(["running", "stalled", "done", "done"])]
+    assert monitor.sub_tokens(subs) == {"sub1": "⑂ ● S0", "sub2": "⑂ ◌ S1", "sub3": "⑂ ✓ S2", "sub_more": "⑂ +1"}
+    assert monitor.sub_tokens([]) == {"sub1": None, "sub2": None, "sub3": None, "sub_more": None}

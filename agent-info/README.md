@@ -12,7 +12,12 @@ What herdr and the plugin marketplace do not cover reliably:
   others cleared) so the sidebar colors the subject by account; and per space
   `$wait1`..`$wait3` ("‼ subject" of each agent waiting on you, longest wait
   first), `$wait_more` ("+2 en attente"), cleared when nobody waits, and
-  `$agents` ("◉3", agents in the space).
+  `$count_<perso|pro|codex|other>`: agents and subagents per state for that
+  account ("‼1 ◐2 ○1 ⑂●2✓1").
+- **Subagents** of each Claude agent active in the last 30 min, `$sub1`..`$sub3`
+  ("⑂ ● Security review") and `$sub_more`, from `<session>/subagents/` and the
+  main transcript's `<task-notification>` entries, read incrementally
+  (`subagents.py`, same state rules as agent-panel).
 - **Space names** under one of six tokens, `$space_<busy|idle>_<pro|perso|other>`
   (busy = holds agents), so the sidebar can bold busy spaces and dim idle ones in
   their ecosystem color; a space named after another plus "-suffix" shows

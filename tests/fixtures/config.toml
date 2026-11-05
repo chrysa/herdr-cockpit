@@ -51,8 +51,11 @@ enabled = false
 #      "↳ suffix" (padam-av-GHA under padam-av), so long names are not cut.
 #      agent-info publishes the name under one of six tokens (busy/idle x
 #      ecosystem) because herdr row styles are static and rules only match a
-#      token's own value; then "◉N" in grey, the number of agents in the space;
-#   2+. only the agents waiting on you (blocked), one red "‼ subject" line
+#      token's own value;
+#   2. agents and subagents counted per state ("‼1 ◐2 ○1 ⑂●2✓1"; ⑂ = subagents,
+#      ● running ◌ stalled ✗ failed ⊘ killed ✓ done), one group per account
+#      in its color;
+#   3+. only the agents waiting on you (blocked), one red "‼ subject" line
 #      each, longest wait first, at most 3 then "+N en attente". Every other
 #      agent is in the Agents column, so no space line reads like an agent.
 # RTK savings are not shown here: they stay in the RTK pane (prefix+ctrl+r) and
@@ -65,8 +68,9 @@ rows = [
    { token = "$space_busy_pro", fg = "#89dceb", bold = true }, { token = "$space_busy_perso", fg = "#f9e2af", bold = true },
    { token = "$space_busy_other", bold = true },
    { token = "$space_idle_pro", fg = "#89dceb", dim = true }, { token = "$space_idle_perso", fg = "#f9e2af", dim = true },
-   { token = "$space_idle_other", dim = true },
-   { token = "$agents", fg = "#9399b2" }],
+   { token = "$space_idle_other", dim = true }],
+  [{ token = "$count_perso", fg = "#f9e2af" }, { token = "$count_pro", fg = "#89dceb" },
+   { token = "$count_codex", fg = "#a6e3a1" }, { token = "$count_other", fg = "#9399b2" }],
   [{ token = "$wait1", fg = "#f38ba8" }],
   [{ token = "$wait2", fg = "#f38ba8" }],
   [{ token = "$wait3", fg = "#f38ba8" }],
@@ -78,7 +82,8 @@ rows = [
 # account (perso yellow, pro sky, codex green, other grey). agent-info publishes
 # the title under one token per account because herdr rules can only match a
 # token's own value. A working Claude agent gets a dim second line with its
-# last tool call ("Edit monitor.py"); other agents take one line.
+# last tool call ("Edit monitor.py"), then one mauve line per subagent active
+# in the last 30 min ("⑂ ● Security review"), 3 max then "⑂ +N".
 # No space name: the column shows the selected space by default (agent_view),
 # so the whole width goes to the title.
 # The model is in the tab bar and the panel header, not repeated here.
@@ -88,6 +93,10 @@ rows = [
    { token = "$topic_perso", fg = "#f9e2af" }, { token = "$topic_pro", fg = "#89dceb" },
    { token = "$topic_codex", fg = "#a6e3a1" }, { token = "$topic_other", fg = "#9399b2" }],
   [{ token = "$doing", dim = true }],
+  [{ token = "$sub1", fg = "#cba6f7" }],
+  [{ token = "$sub2", fg = "#cba6f7" }],
+  [{ token = "$sub3", fg = "#cba6f7" }],
+  [{ token = "$sub_more", fg = "#cba6f7", dim = true }],
 ]
 
 # ── Keys ─────────────────────────────────────────────────────────────────────

@@ -33,6 +33,7 @@ import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import services  # noqa: E402
+import subagents  # noqa: E402
 
 PLUGIN_ID = "chrysa.agent-info"
 SOURCE = f"plugin:{PLUGIN_ID}"
@@ -40,7 +41,9 @@ POLL_S = 8
 TTL_MS = POLL_S * 20 * 1000
 REFRESH_S = TTL_MS / 1000 / 3  # republish unchanged tokens before herdr expires them
 TAIL_BYTES = 256 * 1024
-TOKENS = ("account", "model", "topic_perso", "topic_pro", "topic_codex", "topic_other", "age", "doing")
+SUB_ROWS = 3
+SUB_TOKENS = (*(f"sub{i}" for i in range(1, SUB_ROWS + 1)), "sub_more")
+TOKENS = ("account", "model", "topic_perso", "topic_pro", "topic_codex", "topic_other", "age", "doing", *SUB_TOKENS)
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 HOME = os.path.expanduser("~")
 STATE_DIR = os.path.expanduser(f"~/.local/state/{PLUGIN_ID}")
@@ -167,6 +170,28 @@ def agent_doing(agent):
         return None
     path = claude_transcript(session)
     return last_tool(path) if path else None
+
+
+# Agents column, lines 3+: the Claude agent's subagents active in the last 30 min,
+# "⑂ ● description" (● running, ◌ stalled, ✗ failed, ⊘ killed, ✓ done), what needs
+# a look first, at most SUB_ROWS then "⑂ +N". Main transcripts are read
+# incrementally (state["logs"]), never whole.
+def agent_subagents(agent, logs, now):
+    """[{id, status, description, last}] for a Claude agent, [] for any other."""
+    session = (agent.get("agent_session") or {}).get("value")
+    path = claude_transcript(session) if agent.get("agent") == "claude" and session else None
+    if not path:
+        return []
+    log = logs.setdefault(path, subagents.MainLog(path))
+    log.refresh(now)
+    return subagents.listing(path, log, now)
+
+
+def sub_tokens(subs):
+    lines = [f"⑂ {subagents.GLYPHS.get(s['status'], '•')} {s['description']}" for s in subs]
+    extra = len(lines) - SUB_ROWS
+    return {**{f"sub{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, SUB_ROWS + 1)},
+            "sub_more": f"⑂ +{extra}" if extra > 0 else None}
 
 
 # Agents column: how long the agent has been in its state ("12m", "3h05", "2j").
@@ -339,8 +364,20 @@ ECOSYSTEMS = (("pro", lambda name: name.startswith("padam")), ("perso", lambda n
 NAME_TOKENS = tuple(f"space_{state}_{eco}" for state in ("busy", "idle") for eco in ("pro", "perso", "other"))
 WAIT_ROWS = 3
 WAIT_TOKENS = (*(f"wait{i}" for i in range(1, WAIT_ROWS + 1)), "wait_more")
-AGENT_TOKENS = (*WAIT_TOKENS, "agents")  # agents: "◉3" after the name, 3 agents in the space
+# Line 2: agents and subagents counted per state, one group per account in its
+# color ("‼1 ◐2 ○1 ⑂●2✓1"): count_<perso|pro|codex|other>.
+COUNT_TOKENS = tuple(f"count_{name}" for name in (*NAMED_ACCOUNTS, "other"))
+AGENT_GLYPHS = {"blocked": "‼", "working": "◐", "done": "✓", "idle": "○"}
+AGENT_TOKENS = (*WAIT_TOKENS, *COUNT_TOKENS)
 SPACE_TOKENS = (*AGENT_TOKENS, *NAME_TOKENS)
+
+
+def counts_label(statuses, sub_statuses):
+    """"‼1 ◐2 ⑂●2✓1": agents then subagents per state, zeros left out; None if empty."""
+    parts = [f"{glyph}{statuses.count(state)}" for state, glyph in AGENT_GLYPHS.items() if state in statuses]
+    subs = "".join(f"{glyph}{sub_statuses.count(state)}" for state, glyph in subagents.GLYPHS.items()
+                   if state in sub_statuses)
+    return " ".join(parts + ([f"⑂{subs}"] if subs else [])) or None
 
 
 def ecosystem(label):
@@ -360,8 +397,12 @@ def name_tokens(label, labels, busy):
     return {name: shown if name == key else None for name in NAME_TOKENS}
 
 
-def space_tokens(agents):
-    """workspace_id -> waiting-agent lines, for every space that holds agents."""
+def space_tokens(agents, details=None):
+    """workspace_id -> count and waiting-agent tokens, for every space that holds agents.
+
+    details: pane_id -> {"account": ..., "subs": [subagent statuses]} (missing: other, none).
+    """
+    details = details or {}
     by_space = {}
     for agent in agents:
         by_space.setdefault(agent.get("workspace_id"), []).append(agent)
@@ -371,9 +412,17 @@ def space_tokens(agents):
                          key=lambda a: a.get("state_change_seq") or 0)
         lines = [f"‼ {topic_title(a) or 'agent'}" for a in waiting]
         extra = len(lines) - WAIT_ROWS
+        groups = {}
+        for agent in members:
+            info = details.get(agent.get("pane_id"), {})
+            account = info.get("account") if info.get("account") in NAMED_ACCOUNTS else "other"
+            statuses, subs = groups.setdefault(account, ([], []))
+            statuses.append(agent.get("agent_status"))
+            subs.extend(info.get("subs", []))
         tokens[ws] = {**{f"wait{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, WAIT_ROWS + 1)},
                       "wait_more": f"+{extra} en attente" if extra > 0 else None,
-                      "agents": f"◉{len(members)}"}
+                      **{f"count_{name}": counts_label(*groups[name]) if name in groups else None
+                         for name in (*NAMED_ACCOUNTS, "other")}}
     return tokens
 
 
@@ -387,7 +436,7 @@ def publish_space(workspace_id, tokens):
 
 def new_state():
     """Daemon memory across ticks: state ages and the blocked states already notified."""
-    return {"since": {}, "notified": set(), "first": True}
+    return {"since": {}, "notified": set(), "first": True, "logs": {}}
 
 
 def tick(shown, state=None, now=None):
@@ -398,14 +447,19 @@ def tick(shown, state=None, now=None):
         shown["_refreshed"] = time.monotonic()
     agents = herdr("agent", "list").get("result", {}).get("agents", [])
     track_since(state["since"], agents, now)
+    details = {}
     for agent in agents:
         model, account = agent_info(agent)
+        subs = agent_subagents(agent, state["logs"], now)
+        details[agent["pane_id"]] = {"account": account, "subs": [s["status"] for s in subs]}
         tokens = {"account": account, "model": model, **topic_tokens(agent, account),
-                  "age": age_label(now - state["since"][agent["pane_id"]][2]), "doing": agent_doing(agent)}
+                  "age": age_label(now - state["since"][agent["pane_id"]][2]), "doing": agent_doing(agent),
+                  **sub_tokens(subs)}
         if shown.get(agent["pane_id"]) != tokens:
             publish(agent["pane_id"], tokens)
             shown[agent["pane_id"]] = tokens
-    subjects = space_tokens(agents)
+    state["logs"] = {path: log for path, log in state["logs"].items() if os.path.exists(path)}
+    subjects = space_tokens(agents, details)
     workspaces = herdr("workspace", "list").get("result", {}).get("workspaces", [])
     labels = [CONTROL.sub("", w.get("label") or "") for w in workspaces]
     notify_blocked(agents, state, {w.get("workspace_id"): label for w, label in zip(workspaces, labels)})
