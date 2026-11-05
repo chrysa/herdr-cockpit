@@ -50,15 +50,18 @@ def test_tick_publishes_only_changes(monkeypatch):
                                  "topic_pro": None, "topic_codex": None, "topic_other": None})]
 
 
-@pytest.mark.parametrize("label, status, wanted", [
-    ("api", "working", "◐ api"),
-    ("◐ api", "blocked", "‼ api"),
-    ("✓ api", "idle", "api"),
-    ("‼ ◐ api", "done", "✓ api"),
-    ("", "working", ""),
-])
-def test_tab_label(label, status, wanted):
-    assert monitor.tab_label(label, status) == wanted
+def test_release_tabs_clears_only_prefixed_names(monkeypatch):
+    calls = []
+    tabs = [{"tab_id": "t1", "label": "◐ chrysa"}, {"tab_id": "t2", "label": "‼ ✓ api"},
+            {"tab_id": "t3", "label": "config"}, {"tab_id": "t4", "label": ""}]
+
+    def fake(*args):
+        calls.append(args)
+        return {"result": {"tabs": tabs}} if args[:2] == ("tab", "list") else {}
+
+    monkeypatch.setattr(monitor, "herdr", fake)
+    monitor.release_tabs()
+    assert [c for c in calls if c[:2] == ("tab", "rename")] == [("tab", "rename", "t1", ""), ("tab", "rename", "t2", "")]
 
 
 @pytest.mark.parametrize("account, key", [

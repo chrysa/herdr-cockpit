@@ -15,6 +15,10 @@
   another plus "-suffix" shows "↳ suffix" (`padam-av-GHA` → `↳ GHA`), so long
   names are no longer cut.
 - `agent_panel_sort = "priority"`: herdr's own order matches the Agents view.
+- Tabs are auto-named again: agent-info no longer puts ◐ ‼ ✓ in front of tab
+  names. herdr.auto-title read each such rename as the user's and locked the
+  tab for good; at startup agent-info clears the names it prefixed so
+  auto-title takes them back. The state stays in the sidebar.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

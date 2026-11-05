@@ -11,11 +11,12 @@ Claude Code: the pane's agent session id locates the transcript under
 Codex: the newest rollout file matching the session. opencode: the configured
 "provider/model" (provider plays the account role).
 
-Also puts each tab's conversation state (◐ working, ‼ blocked, ✓ done) in front of
-its name, publishes the conversation title under a per-account token (so the
-sidebar colors it by account) and one subject per space.
+Also publishes the conversation title under a per-account token (so the sidebar
+colors it by account), and per space a subject and its name (busy/idle x
+ecosystem). Tab names are left to herdr.auto-title.
 
-Commands: ensure (start in the background if needed), daemon, stop, tabs.
+Commands: ensure (start in the background if needed), daemon, stop,
+tabs (clear tab names an older version prefixed with ◐ ‼ ✓).
 """
 
 import fcntl
@@ -146,24 +147,18 @@ def publish(pane_id, tokens):
     herdr(*args)
 
 
-# Conversation state in front of each tab's name (herdr knows it per tab but does not draw it).
-TAB_ICONS = {"working": "◐", "blocked": "‼", "done": "✓"}
-TAB_PREFIX = re.compile("^(?:[" + "".join(TAB_ICONS.values()) + "] )+")
+# Tab names belong to herdr.auto-title alone. This plugin used to put the
+# conversation state (◐ ‼ ✓) in front of them, but auto-title reads any rename it
+# did not make as the user's and stops naming that tab for good. The state stays
+# in the sidebar (Agents column, Spaces state icon).
+OLD_TAB_PREFIX = re.compile("^(?:[◐‼✓] )+")
 
 
-def tab_label(label, status):
-    """Label with the icon of status in front (none when idle); other icons dropped."""
-    base = TAB_PREFIX.sub("", label or "")
-    icon = TAB_ICONS.get(status)
-    return f"{icon} {base}" if icon and base else base
-
-
-def label_tabs():
+def release_tabs():
+    """Clear tab names this plugin prefixed, once: auto-title names cleared tabs again."""
     for tab in herdr("tab", "list").get("result", {}).get("tabs", []):
-        label = tab.get("label") or ""
-        wanted = tab_label(label, tab.get("agent_status"))
-        if label and wanted != label:
-            herdr("tab", "rename", tab["tab_id"], wanted)
+        if OLD_TAB_PREFIX.match(tab.get("label") or ""):
+            herdr("tab", "rename", tab["tab_id"], "")
 
 
 # Agents column: the conversation title, published under the token of its account
@@ -284,11 +279,14 @@ def daemon():
     with open(PID, "w") as fh:
         fh.write(str(os.getpid()))
     shown, failures = {}, 0
+    try:
+        release_tabs()
+    except Exception:
+        pass  # names left prefixed stay as they are; nothing else depends on it
     while failures < 10:
         try:
             services.save_snapshots()
             tick(shown)
-            label_tabs()
             failures = 0
         except Exception:
             failures += 1
@@ -324,7 +322,7 @@ def stop():
 
 
 def main():
-    {"ensure": ensure, "daemon": daemon, "stop": stop, "tabs": label_tabs}.get(
+    {"ensure": ensure, "daemon": daemon, "stop": stop, "tabs": release_tabs}.get(
         sys.argv[1] if len(sys.argv) > 1 else "ensure", ensure
     )()
 
