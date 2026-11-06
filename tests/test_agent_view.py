@@ -92,3 +92,22 @@ def test_apply_gives_up_after_the_wait(monkeypatch):
         pass
     else:
         raise AssertionError("expected the socket error")
+
+
+def test_refresh_reapplies_only_after_a_server_restart(monkeypatch, tmp_path):
+    sock = tmp_path / "herdr.sock"
+    sock.write_text("")
+    calls = []
+    monkeypatch.setenv("HERDR_SOCKET_PATH", str(sock))
+    monkeypatch.setattr(agent_view, "STATE_DIR", str(tmp_path))
+    monkeypatch.setattr(agent_view, "STATE", str(tmp_path / "agent-view.json"))
+    monkeypatch.setattr(agent_view, "SERVER_MARK", str(tmp_path / "applied-server"))
+    monkeypatch.setattr(agent_view, "call", lambda method, params: calls.append(method) or {})
+    monkeypatch.setattr(sys, "argv", ["agent_view.py", "refresh"])
+    agent_view.main()  # never applied: apply
+    agent_view.main()  # same server: nothing, the column keeps its selection
+    assert calls == ["agent.view.set"]
+    sock.unlink()
+    sock.write_text("")  # new server, new socket file
+    agent_view.main()
+    assert calls == ["agent.view.set", "agent.view.set"]

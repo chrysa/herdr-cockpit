@@ -58,7 +58,8 @@
   auto-title stays on v0.5.0 (v0.20.0 names panes by default and renames every
   pane on first start).
 - The Agents-column filter survives a herdr server restart: the startup apply
-  waits up to 10 s for the socket, and every space switch re-applies the view.
+  waits up to 10 s for the socket, and a space switch re-applies the view only
+  when the server changed (setting a view resets the column and its selection).
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

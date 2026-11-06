@@ -27,8 +27,41 @@ NONE = {"profile": "", "active": False, "space": False, "attention": False}
 DEFAULT = {**NONE, "space": True, "attention": True}
 
 
+def socket_path():
+    return os.environ.get("HERDR_SOCKET_PATH") or os.path.expanduser("~/.config/herdr/herdr.sock")
+
+
+# herdr drops agent views when its server exits. The space-switch hook re-applies
+# the view only when the server changed since the last apply (a new server makes a
+# new socket file): setting a view resets the Agents column, selection included,
+# so it must not happen on every switch.
+SERVER_MARK = os.path.join(STATE_DIR, "applied-server")
+
+
+def server_id():
+    try:
+        st = os.stat(socket_path())
+    except OSError:
+        return ""
+    return f"{st.st_ino}:{st.st_mtime_ns}"
+
+
+def remember_server():
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(SERVER_MARK, "w") as fh:
+        fh.write(server_id())
+
+
+def server_changed():
+    try:
+        with open(SERVER_MARK) as fh:
+            return fh.read().strip() != server_id()
+    except OSError:
+        return True
+
+
 def call(method, params):
-    path = os.environ.get("HERDR_SOCKET_PATH") or os.path.expanduser("~/.config/herdr/herdr.sock")
+    path = socket_path()
     with socket.socket(socket.AF_UNIX) as sock:
         sock.settimeout(5)
         sock.connect(path)
@@ -118,9 +151,14 @@ def main():
         state[command] = not state[command]
     elif command == "reset":
         state = dict(NONE)
+    if command == "refresh":  # space switch: only after a server restart
+        if not server_changed():
+            return
+        command = "apply"
     if command != "apply":
         save(state)
     apply_when_ready(state) if command == "apply" else apply(state)
+    remember_server()
     if command != "apply":
         notify(state)
 
