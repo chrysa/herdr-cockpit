@@ -66,6 +66,9 @@
 - A space whose agents all sit idle is dimmed; bold means an agent there works,
   waits on you or has finished. herdr relaunches an idle Claude in every space on
   restore, which had made every space bold.
+- No pane borders (`ui.pane_borders = "off"`): agent-panel splits every agent
+  tab, so herdr framed the conversation in the accent color with Claude's
+  terminal title on top. The tab name already carries the subject.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 
