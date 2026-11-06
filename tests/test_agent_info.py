@@ -347,3 +347,36 @@ def test_agent_names_marks_shared_tabs():
 def test_waiting_line_uses_the_sidebar_name():
     agents = [{"pane_id": "a", "workspace_id": "w1", "agent_status": "blocked", "terminal_title_stripped": "Long title"}]
     assert monitor.space_tokens(agents, {"a": {"name": "audit"}})["w1"]["wait1"] == "‼ audit"
+
+
+def test_tabbar_line_shows_the_focused_agent():
+    agents = [{"pane_id": "a", "focused": False, "tokens": {"context": "5h 10%"}},
+              {"pane_id": "b", "focused": True, "tokens": {"context": "5h 100% · 41% (407k)"}}]
+    accounts = {"a": ("pro", "sonnet-5.5"), "b": ("perso", "opus-5.5")}
+    assert monitor.tabbar_line(agents, accounts) == "perso  opus-5.5  5h 100% · 41% (407k)"
+    assert monitor.tabbar_line([{"pane_id": "a"}], accounts) == ""
+    assert monitor.tabbar_line([{"pane_id": "x", "focused": True, "tokens": {"context": "\x1b[2Jc"}}], {}) == "[2Jc"
+
+
+def test_write_tabbar_replaces_the_file(tmp_path):
+    path = tmp_path / "s" / "tabbar"
+    monitor.write_tabbar("perso  opus-5.5", str(path))
+    assert path.read_text() == "perso  opus-5.5\n"
+    monitor.write_tabbar("", str(path))
+    assert path.read_text() == ""
+
+
+def test_spaces_with_only_idle_agents_are_dimmed(monkeypatch):
+    spaces = []
+    agents = [{"pane_id": "p1", "workspace_id": "w1", "agent_status": "idle", "agent": "x"},
+              {"pane_id": "p2", "workspace_id": "w2", "agent_status": "done", "agent": "x"}]
+    workspaces = [{"workspace_id": "w1", "label": "chrysa"}, {"workspace_id": "w2", "label": "padam-av"}]
+    replies = {("agent", "list"): {"result": {"agents": agents}},
+               ("workspace", "list"): {"result": {"workspaces": workspaces}}}
+    monkeypatch.setattr(monitor, "herdr", lambda *args: replies.get(args[:2], {}))
+    monkeypatch.setattr(monitor, "agent_info", lambda agent: (None, "perso"))
+    monkeypatch.setattr(monitor, "publish", lambda pane, tokens: None)
+    monkeypatch.setattr(monitor, "publish_space", lambda ws, tokens: spaces.append((ws, tokens)))
+    monitor.tick({"_refreshed": 10 ** 12})
+    named = {ws: {k: v for k, v in t.items() if k.startswith("space_") and v} for ws, t in spaces}
+    assert named == {"w1": {"space_idle_perso": "chrysa"}, "w2": {"space_busy_pro": "padam-av"}}

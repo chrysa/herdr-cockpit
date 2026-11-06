@@ -208,6 +208,29 @@ def sub_tokens(subs):
 # herdr reports no timestamps, so the daemon notes when each (status,
 # state_change_seq) was first seen and keeps it in SINCE across restarts.
 SINCE = os.path.join(STATE_DIR, "since.json")
+# Right of the tab bar (cockpit's herdr-tabbar prints this file): account, model and
+# usagebar's context of the focused agent. Written here, on events, so the tab bar
+# command only reads a file; querying herdr from it timed out under load.
+TABBAR = os.path.join(STATE_DIR, "tabbar")
+
+
+def tabbar_line(agents, accounts):
+    """account  model  context of the focused agent; "" when none is focused."""
+    agent = next((a for a in agents if a.get("focused")), None)
+    if not agent:
+        return ""
+    account, model = accounts.get(agent["pane_id"], (None, None))
+    context = (agent.get("tokens") or {}).get("context")
+    return "  ".join(CONTROL.sub("", str(p)) for p in (account, model, context) if p)
+
+
+def write_tabbar(line, path=None):
+    path = path or TABBAR
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as fh:
+        fh.write(line + "\n" if line else "")
+    os.replace(tmp, path)
 
 
 def age_label(seconds):
@@ -546,7 +569,8 @@ def publish_space(workspace_id, tokens):
 
 def new_state():
     """Daemon memory across ticks: state ages and the blocked states already notified."""
-    return {"since": {}, "notified": set(), "first": True, "logs": {}, "watch": [], "panes": [], "marked": {}}
+    return {"since": {}, "notified": set(), "first": True, "logs": {}, "watch": [], "panes": [], "marked": {},
+            "accounts": {}}
 
 
 def tick(shown, state=None, now=None):
@@ -564,6 +588,7 @@ def tick(shown, state=None, now=None):
     details = {}
     for agent in agents:
         model, account = agent_info(agent)
+        state["accounts"][agent["pane_id"]] = (account, model)
         subs = agent_subagents(agent, state["logs"], now)
         name = names[agent["pane_id"]]
         details[agent["pane_id"]] = {"account": account, "subs": [s["status"] for s in subs], "name": name}
@@ -578,14 +603,21 @@ def tick(shown, state=None, now=None):
     # subagents folder (a new subagent adds a file there).
     state["watch"] = [p for path in state["logs"] for p in (path, os.path.join(path.removesuffix(".jsonl"), "subagents"))]
     state["panes"] = [a["pane_id"] for a in agents]
+    line = tabbar_line(agents, state["accounts"])
+    if line != state.get("tabbar"):
+        write_tabbar(line)
+        state["tabbar"] = line
     subjects = space_tokens(agents, details)
+    # Bold space name: an agent there works, waits on you or has finished. A space
+    # whose agents all sit idle (herdr relaunches one in each space on restore) dims.
+    active = {a.get("workspace_id") for a in agents if a.get("agent_status") in ("working", "blocked", "done")}
     workspaces = herdr("workspace", "list").get("result", {}).get("workspaces", [])
     labels = [CONTROL.sub("", w.get("label") or "") for w in workspaces]
     notify_blocked(agents, state, {w.get("workspace_id"): label for w, label in zip(workspaces, labels)}, names)
     state["first"] = False
     spaces = {
         f"ws:{w['workspace_id']}": {**dict.fromkeys(AGENT_TOKENS), **subjects.get(w["workspace_id"], {}),
-                                    **name_tokens(label, labels, w["workspace_id"] in subjects)}
+                                    **name_tokens(label, labels, w["workspace_id"] in active)}
         for w, label in zip(workspaces, labels) if w.get("workspace_id")
     }
     for key, tokens in spaces.items():

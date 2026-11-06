@@ -19,6 +19,7 @@ GLOBAL_EVENTS = (
     "pane.created", "pane.closed", "pane.exited", "pane.updated", "pane.moved", "pane.agent_detected",
     "tab.created", "tab.closed", "tab.renamed", "tab.moved",
     "workspace.created", "workspace.closed", "workspace.renamed", "workspace.moved", "workspace.reordered",
+    "pane.focused", "tab.focused", "workspace.focused",  # the tab bar follows the focused agent
 )
 
 

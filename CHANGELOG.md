@@ -60,6 +60,12 @@
 - The Agents-column filter survives a herdr server restart: the startup apply
   waits up to 10 s for the socket, and a space switch re-applies the view only
   when the server changed (setting a view resets the column and its selection).
+- Tab bar right side (account · model · context) shows again: agent-info writes
+  the focused agent's line on every focus or status change and `herdr-tabbar`
+  only reads it (19 ms, against ~0.4 s and 18 timeouts of 2 s before).
+- A space whose agents all sit idle is dimmed; bold means an agent there works,
+  waits on you or has finished. herdr relaunches an idle Claude in every space on
+  restore, which had made every space bold.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 
