@@ -47,7 +47,7 @@ def server_id():
 
 
 def remember_server():
-    os.makedirs(STATE_DIR, exist_ok=True)
+    os.makedirs(os.path.dirname(SERVER_MARK), exist_ok=True)
     with open(SERVER_MARK, "w") as fh:
         fh.write(server_id())
 
