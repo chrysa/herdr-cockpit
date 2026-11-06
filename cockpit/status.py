@@ -120,8 +120,9 @@ def check_herdr_version(run=subprocess.run):
     if binary is None:
         return "missing", "herdr not found"
     try:
-        server = parse_version(json.loads(run_text(["herdr", "status", "server", "--json"]) or "{}").get("version", ""))
-    except ValueError:
+        # "version": null while the server is stopped or still starting
+        server = parse_version(json.loads(run_text(["herdr", "status", "server", "--json"]) or "{}").get("version") or "")
+    except (ValueError, AttributeError):
         server = None
     show = lambda v: ".".join(map(str, v))
     wanted = show(MIN_HERDR)

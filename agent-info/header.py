@@ -2,8 +2,9 @@
 """Header lines for agent-panel (chrysa fork): what the Claude status line shows.
 
 agent-panel runs it as `header.py <cwd> <provider> <session id> <agent pane id>`
-and shows its output above the tab bar: account and model, the full folder, the git
-branch and state, then the project's containers and listeners with their URLs.
+and shows its output above the tab bar: the full folder in the account's color, the
+git branch and state, then the project's containers and listeners with their URLs.
+Account and model are in herdr's tab bar (chrysa.agent-info), so they are not repeated.
 Docker and ss outputs come from the agent-info monitor, so this stays fast.
 """
 import os
@@ -17,8 +18,7 @@ import services  # noqa: E402
 HOME = os.path.expanduser("~")
 MAX_SERVICES = 3
 ACCOUNT = {"perso": "38;2;249;226;175", "pro": "38;2;137;220;235", "codex": "38;2;166;227;161"}
-DIM, MAUVE, BLUE, GREEN, YELLOW, SKY, RESET = ("\033[2m", "\033[38;2;203;166;247m", "\033[38;2;137;180;250m",
-                                               "\033[32m", "\033[33m", "\033[38;2;137;220;235m", "\033[0m")
+DIM, GREEN, YELLOW, SKY, RESET = "\033[2m", "\033[32m", "\033[33m", "\033[38;2;137;220;235m", "\033[0m"
 
 
 def safe(text):
@@ -51,10 +51,9 @@ def git_state(cwd):
 
 
 def lines(cwd, provider, session):
-    model, account = monitor.agent_info({"agent": provider, "agent_session": {"value": session}, "cwd": cwd})
+    _, account = monitor.agent_info({"agent": provider, "agent_session": {"value": session}, "cwd": cwd})
     color = ACCOUNT.get(account or "", "38;2;147;153;178")
-    out = [f"\033[1;{color}m● {safe(account or provider)}{RESET}  {MAUVE}{safe(model or '')}{RESET}"]
-    out.append(f"{BLUE}{safe(cwd.replace(HOME, '~', 1))}{RESET}")
+    out = [f"\033[{color}m{safe(cwd.replace(HOME, '~', 1))}{RESET}"]
     root, state = git_state(cwd)
     if state:
         out.append(f"{YELLOW if '✓' not in state else GREEN}{state}{RESET}")

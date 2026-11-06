@@ -114,3 +114,8 @@ def test_server_older_than_binary_asks_for_restart():
 
 def test_same_recent_versions_are_ok():
     assert status.check_herdr_version(fake_versions("0.9.3", "0.9.3"))[0] == "ok"
+
+
+def test_server_version_null_while_starting_does_not_crash():
+    # herdr status server --json reports "version": null while the server is stopped or starting
+    assert status.check_herdr_version(fake_versions("0.9.5", None))[0] == "ok"
