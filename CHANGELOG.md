@@ -28,7 +28,7 @@
   the latest subject, which read like an agent line. Every other agent is in
   the Agents column; a space with nobody waiting takes one line.
 - Spaces count agents and subagents per state, one group per account in its
-  color ("‼1 ◐2 ○1 ⑂●2✓1"), on the line under the name.
+  color ("‼1 ◐2 ○1 ⑂●2✓1"), on the same line as the name.
 - Agents column lists each Claude agent's subagents active in the last 30 min
   with their state ("⑂ ● Security review"; ● running, ◌ stalled, ✗ failed,
   ⊘ killed, ✓ done), 3 max then "⑂ +N". New `agent-info/subagents.py` reads
