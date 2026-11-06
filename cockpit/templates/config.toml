@@ -56,6 +56,7 @@ enabled = false
 #      token's own value; on the same line, the agents and subagents counted
 #      per state ("‼1 ◐2 ○1 ⑂●2✓1"; ⑂ = subagents, ● running ◌ stalled
 #      ✗ failed ⊘ killed ✓ done), one group per account in its color;
+#      no count when every agent there sits idle (the dim name says it);
 #   2+. only the agents waiting on you (blocked), one red "‼ subject" line
 #      each, longest wait first, at most 3 then "+N en attente". Every other
 #      agent is in the Agents column, so no space line reads like an agent.

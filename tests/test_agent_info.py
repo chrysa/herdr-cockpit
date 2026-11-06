@@ -315,6 +315,17 @@ def test_space_counts_group_agents_and_subagents_by_account():
         "count_perso": "◐1 ○1 ⑂●2✓1", "count_pro": "✓1 ⑂✗1", "count_codex": None, "count_other": "○1"}
 
 
+def test_idle_spaces_show_no_counts():
+    agents = [{"pane_id": "a", "workspace_id": "w1", "agent_status": "idle"},
+              {"pane_id": "b", "workspace_id": "w1", "agent_status": "idle"},
+              {"pane_id": "c", "workspace_id": "w2", "agent_status": "idle"},
+              {"pane_id": "d", "workspace_id": "w2", "agent_status": "working"}]
+    details = {p: {"account": "perso"} for p in "abcd"}
+    tokens = monitor.space_tokens(agents, details)
+    assert [v for k, v in tokens["w1"].items() if k.startswith("count_") and v] == []
+    assert tokens["w2"]["count_perso"] == "◐1 ○1"
+
+
 def test_sub_tokens_list_then_overflow():
     subs = [{"status": s, "description": f"S{i}"} for i, s in enumerate(["running", "stalled", "done", "done"])]
     assert monitor.sub_tokens(subs) == {"sub1": "⑂ ● S0", "sub2": "⑂ ◌ S1", "sub3": "⑂ ✓ S2", "sub_more": "⑂ +1"}
@@ -330,6 +341,11 @@ def test_sub_tokens_list_then_overflow():
     ("claude", False, "Herdr, space et chat inversés"),
     ("3", False, "Herdr, space et chat inversés"),
     ("herdr", True, "herdr · Herdr, space et chat inversés"),  # several agents in the tab
+    ("prism-ai-lint › main › Gain", False, "prism-ai-lint › Gain"),  # default branch dropped
+    ("dev-nexus › develop › S4 loop", False, "dev-nexus › S4 loop"),
+    ("chrysa › feat/x › Audit", False, "chrysa › feat/x › Audit"),  # a work branch stays
+    ("main › Gain", False, "main › Gain"),  # only a middle segment is a branch
+    ("develop", False, "Herdr, space et chat inversés"),  # a bare default branch is generic
 ])
 def test_agent_name_follows_the_tab(tab, shared, name):
     agent = {"terminal_title_stripped": "Herdr, space et chat inversés"}

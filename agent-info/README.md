@@ -24,15 +24,17 @@ What herdr and the plugin marketplace do not cover reliably:
   from auto-title's `manual-names.json` and is kept in
   `~/.local/state/chrysa.agent-info/marked-tabs.json`.
 - **Agent names** follow the tab name (the conversation title when the tab is
-  unnamed or auto-title derived its name from it).
+  unnamed, named after a default branch, or auto-title derived its name from it);
+  a default branch in auto-title's context is dropped (`repo › main › x` shows
+  `repo › x`).
 - **Real time**: `events.py` subscribes to herdr events over the socket (one
   status subscription per agent pane, reopened when panes change) and watches
   Claude transcript mtimes every 0.5 s; without a socket it falls back to the
   8 s poll.
 - **Space names** under one of six tokens, `$space_<busy|idle>_<pro|perso|other>`
-  (busy = holds agents), so the sidebar can bold busy spaces and dim idle ones in
-  their ecosystem color; a space named after another plus "-suffix" shows
-  "↳ suffix".
+  (busy = an agent there works, waits on you or has finished), so the sidebar can
+  bold busy spaces and dim idle ones in their ecosystem color; a space named after
+  another plus "-suffix" shows "↳ suffix". An idle space gets no state counts.
 - **State age and current action**: `$age` ("12m", "3h05", "2j") since the agent
   entered its state, measured by the daemon (herdr reports no timestamps) and kept
   in `~/.local/state/chrysa.agent-info/since.json`; `$doing`, the last tool call of

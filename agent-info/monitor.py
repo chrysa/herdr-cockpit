@@ -442,6 +442,16 @@ GENERIC_TITLES = {"", "claude", "codex", "opencode"}
 # cuts it to its max length; a name at least this long that starts the
 # conversation title is taken as derived from it, not chosen by hand.
 DERIVED_MIN = 12
+# auto-title's context may hold the branch ("repo › main › activity"); a default
+# branch says nothing and pushes the activity past the sidebar's edge.
+DEFAULT_BRANCHES = {"main", "master", "develop"}
+
+
+def drop_default_branch(label):
+    """"repo › main › activity" -> "repo › activity"; first and last segments stay."""
+    parts = label.split(" › ")
+    return " › ".join(p for i, p in enumerate(parts)
+                      if i in (0, len(parts) - 1) or p.strip() not in DEFAULT_BRANCHES)
 
 
 def topic_title(agent):
@@ -459,10 +469,10 @@ def agent_name(agent, tab_label, shared=False):
     A tab holding several agents adds each one's title so their rows differ.
     """
     title = topic_title(agent)
-    label = CONTROL.sub("", tab_label or "").removeprefix(TAB_MARK).strip()
+    label = drop_default_branch(CONTROL.sub("", tab_label or "").removeprefix(TAB_MARK).strip())
     activity = label.rsplit(" › ", 1)[-1].strip()
     derived = activity == title or (len(activity) >= DERIVED_MIN and title.startswith(activity))
-    if label.lower() in GENERIC_TITLES or label.isdigit() or derived:
+    if label.lower() in GENERIC_TITLES or label in DEFAULT_BRANCHES or label.isdigit() or derived:
         return title
     return f"{label} · {title}" if shared and title and title != label else label
 
@@ -496,10 +506,12 @@ ECOSYSTEMS = (("pro", lambda name: name.startswith("padam")), ("perso", lambda n
 NAME_TOKENS = tuple(f"space_{state}_{eco}" for state in ("busy", "idle") for eco in ("pro", "perso", "other"))
 WAIT_ROWS = 3
 WAIT_TOKENS = (*(f"wait{i}" for i in range(1, WAIT_ROWS + 1)), "wait_more")
-# Line 2: agents and subagents counted per state, one group per account in its
-# color ("‼1 ◐2 ○1 ⑂●2✓1"): count_<perso|pro|codex|other>.
+# Same line: agents and subagents counted per state, one group per account in its
+# color ("‼1 ◐2 ○1 ⑂●2✓1"): count_<perso|pro|codex|other>. A space where every
+# agent sits idle shows no count: its dimmed name already says so.
 COUNT_TOKENS = tuple(f"count_{name}" for name in (*NAMED_ACCOUNTS, "other"))
 AGENT_GLYPHS = {"blocked": "‼", "working": "◐", "done": "✓", "idle": "○"}
+ACTIVE_STATES = ("working", "blocked", "done")  # bold space name, counts shown
 AGENT_TOKENS = (*WAIT_TOKENS, *COUNT_TOKENS)
 SPACE_TOKENS = (*AGENT_TOKENS, *NAME_TOKENS)
 
@@ -546,7 +558,8 @@ def space_tokens(agents, details=None):
         lines = [f"‼ {details.get(a.get('pane_id'), {}).get('name') or topic_title(a) or 'agent'}" for a in waiting]
         extra = len(lines) - WAIT_ROWS
         groups = {}
-        for agent in members:
+        active = any(a.get("agent_status") in ACTIVE_STATES for a in members)
+        for agent in members if active else ():
             info = details.get(agent.get("pane_id"), {})
             account = info.get("account") if info.get("account") in NAMED_ACCOUNTS else "other"
             statuses, subs = groups.setdefault(account, ([], []))
@@ -610,7 +623,7 @@ def tick(shown, state=None, now=None):
     subjects = space_tokens(agents, details)
     # Bold space name: an agent there works, waits on you or has finished. A space
     # whose agents all sit idle (herdr relaunches one in each space on restore) dims.
-    active = {a.get("workspace_id") for a in agents if a.get("agent_status") in ("working", "blocked", "done")}
+    active = {a.get("workspace_id") for a in agents if a.get("agent_status") in ACTIVE_STATES}
     workspaces = herdr("workspace", "list").get("result", {}).get("workspaces", [])
     labels = [CONTROL.sub("", w.get("label") or "") for w in workspaces]
     notify_blocked(agents, state, {w.get("workspace_id"): label for w, label in zip(workspaces, labels)}, names)

@@ -69,6 +69,11 @@
 - No pane borders (`ui.pane_borders = "off"`): agent-panel splits every agent
   tab, so herdr framed the conversation in the accent color with Claude's
   terminal title on top. The tab name already carries the subject.
+- A space where every agent sits idle shows no `○N` count: the dim name says
+  it, and long names such as `↳ supervision-interface` are no longer cut.
+- Agent names drop a default branch from auto-title's context
+  (`prism-ai-lint › main › Gain` shows `prism-ai-lint › Gain`); a tab named
+  only `main`, `master` or `develop` gives the conversation title instead.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 
