@@ -27,6 +27,8 @@ sidebar_width = 40                    # the longest folder name fits on an inden
 sidebar_max_width = 40                # herdr caps the width at 36 by default
 agent_panel_sort = "priority"         # attention queue, the order agent_view also uses
 status_indicators = "symbols"         # distinct shapes per state, not only colors
+pane_borders = "off"                  # no frame or title around split panes (agent-panel
+                                      # splits every agent tab); the tab name carries the subject
 confirm_close = true                  # pinned
 # Right of the tab bar: account · model · context of the focused agent.
 tab_bar_right = [
