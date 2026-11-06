@@ -74,6 +74,8 @@
 - Agent names drop a default branch from auto-title's context
   (`prism-ai-lint › main › Gain` shows `prism-ai-lint › Gain`); a tab named
   only `main`, `master` or `develop` gives the conversation title instead.
+- agent-panel header: the folder in the account's color, git and services;
+  account and model are left to the tab bar, which already shows them.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

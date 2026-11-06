@@ -56,7 +56,7 @@ One fact, one place:
 | Sidebar, Spaces | per space: name (bold when an agent works, waits or has finished; dim when all idle), agent and subagent counts per state and account, the agents waiting on you |
 | Sidebar, Agents | the selected space's agents: state, age, PR, name, last tool call, subagents |
 | Tab bar | `‼` on tabs waiting on you; on the right, account · model · context of the focused agent |
-| agent-panel (right) | the focused conversation: header (account, model, path, git, services), Subagents, Messages, Refs, To do |
+| agent-panel (right) | the focused conversation: header (folder in the account's color, git, services), Subagents, Messages, Refs, To do; an empty Subagents tab opens on To do or Messages |
 
 Claude Code's `mission-control` mod (a box under the prompt: context, cost,
 tool timeline, a Haiku comment after each turn) is left off: it repeated the
