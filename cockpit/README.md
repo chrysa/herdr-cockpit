@@ -43,8 +43,24 @@ add it here and run setup.
 ## Tab bar
 
 `ui.tab_bar_right` runs `bin/herdr-tabbar` every 5 s: account · model ·
-plan window/context of the focused agent, from tokens other plugins already
-publish (no extra polling of its own beyond one `herdr agent list`).
+context of the focused agent. chrysa.agent-info writes that line to
+`~/.local/state/chrysa.agent-info/tabbar` on every focus or status change;
+the script only reads the file (no socket call, well under the 2 s timeout).
+
+## What each surface shows
+
+One fact, one place:
+
+| Surface | Shows |
+|---|---|
+| Sidebar, Spaces | per space: name (bold when an agent works, waits or has finished; dim when all idle), agent and subagent counts per state and account, the agents waiting on you |
+| Sidebar, Agents | the selected space's agents: state, age, PR, name, last tool call, subagents |
+| Tab bar | `‼` on tabs waiting on you; on the right, account · model · context of the focused agent |
+| agent-panel (right) | the focused conversation: header (account, model, path, git, services), Subagents, Messages, Refs, To do |
+
+Claude Code's `mission-control` mod (a box under the prompt: context, cost,
+tool timeline, a Haiku comment after each turn) is left off: it repeated the
+tab bar and agent-panel and cost one model call per turn.
 
 ## Filters for herdr's native Agents column
 
@@ -62,4 +78,6 @@ the built-in Agents column itself (sidebar, collapsed sidebar, navigation):
 herdr >= 0.9.3 adds a second prefix (`ctrl+space`) and `prefix+ctrl+l` to clear a pane while keeping the prompt. `setup` refuses to apply while the running server is older than the binary (restart it after `herdr update`).
 
 Filters combine, a toast shows the current one, and the state is re-applied at
-server startup.
+server startup. herdr drops the view when its server exits; a space switch
+re-applies it only when the server changed since the last apply, because
+setting a view resets the column and its selection.
