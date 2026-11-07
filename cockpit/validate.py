@@ -28,7 +28,7 @@ HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 def check_palette(palette):
     errors = []
-    for section in ("colors", "accounts"):
+    for section in ("colors", "accounts", "states"):
         for name, value in palette.get(section, {}).items():
             if isinstance(value, str) and not HEX.match(value):
                 errors.append(f"palette [{section}].{name} = {value!r} is not #RRGGBB")
@@ -38,6 +38,8 @@ def check_palette(palette):
     errors += [f"palette slot {s!r} is not a defined color" for s in slots if s not in palette["colors"]]
     errors += [f"palette [accounts] misses {a!r}" for a in ("perso", "pro", "codex", "other")
                if a not in palette.get("accounts", {})]
+    errors += [f"palette [states] misses {s!r}" for s in ("blocked", "working", "done")
+               if s not in palette.get("states", {})]
     return errors
 
 

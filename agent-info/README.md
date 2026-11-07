@@ -38,7 +38,8 @@ What herdr and the plugin marketplace do not cover reliably:
   without agents keeps the last color seen there, else takes its nearest parent's.
   Every space counts its agents per state, idle ones included (`○2`); an idle
   space gets no icon: `$space_icon` (‼ ◐ ✓, the most urgent state there) replaces
-  herdr's `state_icon`, which also marks idle and unknown spaces.
+  herdr's `state_icon`, which also marks idle and unknown spaces. The config
+  colors the icon from the palette's `[states]` and greys out idle spaces.
 - **Space groups**: a space is the child of the space whose folder holds its own
   (folders come from the panes' cwd: the one named like the space, else the most
   common), else of the space whose name plus "-" starts its own. A child shows

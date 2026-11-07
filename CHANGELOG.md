@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Spaces: state icons get their own colors (`[states]` in the palette: ‼ red,
+  ◐ peach, ✓ mauve), never an account's (◐ was perso yellow, ✓ codex green),
+  so an icon no longer blends into its name. Active spaces stay bold in their
+  account color; idle spaces, their idle-only `○N` count and group headers
+  turn dim grey, so active and idle spaces part at a glance.
 - Space colors come from the agents' accounts: a space takes the account most
   of its agents run under (pro sky, perso yellow, any other grey); without
   agents, the last color seen there, else its nearest parent's. The rule on

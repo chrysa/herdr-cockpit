@@ -48,14 +48,15 @@ enabled = false
 
 # Spaces, compact:
 #   1. state icon only when an agent there works, waits on you or has finished
-#      (agent-info's space_icon: herdr's state_icon also marks idle spaces), then
-#      the name, in the color of the account most of its agents run under
-#      (pro, perso; else grey; a space without agents keeps the last one or
-#      takes its parent's): bold when the space holds agents, dim when idle, so busy
-#      spaces stand out. A space whose folder sits in another space's folder
-#      (plateform_socle in Forge-Stack-Workshop/), else named after another
-#      plus "-suffix" (padam-av-GHA), shows "↳ name" right after its parent,
-#      in the parent's color; agent-info moves it there (no list by hand).
+#      (agent-info's space_icon: herdr's state_icon also marks idle spaces), in
+#      its own color ([states]: ‼ red, ◐ peach, ✓ mauve, never an account color),
+#      then the name. Active (an agent works, waits or has finished): bold, in
+#      the color of the account most of its agents run under (pro, perso; else
+#      plain text). Idle: dim grey, so active spaces stand out; an idle-only
+#      count ("○2") is dim grey too. A space whose folder sits in another
+#      space's folder (plateform_socle in Forge-Stack-Workshop/), else named
+#      after another plus "-suffix" (padam-av-GHA), shows "↳ name" right after
+#      its parent; agent-info moves it there (no list by hand).
 #      agent-info publishes the name under one of six tokens (busy/idle x
 #      ecosystem) because herdr row styles are static and rules only match a
 #      token's own value; on the same line, the agents and subagents counted
@@ -63,7 +64,7 @@ enabled = false
 #      ✗ failed ⊘ killed ✓ done), one group per account in its color;
 #      idle agents counted too ("○2"), also where every agent sits idle;
 #   0. above line 1, on the first space of a sibling group only: the group's
-#      header, dim ("↳ plateform" over "↳ socle", "↳ service_catalog",
+#      header, dim grey ("↳ plateform" over "↳ socle", "↳ service_catalog",
 #      "↳ charts": children whose names start with the same word, one letter of
 #      difference allowed); the members drop that word and sit one level deeper;
 #   2+. only the agents waiting on you (blocked), one red "‼ subject" line
@@ -75,16 +76,18 @@ enabled = false
 # waiting takes one line.
 [ui.sidebar.spaces]
 rows = [
-  [{ token = "$group_pro", fg = "{{accounts.pro}}", dim = true }, { token = "$group_perso", fg = "{{accounts.perso}}", dim = true },
-   { token = "$group_other", dim = true }],
-  [{ token = "$space_icon", rules = [{ equals = "{{symbols.blocked}}", fg = "{{colors.red}}" },
-     { equals = "{{symbols.working}}", fg = "{{colors.yellow}}" }, { equals = "{{symbols.done}}", fg = "{{colors.green}}" }] },
+  [{ token = "$group_pro", fg = "{{colors.overlay}}", dim = true }, { token = "$group_perso", fg = "{{colors.overlay}}", dim = true },
+   { token = "$group_other", fg = "{{colors.overlay}}", dim = true }],
+  [{ token = "$space_icon", bold = true, rules = [{ equals = "{{symbols.blocked}}", fg = "{{states.blocked}}" },
+     { equals = "{{symbols.working}}", fg = "{{states.working}}" }, { equals = "{{symbols.done}}", fg = "{{states.done}}" }] },
    { token = "$space_busy_pro", fg = "{{accounts.pro}}", bold = true }, { token = "$space_busy_perso", fg = "{{accounts.perso}}", bold = true },
-   { token = "$space_busy_other", bold = true },
-   { token = "$space_idle_pro", fg = "{{accounts.pro}}", dim = true }, { token = "$space_idle_perso", fg = "{{accounts.perso}}", dim = true },
-   { token = "$space_idle_other", dim = true },
-   { token = "$count_perso", fg = "{{accounts.perso}}" }, { token = "$count_pro", fg = "{{accounts.pro}}" },
-   { token = "$count_codex", fg = "{{accounts.codex}}" }, { token = "$count_other", fg = "{{accounts.other}}" }],
+   { token = "$space_busy_other", fg = "{{colors.text}}", bold = true },
+   { token = "$space_idle_pro", fg = "{{colors.overlay}}", dim = true }, { token = "$space_idle_perso", fg = "{{colors.overlay}}", dim = true },
+   { token = "$space_idle_other", fg = "{{colors.overlay}}", dim = true },
+   { token = "$count_perso", fg = "{{accounts.perso}}", rules = [{ starts_with = "{{symbols.idle}}", fg = "{{colors.overlay}}", dim = true }] },
+   { token = "$count_pro", fg = "{{accounts.pro}}", rules = [{ starts_with = "{{symbols.idle}}", fg = "{{colors.overlay}}", dim = true }] },
+   { token = "$count_codex", fg = "{{accounts.codex}}", rules = [{ starts_with = "{{symbols.idle}}", fg = "{{colors.overlay}}", dim = true }] },
+   { token = "$count_other", fg = "{{accounts.other}}", rules = [{ starts_with = "{{symbols.idle}}", dim = true }] }],
   [{ token = "$wait1", fg = "{{colors.red}}" }],
   [{ token = "$wait2", fg = "{{colors.red}}" }],
   [{ token = "$wait3", fg = "{{colors.red}}" }],
