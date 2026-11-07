@@ -280,6 +280,18 @@ def test_short_name_drops_the_parent_prefix():
     assert monitor.short_name("heya", None) == "heya"
 
 
+def test_children_drop_the_leading_words_their_siblings_share():
+    spaces = [("w1", "Forge-Stack-Workshop", "/f"), ("w2", "plateform_socle", "/f/a"),
+              ("w3", "plateform_service_catalog", "/f/b"), ("w4", "platform-charts", "/f/c"),
+              ("w5", "plateform", "/f/d"), ("w6", "padam-av", "/p"), ("w7", "padam-av-GHA", "/q"),
+              ("w8", "a_b", "/f/e"), ("w9", "a_b_c", "/f/g"), ("w10", "plateform_x", "/elsewhere")]
+    parents = {"w2": "w1", "w3": "w1", "w4": "w1", "w5": "w1", "w7": "w6", "w8": "w1", "w9": "w1"}
+    assert monitor.shown_names(spaces, parents) == {
+        "w1": "Forge-Stack-Workshop", "w2": "↳ socle", "w3": "↳ service_catalog", "w4": "↳ platform-charts",
+        "w5": "↳ plateform", "w6": "padam-av", "w7": "↳ GHA", "w8": "↳ b", "w9": "↳ b_c",
+        "w10": "plateform_x"}
+
+
 def test_name_tokens_set_exactly_one():
     assert monitor.name_tokens("↳ GHA", "pro", busy=False) == names(space_idle_pro="↳ GHA")
     assert monitor.name_tokens("", "other", busy=True) == names()

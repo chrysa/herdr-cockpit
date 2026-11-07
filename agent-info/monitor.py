@@ -621,6 +621,33 @@ def short_name(label, parent_label):
     return f"↳ {label.removeprefix(parent_label + '-') if label != parent_label else label}"
 
 
+WORDS = re.compile(r"[^-_. ]+[-_. ]*")  # "plateform_socle" -> "plateform_", "socle"
+
+
+def shown_names(spaces, parents):
+    """workspace_id -> sidebar name: short_name(), then children of one parent that
+    start with the same word drop the leading words they all share
+    (plateform_socle and plateform_service_catalog show "↳ socle" and
+    "↳ service_catalog"); every name keeps at least one word."""
+    label_of = {ws: label for ws, label, _ in spaces}
+    names = {ws: short_name(label, label_of.get(parents.get(ws))) for ws, label, _ in spaces}
+    groups = {}
+    for ws in label_of:
+        words = WORDS.findall(names[ws][2:]) if ws in parents else []
+        if words:
+            groups.setdefault((parents[ws], words[0]), []).append((ws, words))
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        shared = 0
+        while (all(len(words) > shared + 1 for _, words in members)
+               and len({tuple(words[:shared + 1]) for _, words in members}) == 1):
+            shared += 1
+        for ws, words in members:
+            names[ws] = f"↳ {''.join(words[shared:])}"
+    return names
+
+
 def name_tokens(shown, eco, busy):
     """{space_<busy|idle>_<eco>: shown name, the other name tokens: None}."""
     key = f"space_{'busy' if busy else 'idle'}_{eco}"
@@ -750,6 +777,7 @@ def tick(shown, state=None, now=None):
               for w, label in zip(workspaces, labels) if w.get("workspace_id")]
     parents = space_parents(listed)
     label_of = {ws: label for ws, label, _ in listed}
+    display = shown_names(listed, parents)
 
     def root(ws):
         while ws in parents:
@@ -758,8 +786,7 @@ def tick(shown, state=None, now=None):
 
     spaces = {
         f"ws:{ws}": {**dict.fromkeys(AGENT_TOKENS), **subjects.get(ws, {}),
-                     **name_tokens(short_name(label, label_of.get(parents.get(ws))),
-                                   ecosystem(label_of[root(ws)]), ws in active)}
+                     **name_tokens(display[ws], ecosystem(label_of[root(ws)]), ws in active)}
         for ws, label, _ in listed
     }
     for key, tokens in spaces.items():

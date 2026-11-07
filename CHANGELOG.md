@@ -77,9 +77,11 @@
 - agent-panel header: the folder in the account's color, git and services;
   account and model are left to the tab bar, which already shows them.
 - Spaces grouped by folder: a space whose folder sits in another space's
-  (`plateform_socle` in `Forge-Stack-Workshop/`) shows `↳ plateform_socle`
-  right after it, like `padam-av-*` under `padam-av`, in its parent's color.
-  agent-info moves children after their parent; nothing is listed by hand.
+  (`plateform_socle` in `Forge-Stack-Workshop/`) shows `↳ socle` right after
+  it, like `padam-av-*` under `padam-av`, in its parent's color: children drop
+  the parent's prefix and the leading words their siblings share
+  (`plateform_service_catalog` shows `↳ service_catalog`). agent-info moves
+  children after their parent; nothing is listed by hand.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

@@ -38,7 +38,9 @@ What herdr and the plugin marketplace do not cover reliably:
 - **Space groups**: a space is the child of the space whose folder holds its own
   (folders come from the panes' cwd: the one named like the space, else the most
   common), else of the space whose name plus "-" starts its own. A child shows
-  "↳ name" (the parent's prefix dropped) in its parent's ecosystem color, and the
+  "↳ name" in its parent's ecosystem color, without the parent's prefix nor the
+  leading words it shares with siblings that start like it (`plateform_socle` and
+  `plateform_service_catalog` show "↳ socle" and "↳ service_catalog"), and the
   daemon moves it right after its parent (`workspace.move` over the socket; the
   other spaces keep their order). Nothing is configured.
 - **State age and current action**: `$age` ("12m", "3h05", "2j") since the agent
