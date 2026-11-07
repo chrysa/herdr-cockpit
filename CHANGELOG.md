@@ -69,19 +69,23 @@
 - No pane borders (`ui.pane_borders = "off"`): agent-panel splits every agent
   tab, so herdr framed the conversation in the accent color with Claude's
   terminal title on top. The tab name already carries the subject.
-- A space where every agent sits idle shows no `○N` count: the dim name says
-  it, and long names such as `↳ supervision-interface` are no longer cut.
+- Every space counts its idle agents (`○N`), also a space where all of them
+  sit idle; only the state icon is left out there.
 - Agent names drop a default branch from auto-title's context
   (`prism-ai-lint › main › Gain` shows `prism-ai-lint › Gain`); a tab named
   only `main`, `master` or `develop` gives the conversation title instead.
 - agent-panel header: the folder in the account's color, git and services;
   account and model are left to the tab bar, which already shows them.
+- Spaces show a state icon only when an agent there works (◐), waits on you (‼)
+  or has finished (✓): agent-info's `$space_icon` replaces herdr's `state_icon`,
+  which also drew ○ on idle spaces and · on spaces without an agent.
 - Spaces grouped by folder: a space whose folder sits in another space's
-  (`plateform_socle` in `Forge-Stack-Workshop/`) shows `↳ socle` right after
-  it, like `padam-av-*` under `padam-av`, in its parent's color: children drop
-  the parent's prefix and the leading words their siblings share
-  (`plateform_service_catalog` shows `↳ service_catalog`). agent-info moves
-  children after their parent; nothing is listed by hand.
+  (`plateform_socle` in `Forge-Stack-Workshop/`) shows `↳ …` right after it,
+  like `padam-av-*` under `padam-av`, in its parent's color. Children whose
+  names start with the same word (`plateform_`, `platform-`: one letter apart)
+  get a second level: a dim `↳ plateform` header, then `↳ socle`,
+  `↳ service_catalog`, `↳ charts` one level deeper. agent-info moves children
+  after their parent; nothing is listed by hand.
 
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 

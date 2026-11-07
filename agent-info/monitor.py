@@ -511,13 +511,21 @@ NAME_TOKENS = tuple(f"space_{state}_{eco}" for state in ("busy", "idle") for eco
 WAIT_ROWS = 3
 WAIT_TOKENS = (*(f"wait{i}" for i in range(1, WAIT_ROWS + 1)), "wait_more")
 # Same line: agents and subagents counted per state, one group per account in its
-# color ("‼1 ◐2 ○1 ⑂●2✓1"): count_<perso|pro|codex|other>. A space where every
-# agent sits idle shows no count: its dimmed name already says so.
+# color ("‼1 ◐2 ○1 ⑂●2✓1"): count_<perso|pro|codex|other>, idle agents (○) included,
+# also in a space where every agent sits idle.
 COUNT_TOKENS = tuple(f"count_{name}" for name in (*NAMED_ACCOUNTS, "other"))
 AGENT_GLYPHS = {"blocked": "‼", "working": "◐", "done": "✓", "idle": "○"}
-ACTIVE_STATES = ("working", "blocked", "done")  # bold space name, counts shown
-AGENT_TOKENS = (*WAIT_TOKENS, *COUNT_TOKENS)
-SPACE_TOKENS = (*AGENT_TOKENS, *NAME_TOKENS)
+ACTIVE_STATES = ("working", "blocked", "done")  # bold space name
+# Line 1 starts with space_icon, the most urgent state among the space's agents, only
+# when one works, waits on you or has finished. herdr's own state_icon also draws
+# idle and unknown spaces and takes fixed styles only, so it is not used here.
+ICON_STATES = ("blocked", "working", "done")
+AGENT_TOKENS = ("space_icon", *WAIT_TOKENS, *COUNT_TOKENS)
+# Above line 1, on the first space of a sibling group only: the group's header
+# ("↳ plateform" over "↳ socle", "↳ service_catalog", "↳ charts"), one token per
+# ecosystem color like the names.
+GROUP_TOKENS = tuple(f"group_{eco}" for eco in ("pro", "perso", "other"))
+SPACE_TOKENS = (*AGENT_TOKENS, *NAME_TOKENS, *GROUP_TOKENS)
 
 
 def counts_label(statuses, sub_statuses):
@@ -584,8 +592,10 @@ def space_parents(spaces):
     return parents
 
 
-def grouped_order(ids, parents):
-    """Sidebar order with every space right after its parent; the others keep their place."""
+def grouped_order(ids, parents, groups=None):
+    """Sidebar order with every space right after its parent, the members of a sibling
+    group (sibling_groups) next to each other; the others keep their place."""
+    groups = groups or {}
     children = {}
     for ws in ids:
         if ws in parents:
@@ -594,8 +604,13 @@ def grouped_order(ids, parents):
 
     def add(ws):
         order.append(ws)
-        for child in children.get(ws, []):
-            add(child)
+        kids = children.get(ws, [])
+        for child in kids:
+            if child in order:
+                continue
+            together = [k for k in kids if child in groups and groups.get(k, (None,))[0] == groups[child][0]]
+            for member in together or [child]:
+                add(member)
 
     for ws in ids:
         if ws not in parents:
@@ -622,30 +637,88 @@ def short_name(label, parent_label):
 
 
 WORDS = re.compile(r"[^-_. ]+[-_. ]*")  # "plateform_socle" -> "plateform_", "socle"
+INDENT = "\u2800\u2800"  # one level deeper; herdr trims spaces around a token, not this blank
 
 
-def shown_names(spaces, parents):
-    """workspace_id -> sidebar name: short_name(), then children of one parent that
-    start with the same word drop the leading words they all share
-    (plateform_socle and plateform_service_catalog show "↳ socle" and
-    "↳ service_catalog"); every name keeps at least one word."""
+def word_key(word):
+    return word.rstrip("-_. ").lower()
+
+
+def near(a, b):
+    """Same word, or (5+ letters) one letter added, dropped or changed: plateform ~ platform."""
+    if a == b:
+        return True
+    if min(len(a), len(b)) < 5 or abs(len(a) - len(b)) > 1:
+        return False
+    i = 0
+    while i < min(len(a), len(b)) and a[i] == b[i]:
+        i += 1
+    return a[i + 1:] == b[i + 1:] or a[i + 1:] == b[i:] or a[i:] == b[i + 1:]
+
+
+def sibling_groups(spaces, parents):
+    """Children of one parent whose names start with the same word (one letter of
+    difference allowed) -> {workspace_id: (header, rest)}: header is the shared start
+    in its most common spelling ("plateform"), rest what each one keeps ("socle")."""
     label_of = {ws: label for ws, label, _ in spaces}
-    names = {ws: short_name(label, label_of.get(parents.get(ws))) for ws, label, _ in spaces}
-    groups = {}
-    for ws in label_of:
-        words = WORDS.findall(names[ws][2:]) if ws in parents else []
-        if words:
-            groups.setdefault((parents[ws], words[0]), []).append((ws, words))
-    for members in groups.values():
-        if len(members) < 2:
+    rests = {ws: short_name(label, label_of.get(parents.get(ws)))[2:] for ws, label, _ in spaces if ws in parents}
+    clusters = {}
+    for ws, rest in rests.items():
+        words = WORDS.findall(rest)
+        if len(words) < 2:
             continue
-        shared = 0
-        while (all(len(words) > shared + 1 for _, words in members)
-               and len({tuple(words[:shared + 1]) for _, words in members}) == 1):
-            shared += 1
-        for ws, words in members:
-            names[ws] = f"↳ {''.join(words[shared:])}"
-    return names
+        family = clusters.setdefault(parents[ws], [])
+        cluster = next((c for c in family if near(word_key(c[0][1][0]), word_key(words[0]))), None)
+        if cluster is None:
+            family.append([(ws, words)])
+        else:
+            cluster.append((ws, words))
+    groups = {}
+    for family in clusters.values():
+        for members in family:
+            if len(members) < 2:
+                continue
+            shared = 1
+            while (all(len(words) > shared + 1 for _, words in members)
+                   and len({words[shared] for _, words in members}) == 1):
+                shared += 1
+            spellings = [words[0].rstrip("-_. ") for _, words in members]
+            first = max(spellings, key=lambda s: (spellings.count(s), -spellings.index(s)))
+            lead = members[0][1]
+            header = (first + lead[0][len(spellings[0]):] + "".join(lead[1:shared])).rstrip("-_. ")
+            for ws, words in members:
+                groups[ws] = (header, "".join(words[shared:]))
+    return groups
+
+
+def space_layout(spaces, parents, groups):
+    """(names, headers): the sidebar name of every space and, on the first member of
+    each sibling group, the group's header row. A child shows "↳ name", one INDENT
+    per level below the first; a grouped child sits one level under its header."""
+    label_of = {ws: label for ws, label, _ in spaces}
+    levels = {}
+
+    def level(ws):
+        if ws not in levels:
+            levels[ws] = 0 if ws not in parents else level(parents[ws]) + 1 + (ws in groups)
+        return levels[ws]
+
+    names, headers, seen = {}, {}, set()
+    for ws, label, _ in spaces:
+        if ws not in parents:
+            names[ws] = label
+            continue
+        rest = groups[ws][1] if ws in groups else short_name(label, label_of.get(parents[ws]))[2:]
+        names[ws] = f"{INDENT * (level(ws) - 1)}↳ {rest}"
+        if ws in groups and (parents[ws], groups[ws][0]) not in seen:
+            seen.add((parents[ws], groups[ws][0]))
+            headers[ws] = f"{INDENT * (level(ws) - 2)}↳ {groups[ws][0]}"
+    return names, headers
+
+
+def group_tokens(header, eco):
+    """{group_<eco>: header row text, the other group tokens: None}."""
+    return {name: header if name == f"group_{eco}" else None for name in GROUP_TOKENS}
 
 
 def name_tokens(shown, eco, busy):
@@ -672,9 +745,9 @@ def request(method, params):
     return reply
 
 
-def group_spaces(ids, parents, state):
+def group_spaces(ids, parents, state, groups=None):
     """Move children after their parent; a wanted order herdr did not take is not retried."""
-    wanted = grouped_order(ids, parents)
+    wanted = grouped_order(ids, parents, groups)
     if wanted == ids:
         state["tried_order"] = None
         return
@@ -702,26 +775,33 @@ def space_tokens(agents, details=None):
         lines = [f"‼ {details.get(a.get('pane_id'), {}).get('name') or topic_title(a) or 'agent'}" for a in waiting]
         extra = len(lines) - WAIT_ROWS
         groups = {}
-        active = any(a.get("agent_status") in ACTIVE_STATES for a in members)
-        for agent in members if active else ():
+        for agent in members:
             info = details.get(agent.get("pane_id"), {})
             account = info.get("account") if info.get("account") in NAMED_ACCOUNTS else "other"
             statuses, subs = groups.setdefault(account, ([], []))
             statuses.append(agent.get("agent_status"))
             subs.extend(info.get("subs", []))
-        tokens[ws] = {**{f"wait{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, WAIT_ROWS + 1)},
+        states = {a.get("agent_status") for a in members}
+        icon = next((AGENT_GLYPHS[state] for state in ICON_STATES if state in states), None)
+        tokens[ws] = {"space_icon": icon,
+                      **{f"wait{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, WAIT_ROWS + 1)},
                       "wait_more": f"+{extra} en attente" if extra > 0 else None,
                       **{f"count_{name}": counts_label(*groups[name]) if name in groups else None
                          for name in (*NAMED_ACCOUNTS, "other")}}
     return tokens
 
 
+REPORT_MAX = 16  # herdr: "a metadata report may update at most 16 tokens"
+
+
 def publish_space(workspace_id, tokens):
-    args = ["workspace", "report-metadata", workspace_id, "--source", SOURCE, "--ttl-ms", str(TTL_MS)]
-    for name in SPACE_TOKENS:
-        value = CONTROL.sub("", tokens.get(name) or "")
-        args += ["--token", f"{name}={value}"] if value else ["--clear-token", name]
-    herdr(*args)
+    """One report per REPORT_MAX tokens; herdr leaves the tokens a report does not name."""
+    for start in range(0, len(SPACE_TOKENS), REPORT_MAX):
+        args = ["workspace", "report-metadata", workspace_id, "--source", SOURCE, "--ttl-ms", str(TTL_MS)]
+        for name in SPACE_TOKENS[start:start + REPORT_MAX]:
+            value = CONTROL.sub("", tokens.get(name) or "")
+            args += ["--token", f"{name}={value}"] if value else ["--clear-token", name]
+        herdr(*args)
 
 
 def new_state():
@@ -777,7 +857,8 @@ def tick(shown, state=None, now=None):
               for w, label in zip(workspaces, labels) if w.get("workspace_id")]
     parents = space_parents(listed)
     label_of = {ws: label for ws, label, _ in listed}
-    display = shown_names(listed, parents)
+    groups = sibling_groups(listed, parents)
+    display, headers = space_layout(listed, parents, groups)
 
     def root(ws):
         while ws in parents:
@@ -786,7 +867,8 @@ def tick(shown, state=None, now=None):
 
     spaces = {
         f"ws:{ws}": {**dict.fromkeys(AGENT_TOKENS), **subjects.get(ws, {}),
-                     **name_tokens(display[ws], ecosystem(label_of[root(ws)]), ws in active)}
+                     **name_tokens(display[ws], ecosystem(label_of[root(ws)]), ws in active),
+                     **group_tokens(headers.get(ws), ecosystem(label_of[root(ws)]))}
         for ws, label, _ in listed
     }
     for key, tokens in spaces.items():
@@ -801,7 +883,7 @@ def tick(shown, state=None, now=None):
                 publish_space(gone[3:], {})  # space no longer listed: clear its tokens
             except RuntimeError:
                 pass  # space closed meanwhile
-    group_spaces([ws for ws, _, _ in listed], parents, state)
+    group_spaces([ws for ws, _, _ in listed], parents, state, groups)
 
 
 def daemon():

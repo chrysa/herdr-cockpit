@@ -215,8 +215,8 @@ def test_topic_prefers_a_real_title(agent, topic):
     assert monitor.topic_tokens(agent, "perso")["topic_perso"] == topic
 
 
-def waits(*lines, more=None, **counts):
-    return {**{f"wait{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, monitor.WAIT_ROWS + 1)},
+def waits(*lines, more=None, icon=None, **counts):
+    return {"space_icon": icon, **{f"wait{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, monitor.WAIT_ROWS + 1)},
             "wait_more": more, **{f"count_{name}": counts.get(name) for name in ("perso", "pro", "codex", "other")}}
 
 
@@ -228,18 +228,29 @@ def test_spaces_list_only_waiting_agents_longest_wait_first():
         {"pane_id": "d", "workspace_id": "w2", "agent_status": "done", "state_change_seq": 7, "terminal_title_stripped": "Done"},
     ]
     spaces = monitor.space_tokens(agents)
-    assert spaces["w1"] == waits("‼ First", "‼ Later", other="‼2 ◐1")
-    assert spaces["w2"] == waits(other="✓1")
+    assert spaces["w1"] == waits("‼ First", "‼ Later", icon="‼", other="‼2 ◐1")
+    assert spaces["w2"] == waits(icon="✓", other="✓1")
+
+
+def test_space_icon_only_for_working_waiting_or_done():
+    def icon(*statuses):
+        agents = [{"pane_id": f"p{i}", "workspace_id": "w1", "agent_status": s} for i, s in enumerate(statuses)]
+        return monitor.space_tokens(agents)["w1"]["space_icon"]
+    assert icon("idle", "unknown") is None
+    assert icon("idle", "done") == "✓"
+    assert icon("done", "working") == "◐"
+    assert icon("working", "blocked", "idle") == "‼"
 
 
 def test_spaces_cap_waiting_lines():
     agents = [{"pane_id": f"p{i}", "workspace_id": "w1", "agent_status": "blocked", "state_change_seq": i,
                "terminal_title_stripped": f"T{i}"} for i in range(5)]
-    assert monitor.space_tokens(agents)["w1"] == waits("‼ T0", "‼ T1", "‼ T2", more="+2 en attente", other="‼5")
+    assert monitor.space_tokens(agents)["w1"] == waits("‼ T0", "‼ T1", "‼ T2", more="+2 en attente", icon="‼", other="‼5")
 
 
 def names(**set_):
-    return {name: set_.get(name) for name in monitor.NAME_TOKENS}
+    """Name and group-header tokens of one space, all None but set_."""
+    return {name: set_.get(name) for name in (*monitor.NAME_TOKENS, *monitor.GROUP_TOKENS)}
 
 
 def test_tick_publishes_space_tokens_and_clears_emptied_spaces(monkeypatch):
@@ -260,7 +271,7 @@ def test_tick_publishes_space_tokens_and_clears_emptied_spaces(monkeypatch):
     workspaces.pop()
     monitor.tick(shown)
     assert spaces == [
-        ("w1", {**waits("‼ x", pro="‼1"), **names(space_busy_perso="chrysa")}),
+        ("w1", {**waits("‼ x", icon="‼", pro="‼1"), **names(space_busy_perso="chrysa")}),
         ("w2", {**waits(), **names(space_idle_pro="padam-av")}),
         ("w1", {**waits(), **names(space_idle_perso="chrysa")}),
         ("w2", {}),  # space closed: tokens cleared
@@ -280,21 +291,55 @@ def test_short_name_drops_the_parent_prefix():
     assert monitor.short_name("heya", None) == "heya"
 
 
-def test_children_drop_the_leading_words_their_siblings_share():
+B = monitor.INDENT
+
+
+def test_near_words_allow_one_letter_of_difference():
+    assert monitor.near("plateform", "platform") and monitor.near("platform", "plateform")
+    assert monitor.near("charts", "chartz") and monitor.near("simul", "simul")
+    assert not monitor.near("socle", "social") and not monitor.near("gha", "ghb")
+
+
+def test_siblings_sharing_a_first_word_get_a_header_row():
     spaces = [("w1", "Forge-Stack-Workshop", "/f"), ("w2", "plateform_socle", "/f/a"),
               ("w3", "plateform_service_catalog", "/f/b"), ("w4", "platform-charts", "/f/c"),
               ("w5", "plateform", "/f/d"), ("w6", "padam-av", "/p"), ("w7", "padam-av-GHA", "/q"),
               ("w8", "a_b", "/f/e"), ("w9", "a_b_c", "/f/g"), ("w10", "plateform_x", "/elsewhere")]
     parents = {"w2": "w1", "w3": "w1", "w4": "w1", "w5": "w1", "w7": "w6", "w8": "w1", "w9": "w1"}
-    assert monitor.shown_names(spaces, parents) == {
-        "w1": "Forge-Stack-Workshop", "w2": "↳ socle", "w3": "↳ service_catalog", "w4": "↳ platform-charts",
-        "w5": "↳ plateform", "w6": "padam-av", "w7": "↳ GHA", "w8": "↳ b", "w9": "↳ b_c",
-        "w10": "plateform_x"}
+    groups = monitor.sibling_groups(spaces, parents)
+    assert groups == {"w2": ("plateform", "socle"), "w3": ("plateform", "service_catalog"),
+                      "w4": ("plateform", "charts"),  # one letter apart: one group
+                      "w8": ("a", "b"), "w9": ("a", "b_c")}  # short words group only when equal
+    shown, headers = monitor.space_layout(spaces, parents, groups)
+    assert shown == {"w1": "Forge-Stack-Workshop", "w2": f"{B}↳ socle", "w3": f"{B}↳ service_catalog",
+                     "w4": f"{B}↳ charts", "w5": "↳ plateform", "w6": "padam-av", "w7": "↳ GHA",
+                     "w8": f"{B}↳ b", "w9": f"{B}↳ b_c", "w10": "plateform_x"}
+    assert headers == {"w2": "↳ plateform", "w8": "↳ a"}
+
+
+def test_a_group_shares_every_leading_word_its_members_have_in_common():
+    spaces = [("w1", "p", "/p"), ("w2", "front_web_app", "/p/a"), ("w3", "front_web_admin", "/p/b")]
+    groups = monitor.sibling_groups(spaces, {"w2": "w1", "w3": "w1"})
+    assert groups == {"w2": ("front_web", "app"), "w3": ("front_web", "admin")}
+
+
+def test_group_members_are_ordered_next_to_each_other():
+    ids = ["w1", "w2", "w3", "w4"]
+    parents = {"w2": "w1", "w3": "w1", "w4": "w1"}
+    groups = {"w2": ("plateform", "socle"), "w4": ("plateform", "charts")}
+    assert monitor.grouped_order(ids, parents, groups) == ["w1", "w2", "w4", "w3"]
+
+
+def test_group_tokens_set_exactly_one():
+    assert monitor.group_tokens("↳ plateform", "other") == {"group_pro": None, "group_perso": None,
+                                                            "group_other": "↳ plateform"}
+    assert set(monitor.group_tokens(None, "pro").values()) == {None}
 
 
 def test_name_tokens_set_exactly_one():
-    assert monitor.name_tokens("↳ GHA", "pro", busy=False) == names(space_idle_pro="↳ GHA")
-    assert monitor.name_tokens("", "other", busy=True) == names()
+    only_names = {name: None for name in monitor.NAME_TOKENS}
+    assert monitor.name_tokens("↳ GHA", "pro", busy=False) == {**only_names, "space_idle_pro": "↳ GHA"}
+    assert monitor.name_tokens("", "other", busy=True) == only_names
 
 
 def test_space_folders_prefer_the_pane_named_like_the_space():
@@ -363,11 +408,13 @@ def test_publish_space_sets_and_clears(monkeypatch):
     calls = []
     monkeypatch.setattr(monitor, "herdr", lambda *args: calls.append(args) or {})
     monitor.publish_space("w1", {"wait1": "Fix\x1b[2J it"})
-    args = calls[0]
-    assert args[:3] == ("workspace", "report-metadata", "w1")
+    assert all(args[:3] == ("workspace", "report-metadata", "w1") for args in calls)
+    named = [[args[i + 1] for i, a in enumerate(args) if a in ("--token", "--clear-token")] for args in calls]
+    assert all(len(names) <= monitor.REPORT_MAX for names in named)  # herdr refuses more
+    args = [a for call in calls for a in call]
     assert "wait1=Fix[2J it" in args
     cleared = [args[i + 1] for i, a in enumerate(args) if a == "--clear-token"]
-    assert set(cleared) == set(monitor.SPACE_TOKENS) - {"wait1"}
+    assert sorted(cleared) == sorted(set(monitor.SPACE_TOKENS) - {"wait1"})
 
 
 def test_space_counts_group_agents_and_subagents_by_account():
@@ -386,14 +433,14 @@ def test_space_counts_group_agents_and_subagents_by_account():
         "count_perso": "◐1 ○1 ⑂●2✓1", "count_pro": "✓1 ⑂✗1", "count_codex": None, "count_other": "○1"}
 
 
-def test_idle_spaces_show_no_counts():
+def test_idle_spaces_count_their_idle_agents():
     agents = [{"pane_id": "a", "workspace_id": "w1", "agent_status": "idle"},
               {"pane_id": "b", "workspace_id": "w1", "agent_status": "idle"},
               {"pane_id": "c", "workspace_id": "w2", "agent_status": "idle"},
               {"pane_id": "d", "workspace_id": "w2", "agent_status": "working"}]
     details = {p: {"account": "perso"} for p in "abcd"}
     tokens = monitor.space_tokens(agents, details)
-    assert [v for k, v in tokens["w1"].items() if k.startswith("count_") and v] == []
+    assert tokens["w1"]["count_perso"] == "○2"
     assert tokens["w2"]["count_perso"] == "◐1 ○1"
 
 
@@ -466,4 +513,4 @@ def test_spaces_with_only_idle_agents_are_dimmed(monkeypatch):
     monkeypatch.setattr(monitor, "publish_space", lambda ws, tokens: spaces.append((ws, tokens)))
     monitor.tick({"_refreshed": 10 ** 12})
     named = {ws: {k: v for k, v in t.items() if k.startswith("space_") and v} for ws, t in spaces}
-    assert named == {"w1": {"space_idle_perso": "chrysa"}, "w2": {"space_busy_pro": "padam-av"}}
+    assert named == {"w1": {"space_idle_perso": "chrysa"}, "w2": {"space_icon": "✓", "space_busy_pro": "padam-av"}}

@@ -33,16 +33,21 @@ What herdr and the plugin marketplace do not cover reliably:
   8 s poll.
 - **Space names** under one of six tokens, `$space_<busy|idle>_<pro|perso|other>`
   (busy = an agent there works, waits on you or has finished), so the sidebar can
-  bold busy spaces and dim idle ones in their ecosystem color. An idle space gets
-  no state counts.
+  bold busy spaces and dim idle ones in their ecosystem color. Every space counts
+  its agents per state, idle ones included (`○2`); an idle space gets no icon: `$space_icon` (‼ ◐ ✓, the most urgent state there)
+  replaces herdr's `state_icon`, which also marks idle and unknown spaces.
 - **Space groups**: a space is the child of the space whose folder holds its own
   (folders come from the panes' cwd: the one named like the space, else the most
   common), else of the space whose name plus "-" starts its own. A child shows
-  "↳ name" in its parent's ecosystem color, without the parent's prefix nor the
-  leading words it shares with siblings that start like it (`plateform_socle` and
-  `plateform_service_catalog` show "↳ socle" and "↳ service_catalog"), and the
+  "↳ name" in its parent's ecosystem color, without the parent's prefix, and the
   daemon moves it right after its parent (`workspace.move` over the socket; the
-  other spaces keep their order). Nothing is configured.
+  other spaces keep their order). Children of one parent whose names start with
+  the same word (one letter of difference allowed from 5 letters: `plateform_`,
+  `platform-`) form a second level: a dim header row `$group_<eco>` ("↳ plateform",
+  the most common spelling) above the first one, and each member drops that word
+  and sits one level deeper ("⠀⠀↳ socle"; herdr trims spaces around a token, so the
+  indent is U+2800). Nothing is configured. A space reports its 18 tokens in two
+  calls: herdr takes at most 16 per report.
 - **State age and current action**: `$age` ("12m", "3h05", "2j") since the agent
   entered its state, measured by the daemon (herdr reports no timestamps) and kept
   in `~/.local/state/chrysa.agent-info/since.json`; `$doing`, the last tool call of
