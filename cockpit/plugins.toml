@@ -41,7 +41,7 @@ enabled = true
 [[plugin]]
 id = "herdr.auto-title"
 source = "kryptamine/herdr-auto-title"
-ref = "7fcec810280696b8b38b5bd884be2b340c73e02b"
+ref = "d8603171bde954fa2db57bf6013c548daa6f58c1"  # v0.20.0
 enabled = true
 
 [[plugin]]

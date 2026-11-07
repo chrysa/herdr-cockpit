@@ -501,12 +501,15 @@ def topic_tokens(agent, account, name=None):
 # Line 1: the space name under one of six tokens, busy (holds agents, bold) or idle
 # (dim) x ecosystem color, one set and the others cleared: herdr row styles are
 # static and rules only match a token's own value, so the state and the ecosystem
-# must be in the token name. A space is the child of the space whose folder holds
-# its own (plateform_socle in Forge-Stack-Workshop/), else of the space whose name
-# plus "-" starts its own (padam-av-GHA next to padam-av): it shows "↳ name" (the
-# parent's prefix dropped), takes its parent's ecosystem, and is moved right after
-# its parent. Nothing is listed by hand: folders come from the panes' cwd.
-ECOSYSTEMS = (("pro", lambda name: name.startswith("padam")), ("perso", lambda name: name == "chrysa"))
+# must be in the token name. The ecosystem is the account most of the space's
+# agents run under (pro or perso, any other grey); a space without agents keeps
+# the last one seen there, else takes its nearest parent's. A space is the child
+# of the space whose folder holds its own (plateform_socle in
+# Forge-Stack-Workshop/), else of the space whose name plus "-" starts its own
+# (padam-av-GHA next to padam-av): it shows "↳ name" (the parent's prefix
+# dropped) and is moved right after its parent. Nothing is listed by hand:
+# folders come from the panes' cwd, colors from the agents' accounts.
+ECOSYSTEM_ACCOUNTS = ("pro", "perso")  # accounts with a space color of their own
 NAME_TOKENS = tuple(f"space_{state}_{eco}" for state in ("busy", "idle") for eco in ("pro", "perso", "other"))
 WAIT_ROWS = 3
 WAIT_TOKENS = (*(f"wait{i}" for i in range(1, WAIT_ROWS + 1)), "wait_more")
@@ -536,8 +539,30 @@ def counts_label(statuses, sub_statuses):
     return " ".join(parts + ([f"⑂{subs}"] if subs else [])) or None
 
 
-def ecosystem(label):
-    return next((eco for eco, matches in ECOSYSTEMS if matches(label)), "other")
+def space_ecosystems(ids, parents, accounts, memory):
+    """workspace_id -> "pro" | "perso" | "other".
+
+    accounts: workspace_id -> the account of each of its agents (None: unknown).
+    memory: workspace_id -> last ecosystem seen from agents; updated, closed spaces dropped.
+    """
+    for ws in set(memory) - set(ids):
+        del memory[ws]
+    for ws in ids:
+        known = [account for account in accounts.get(ws, []) if account]
+        if known:
+            top = max(known, key=lambda a: (known.count(a), -known.index(a)))
+            memory[ws] = top if top in ECOSYSTEM_ACCOUNTS else "other"
+
+    def eco(ws):
+        seen = set()
+        while ws is not None and ws not in seen:
+            if ws in memory:
+                return memory[ws]
+            seen.add(ws)
+            ws = parents.get(ws)
+        return "other"
+
+    return {ws: eco(ws) for ws in ids}
 
 
 def space_folders(workspaces, panes):
@@ -809,7 +834,7 @@ def publish_space(workspace_id, tokens):
 def new_state():
     """Daemon memory across ticks: state ages and the blocked states already notified."""
     return {"since": {}, "notified": set(), "first": True, "logs": {}, "watch": [], "panes": [], "marked": {},
-            "accounts": {}}
+            "accounts": {}, "ecosystems": {}}
 
 
 def tick(shown, state=None, now=None):
@@ -858,20 +883,18 @@ def tick(shown, state=None, now=None):
     listed = [(w["workspace_id"], label, folders.get(w["workspace_id"]))
               for w, label in zip(workspaces, labels) if w.get("workspace_id")]
     parents = space_parents(listed)
-    label_of = {ws: label for ws, label, _ in listed}
     groups = sibling_groups(listed, parents)
     display, headers = space_layout(listed, parents, groups)
-
-    def root(ws):
-        while ws in parents:
-            ws = parents[ws]
-        return ws
-
+    accounts = {}
+    for agent in agents:
+        accounts.setdefault(agent.get("workspace_id"), []).append(details[agent["pane_id"]]["account"])
+    ecos = space_ecosystems([ws for ws, _, _ in listed], parents, accounts, state.setdefault("ecosystems", {}))
     spaces = {
         f"ws:{ws}": {**dict.fromkeys(AGENT_TOKENS), **subjects.get(ws, {}),
-                     **name_tokens(display[ws], ecosystem(label_of[root(ws)]), ws in active),
-                     **group_tokens(headers.get(ws), ecosystem(label_of[root(ws)]))}
-        for ws, label, _ in listed
+                     **name_tokens(display[ws], ecos[ws], ws in active),
+                     # the header belongs to the parent's row of children: the parent's color
+                     **group_tokens(headers.get(ws), ecos.get(parents.get(ws), ecos[ws]))}
+        for ws, _, _ in listed
     }
     for key, tokens in spaces.items():
         if shown.get(key) != tokens:

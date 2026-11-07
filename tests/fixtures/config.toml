@@ -49,8 +49,9 @@ enabled = false
 # Spaces, compact:
 #   1. state icon only when an agent there works, waits on you or has finished
 #      (agent-info's space_icon: herdr's state_icon also marks idle spaces), then
-#      the name, colored by ecosystem (padam = pro account color,
-#      chrysa = perso): bold when the space holds agents, dim when idle, so busy
+#      the name, in the color of the account most of its agents run under
+#      (pro, perso; else grey; a space without agents keeps the last one or
+#      takes its parent's): bold when the space holds agents, dim when idle, so busy
 #      spaces stand out. A space whose folder sits in another space's folder
 #      (plateform_socle in Forge-Stack-Workshop/), else named after another
 #      plus "-suffix" (padam-av-GHA), shows "↳ name" right after its parent,

@@ -263,26 +263,32 @@ def test_tick_publishes_space_tokens_and_clears_emptied_spaces(monkeypatch):
     monkeypatch.setattr(monitor, "agent_info", lambda agent: ("opus-5.5", "pro"))
     monkeypatch.setattr(monitor, "publish", lambda pane, tokens: None)
     monkeypatch.setattr(monitor, "publish_space", lambda ws, tokens: spaces.append((ws, tokens)))
-    shown = {"_refreshed": 10 ** 12}
-    monitor.tick(shown)
-    monitor.tick(shown)  # unchanged: nothing republished
+    shown, state = {"_refreshed": 10 ** 12}, monitor.new_state()
+    monitor.tick(shown, state)
+    monitor.tick(shown, state)  # unchanged: nothing republished
     agents.clear()
-    monitor.tick(shown)
+    monitor.tick(shown, state)
     workspaces.pop()
-    monitor.tick(shown)
+    monitor.tick(shown, state)
     assert spaces == [
-        ("w1", {**waits("‼ x", icon="‼", pro="‼1"), **names(space_busy_perso="chrysa")}),
-        ("w2", {**waits(), **names(space_idle_pro="padam-av")}),
-        ("w1", {**waits(), **names(space_idle_perso="chrysa")}),
+        # colors from the agents' account (pro here), not the name; no agent ever: grey
+        ("w1", {**waits("‼ x", icon="‼", pro="‼1"), **names(space_busy_pro="chrysa")}),
+        ("w2", {**waits(), **names(space_idle_other="padam-av")}),
+        ("w1", {**waits(), **names(space_idle_pro="chrysa")}),  # agent gone: color kept
         ("w2", {}),  # space closed: tokens cleared
     ]
 
 
-@pytest.mark.parametrize("label, eco", [
-    ("padam-av", "pro"), ("padam-av-GHA", "pro"), ("chrysa", "perso"), ("chrysa-x", "other"), ("heya", "other"),
-])
-def test_ecosystem(label, eco):
-    assert monitor.ecosystem(label) == eco
+def test_space_color_comes_from_the_accounts_of_its_agents():
+    ids = ["w1", "w2", "w3", "w4", "w5", "w6"]
+    parents = {"w3": "w2", "w4": "w3"}
+    accounts = {"w1": ["pro", "perso", "pro"], "w2": ["perso"], "w5": ["codex", None], "w6": [None]}
+    memory = {"gone": "pro"}
+    ecos = monitor.space_ecosystems(ids, parents, accounts, memory)
+    # majority; nearest parent's for spaces without agents; codex or unknown accounts: grey
+    assert ecos == {"w1": "pro", "w2": "perso", "w3": "perso", "w4": "perso", "w5": "other", "w6": "other"}
+    assert memory == {"w1": "pro", "w2": "perso", "w5": "other"}  # closed space dropped
+    assert monitor.space_ecosystems(ids, parents, {}, memory)["w1"] == "pro"  # agents gone: kept
 
 
 def test_short_name_drops_the_parent_prefix():
@@ -514,4 +520,4 @@ def test_spaces_with_only_idle_agents_are_dimmed(monkeypatch):
     monkeypatch.setattr(monitor, "publish_space", lambda ws, tokens: spaces.append((ws, tokens)))
     monitor.tick({"_refreshed": 10 ** 12})
     named = {ws: {k: v for k, v in t.items() if k.startswith("space_") and v} for ws, t in spaces}
-    assert named == {"w1": {"space_idle_perso": "chrysa"}, "w2": {"space_icon": "✓", "space_busy_pro": "padam-av"}}
+    assert named == {"w1": {"space_idle_perso": "chrysa"}, "w2": {"space_icon": "✓", "space_busy_perso": "padam-av"}}

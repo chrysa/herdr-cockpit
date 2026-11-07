@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Space colors come from the agents' accounts: a space takes the account most
+  of its agents run under (pro sky, perso yellow, any other grey); without
+  agents, the last color seen there, else its nearest parent's. The rule on
+  names (`padam*` pro, `chrysa` perso) is gone.
+- herdr.auto-title v0.5.0 -> v0.20.0, with `HERDR_AUTO_TITLE_PREFER_AGENT=true`
+  (a tab keeps its agent's name while agent-panel has focus) and
+  `HERDR_AUTO_TITLE_PANES=false` (tabs only, panes keep their names). Its
+  install downloads the release binary and checks it against the release's
+  SHA256SUMS. Prefixes added since (icons, pane id, agent status, agent
+  handle) stay off by default.
 - Spaces: the folder comes first, bold, as the space's title; the subject
   ("+N" for the others) moves under it. An idle space still takes one line.
 - Agents column: shows only the selected space by default (`prefix+ctrl+x`
