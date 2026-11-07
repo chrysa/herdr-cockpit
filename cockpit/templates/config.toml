@@ -55,8 +55,9 @@ enabled = false
 #      plain text). Idle: dim grey, so active spaces stand out; an idle-only
 #      count ("○2") is dim grey too. A space whose folder sits in another
 #      space's folder (plateform_socle in Forge-Stack-Workshop/), else named
-#      after another plus "-suffix" (padam-av-GHA), shows "↳ name" right after
-#      its parent; agent-info moves it there (no list by hand).
+#      after another plus "-suffix" (padam-av-GHA), is its child: spaces form a
+#      tree in alphabetical order at every level ("├ GHA", "└ simul"), and
+#      agent-info moves them into that order (no list by hand).
 #      agent-info publishes the name under one of six tokens (busy/idle x
 #      ecosystem) because herdr row styles are static and rules only match a
 #      token's own value; on the same line, the agents and subagents counted
@@ -64,8 +65,8 @@ enabled = false
 #      ✗ failed ⊘ killed ✓ done), one group per account in its color;
 #      idle agents counted too ("○2"), also where every agent sits idle;
 #   0. above line 1, on the first space of a sibling group only: the group's
-#      header, dim grey ("↳ plateform" over "↳ socle", "↳ service_catalog",
-#      "↳ charts": children whose names start with the same word, one letter of
+#      header, dim grey ("└ plateform" over "├ charts", "├ service_catalog",
+#      "└ socle": children whose names start with the same word, one letter of
 #      difference allowed); the members drop that word and sit one level deeper;
 #   2+. only the agents waiting on you (blocked), one red "‼ subject" line
 #      each, longest wait first, at most 3 then "+N en attente". Every other

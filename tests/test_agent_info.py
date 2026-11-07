@@ -292,8 +292,8 @@ def test_space_color_comes_from_the_accounts_of_its_agents():
 
 
 def test_short_name_drops_the_parent_prefix():
-    assert monitor.short_name("padam-av-GHA", "padam-av") == "↳ GHA"
-    assert monitor.short_name("plateform_socle", "Forge-Stack-Workshop") == "↳ plateform_socle"
+    assert monitor.short_name("padam-av-GHA", "padam-av") == "GHA"
+    assert monitor.short_name("plateform_socle", "Forge-Stack-Workshop") == "plateform_socle"
     assert monitor.short_name("heya", None) == "heya"
 
 
@@ -316,12 +316,14 @@ def test_siblings_sharing_a_first_word_get_a_header_row():
     assert groups == {"w2": ("plateform", "socle"), "w3": ("plateform", "service_catalog"),
                       "w4": ("plateform", "charts"),  # one letter apart: one group
                       "w8": ("a", "b"), "w9": ("a", "b_c")}  # short words group only when equal
-    shown, headers = monitor.space_layout(spaces, parents, groups)
-    # w2 and w8 carry their group's header: herdr indents their name row (a second row) itself
-    assert shown == {"w1": "Forge-Stack-Workshop", "w2": "↳ socle", "w3": f"{B}↳ service_catalog",
-                     "w4": f"{B}↳ charts", "w5": "↳ plateform", "w6": "padam-av", "w7": "↳ GHA",
-                     "w8": "↳ b", "w9": f"{B}↳ b_c", "w10": "plateform_x"}
-    assert headers == {"w2": "↳ plateform", "w8": "↳ a"}
+    order, shown, headers = monitor.space_tree(spaces, parents, groups)
+    assert order == ["w1", "w8", "w9", "w5", "w4", "w3", "w2", "w6", "w7", "w10"]
+    # w8 and w4 carry their group's header: their name is a second row, which herdr
+    # indents by 2 columns itself, so their prefix drops its first unit
+    assert shown == {"w1": "Forge-Stack-Workshop", "w8": "├ b", "w9": "│ └ b_c", "w5": "├ plateform",
+                     "w4": "├ charts", "w3": f"{B}├ service_catalog", "w2": f"{B}└ socle",
+                     "w6": "padam-av", "w7": "└ GHA", "w10": "plateform_x"}
+    assert headers == {"w8": "├ a", "w4": "└ plateform"}
 
 
 def test_a_group_shares_every_leading_word_its_members_have_in_common():
@@ -330,22 +332,24 @@ def test_a_group_shares_every_leading_word_its_members_have_in_common():
     assert groups == {"w2": ("front_web", "app"), "w3": ("front_web", "admin")}
 
 
-def test_group_members_are_ordered_next_to_each_other():
-    ids = ["w1", "w2", "w3", "w4"]
+def test_group_members_sit_together_sorted_by_name():
+    spaces = [("w1", "p", "/p"), ("w2", "x_socle", "/p/a"), ("w3", "m", "/p/m"), ("w4", "x_charts", "/p/b")]
     parents = {"w2": "w1", "w3": "w1", "w4": "w1"}
-    groups = {"w2": ("plateform", "socle"), "w4": ("plateform", "charts")}
-    assert monitor.grouped_order(ids, parents, groups) == ["w1", "w2", "w4", "w3"]
+    groups = {"w2": ("x", "socle"), "w4": ("x", "charts")}
+    order, shown, headers = monitor.space_tree(spaces, parents, groups)
+    assert order == ["w1", "w3", "w4", "w2"]
+    assert shown["w3"] == "├ m" and headers == {"w4": "└ x"}
 
 
 def test_group_tokens_set_exactly_one():
-    assert monitor.group_tokens("↳ plateform", "other") == {"group_pro": None, "group_perso": None,
-                                                            "group_other": "↳ plateform"}
+    assert monitor.group_tokens("└ plateform", "other") == {"group_pro": None, "group_perso": None,
+                                                            "group_other": "└ plateform"}
     assert set(monitor.group_tokens(None, "pro").values()) == {None}
 
 
 def test_name_tokens_set_exactly_one():
     only_names = {name: None for name in monitor.NAME_TOKENS}
-    assert monitor.name_tokens("↳ GHA", "pro", busy=False) == {**only_names, "space_idle_pro": "↳ GHA"}
+    assert monitor.name_tokens("└ GHA", "pro", busy=False) == {**only_names, "space_idle_pro": "└ GHA"}
     assert monitor.name_tokens("", "other", busy=True) == only_names
 
 
@@ -374,10 +378,14 @@ def test_space_parents_skip_a_name_link_that_closes_a_loop():
     assert monitor.space_parents(spaces) == {"w2": "w1"}
 
 
-def test_children_follow_their_parent_and_the_rest_keeps_its_place():
+def test_spaces_sorted_alphabetically_children_under_their_parent_as_a_tree():
     ids = ["w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8"]
-    wanted = monitor.grouped_order(ids, monitor.space_parents(SPACES))
-    assert wanted == ["w1", "w8", "w2", "w5", "w6", "w7", "w3", "w4"]
+    parents = monitor.space_parents(SPACES)
+    wanted, shown, headers = monitor.space_tree(SPACES, parents, monitor.sibling_groups(SPACES, parents))
+    assert wanted == ["w1", "w8", "w2", "w6", "w7", "w5", "w3", "w4"]
+    assert shown == {"w1": "chrysa", "w8": "└ site", "w2": "Forge-Stack-Workshop", "w6": "├ charts",
+                     "w7": f"{B}│ └ deep", "w5": f"{B}└ socle", "w3": "padam-av", "w4": "└ GHA"}
+    assert headers == {"w6": "└ plateform"}
     moves = monitor.moves_to(ids, wanted)
     order = list(ids)
     for ws, index in moves:  # replay as herdr does: index = final place
@@ -400,7 +408,7 @@ def test_tick_groups_spaces_by_folder(monkeypatch):
     monkeypatch.setattr(monitor, "request", lambda method, params: moved.append((method, params)) or {})
     state = monitor.new_state()
     monitor.tick({"_refreshed": 10 ** 12}, state)
-    assert dict(spaces)["w3"] == {**waits(), **names(space_idle_other="↳ plateform_socle")}
+    assert dict(spaces)["w3"] == {**waits(), **names(space_idle_other="└ plateform_socle")}
     assert moved == [("workspace.move", {"workspace_id": "w3", "insert_index": 1})]
     monitor.tick({"_refreshed": 10 ** 12}, state)  # herdr did not take it: not asked again
     assert len(moved) == 1

@@ -506,9 +506,11 @@ def topic_tokens(agent, account, name=None):
 # the last one seen there, else takes its nearest parent's. A space is the child
 # of the space whose folder holds its own (plateform_socle in
 # Forge-Stack-Workshop/), else of the space whose name plus "-" starts its own
-# (padam-av-GHA next to padam-av): it shows "↳ name" (the parent's prefix
-# dropped) and is moved right after its parent. Nothing is listed by hand:
-# folders come from the panes' cwd, colors from the agents' accounts.
+# (padam-av-GHA next to padam-av): it shows its name without the parent's
+# prefix behind a tree prefix ("├ GHA", "└ simul"). Spaces are kept in
+# alphabetical order at every level, each child right after its parent; the
+# daemon moves them. Nothing is listed by hand: folders come from the panes'
+# cwd, colors from the agents' accounts.
 ECOSYSTEM_ACCOUNTS = ("pro", "perso")  # accounts with a space color of their own
 NAME_TOKENS = tuple(f"space_{state}_{eco}" for state in ("busy", "idle") for eco in ("pro", "perso", "other"))
 WAIT_ROWS = 3
@@ -525,7 +527,7 @@ ACTIVE_STATES = ("working", "blocked", "done")  # bold space name
 ICON_STATES = ("blocked", "working", "done")
 AGENT_TOKENS = ("space_icon", *WAIT_TOKENS, *COUNT_TOKENS)
 # Above line 1, on the first space of a sibling group only: the group's header
-# ("↳ plateform" over "↳ socle", "↳ service_catalog", "↳ charts"), one token per
+# ("└ plateform" over "├ charts", "├ service_catalog", "└ socle"), one token per
 # ecosystem color like the names.
 GROUP_TOKENS = tuple(f"group_{eco}" for eco in ("pro", "perso", "other"))
 SPACE_TOKENS = (*AGENT_TOKENS, *NAME_TOKENS, *GROUP_TOKENS)
@@ -617,32 +619,6 @@ def space_parents(spaces):
     return parents
 
 
-def grouped_order(ids, parents, groups=None):
-    """Sidebar order with every space right after its parent, the members of a sibling
-    group (sibling_groups) next to each other; the others keep their place."""
-    groups = groups or {}
-    children = {}
-    for ws in ids:
-        if ws in parents:
-            children.setdefault(parents[ws], []).append(ws)
-    order = []
-
-    def add(ws):
-        order.append(ws)
-        kids = children.get(ws, [])
-        for child in kids:
-            if child in order:
-                continue
-            together = [k for k in kids if child in groups and groups.get(k, (None,))[0] == groups[child][0]]
-            for member in together or [child]:
-                add(member)
-
-    for ws in ids:
-        if ws not in parents:
-            add(ws)
-    return order
-
-
 def moves_to(current, wanted):
     """(workspace_id, insert_index) moves turning current into wanted (index = final place)."""
     order, moves = list(current), []
@@ -655,14 +631,14 @@ def moves_to(current, wanted):
 
 
 def short_name(label, parent_label):
-    """label, or "↳ label" under a parent, its "parent-" prefix dropped."""
-    if parent_label is None:
+    """label without its parent's "parent-" prefix (unchanged without a parent)."""
+    if parent_label is None or label == parent_label:
         return label
-    return f"↳ {label.removeprefix(parent_label + '-') if label != parent_label else label}"
+    return label.removeprefix(parent_label + "-")
 
 
 WORDS = re.compile(r"[^-_. ]+[-_. ]*")  # "plateform_socle" -> "plateform_", "socle"
-INDENT = "\u2800\u2800"  # one level deeper; herdr trims spaces around a token, not this blank
+INDENT = "\u2800\u2800"  # a blank tree unit; herdr trims spaces around a token, not this blank
 
 
 def word_key(word):
@@ -686,7 +662,7 @@ def sibling_groups(spaces, parents):
     difference allowed) -> {workspace_id: (header, rest)}: header is the shared start
     in its most common spelling ("plateform"), rest what each one keeps ("socle")."""
     label_of = {ws: label for ws, label, _ in spaces}
-    rests = {ws: short_name(label, label_of.get(parents.get(ws)))[2:] for ws, label, _ in spaces if ws in parents}
+    rests = {ws: short_name(label, label_of.get(parents.get(ws))) for ws, label, _ in spaces if ws in parents}
     clusters = {}
     for ws, rest in rests.items():
         words = WORDS.findall(rest)
@@ -716,31 +692,65 @@ def sibling_groups(spaces, parents):
     return groups
 
 
-def space_layout(spaces, parents, groups):
-    """(names, headers): the sidebar name of every space and, on the first member of
-    each sibling group, the group's header row. A child shows "↳ name", one INDENT
-    per level below the first; a grouped child sits one level under its header."""
-    label_of = {ws: label for ws, label, _ in spaces}
-    levels = {}
+BRANCH, LAST, PIPE = "├ ", "└ ", "│ "  # tree glyphs, one 2-column unit per level
 
-    def level(ws):
-        if ws not in levels:
-            levels[ws] = 0 if ws not in parents else level(parents[ws]) + 1 + (ws in groups)
-        return levels[ws]
 
-    names, headers, seen = {}, {}, set()
-    for ws, label, _ in spaces:
-        if ws not in parents:
-            names[ws] = label
-            continue
-        rest = groups[ws][1] if ws in groups else short_name(label, label_of.get(parents[ws]))[2:]
-        depth = level(ws) - 1
-        if ws in groups and (parents[ws], groups[ws][0]) not in seen:
-            seen.add((parents[ws], groups[ws][0]))
-            headers[ws] = f"{INDENT * (level(ws) - 2)}↳ {groups[ws][0]}"
-            depth -= 1  # under its header the name row is a second row, which herdr indents by 2
-        names[ws] = f"{INDENT * depth}↳ {rest}"
-    return names, headers
+def space_tree(spaces, parents, groups):
+    """(order, names, headers) for the sidebar.
+
+    order: spaces sorted alphabetically (case-insensitive) at every level, each child
+    right after its parent; a sibling group (sibling_groups) sorts by its header and
+    keeps its members together, alphabetically too.
+    names: a root keeps its label; a child shows a tree prefix and its short name
+    ("├ GHA", "└ supervision-interface", "⠀⠀├ socle").
+    headers: on a group's first member only, the group's own tree line ("└ plateform").
+    That member's name is then its space's second row, which herdr indents by 2
+    columns: its prefix drops its first unit.
+    """
+    label = {ws: text for ws, text, _ in spaces}
+    key = str.casefold
+
+    def rest(ws):
+        return groups[ws][1] if ws in groups else short_name(label[ws], label.get(parents[ws]))
+
+    kids = {}
+    for ws, _, _ in spaces:
+        if ws in parents:
+            kids.setdefault(parents[ws], []).append(ws)
+    order, names, headers = [], {}, {}
+
+    def walk(parent, lead):
+        grouped, items = {}, []
+        for ws in kids.get(parent, []):
+            if ws in groups:
+                grouped.setdefault(groups[ws][0], []).append(ws)
+            else:
+                items.append((rest(ws), [ws], False))
+        items += [(header, sorted(members, key=lambda m: key(rest(m))), True) for header, members in grouped.items()]
+        items.sort(key=lambda item: key(item[0]))
+        for i, (text, members, is_group) in enumerate(items):
+            last = i == len(items) - 1
+            branch, cont = (LAST, INDENT) if last else (BRANCH, PIPE)
+            if not is_group:
+                order.append(members[0])
+                names[members[0]] = f"{lead}{branch}{text}"
+                walk(members[0], lead + cont)
+                continue
+            for j, member in enumerate(members):
+                member_last = j == len(members) - 1
+                prefix = lead + cont + (LAST if member_last else BRANCH)
+                if j == 0:
+                    headers[member] = f"{lead}{branch}{text}"
+                    prefix = prefix[2:]
+                order.append(member)
+                names[member] = f"{prefix}{rest(member)}"
+                walk(member, lead + cont + (INDENT if member_last else PIPE))
+
+    for root in sorted((ws for ws, _, _ in spaces if ws not in parents), key=lambda ws: key(label[ws])):
+        order.append(root)
+        names[root] = label[root]
+        walk(root, "")
+    return order, names, headers
 
 
 def group_tokens(header, eco):
@@ -772,9 +782,8 @@ def request(method, params):
     return reply
 
 
-def group_spaces(ids, parents, state, groups=None):
-    """Move children after their parent; a wanted order herdr did not take is not retried."""
-    wanted = grouped_order(ids, parents, groups)
+def group_spaces(ids, wanted, state):
+    """Move spaces into the wanted order; an order herdr did not take is not retried."""
     if wanted == ids:
         state["tried_order"] = None
         return
@@ -884,7 +893,7 @@ def tick(shown, state=None, now=None):
               for w, label in zip(workspaces, labels) if w.get("workspace_id")]
     parents = space_parents(listed)
     groups = sibling_groups(listed, parents)
-    display, headers = space_layout(listed, parents, groups)
+    order, display, headers = space_tree(listed, parents, groups)
     accounts = {}
     for agent in agents:
         accounts.setdefault(agent.get("workspace_id"), []).append(details[agent["pane_id"]]["account"])
@@ -908,7 +917,7 @@ def tick(shown, state=None, now=None):
                 publish_space(gone[3:], {})  # space no longer listed: clear its tokens
             except RuntimeError:
                 pass  # space closed meanwhile
-    group_spaces([ws for ws, _, _ in listed], parents, state, groups)
+    group_spaces([ws for ws, _, _ in listed], order, state)
 
 
 def daemon():

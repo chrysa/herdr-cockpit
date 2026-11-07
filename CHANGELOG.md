@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Spaces sort themselves alphabetically (case-insensitive) at every level,
+  each child right after its parent, and the hierarchy is drawn as a tree:
+  `├ GHA`, `└ supervision-interface`, `│ ` carrying the line on, instead of
+  `↳`. A group header reads `└ plateform` over `├ charts`, `└ socle`.
 - Spaces: state icons get their own colors (`[states]` in the palette: ‼ red,
   ◐ peach, ✓ mauve), never an account's (◐ was perso yellow, ✓ codex green),
   so an icon no longer blends into its name. Active spaces stay bold in their

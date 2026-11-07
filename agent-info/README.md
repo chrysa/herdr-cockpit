@@ -42,17 +42,20 @@ What herdr and the plugin marketplace do not cover reliably:
   colors the icon from the palette's `[states]` and greys out idle spaces.
 - **Space groups**: a space is the child of the space whose folder holds its own
   (folders come from the panes' cwd: the one named like the space, else the most
-  common), else of the space whose name plus "-" starts its own. A child shows
-  "↳ name" without the parent's prefix, and the
-  daemon moves it right after its parent (`workspace.move` over the socket; the
-  other spaces keep their order). Children of one parent whose names start with
-  the same word (one letter of difference allowed from 5 letters: `plateform_`,
-  `platform-`) form a second level: a dim header row `$group_<eco>` ("↳ plateform",
-  the most common spelling) above the first one, and each member drops that word
-  and sits one level deeper ("⠀⠀↳ socle"; herdr trims spaces around a token, so the
-  indent is U+2800; the member under the header gets one level less, since herdr
-  already indents a space's second row by 2 columns). Nothing is configured. A space reports its 18 tokens in two
-  calls: herdr takes at most 16 per report.
+  common), else of the space whose name plus "-" starts its own. Spaces are drawn
+  as a tree, in alphabetical order (case-insensitive) at every level, each child
+  right after its parent: a child shows its name without the parent's prefix
+  behind `├ ` (`└ ` for the last one, `│ ` to carry the line on). The daemon
+  moves spaces into that order (`workspace.move` over the socket). Children of
+  one parent whose names start with the same word (one letter of difference
+  allowed from 5 letters: `plateform_`, `platform-`) form a second level: a dim
+  header row `$group_<eco>` ("└ plateform", the most common spelling) above the
+  first one, and each member drops that word and sits one level deeper
+  ("⠀⠀└ socle"; herdr trims spaces around a token, so a blank unit is U+2800).
+  The member under the header drops its first unit, since herdr already indents
+  a space's second row by 2 columns; when the group is not its parent's last
+  child, the `│` line skips that one row. Nothing is configured. A space reports
+  its 18 tokens in two calls: herdr takes at most 16 per report.
 - **State age and current action**: `$age` ("12m", "3h05", "2j") since the agent
   entered its state, measured by the daemon (herdr reports no timestamps) and kept
   in `~/.local/state/chrysa.agent-info/since.json`; `$doing`, the last tool call of
