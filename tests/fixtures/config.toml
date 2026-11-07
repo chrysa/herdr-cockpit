@@ -49,8 +49,10 @@ enabled = false
 # Spaces, compact:
 #   1. state and the name, colored by ecosystem (padam = pro account color,
 #      chrysa = perso): bold when the space holds agents, dim when idle, so busy
-#      spaces stand out. A space named after another plus "-suffix" shows
-#      "↳ suffix" (padam-av-GHA under padam-av), so long names are not cut.
+#      spaces stand out. A space whose folder sits in another space's folder
+#      (plateform_socle in Forge-Stack-Workshop/), else named after another
+#      plus "-suffix" (padam-av-GHA), shows "↳ name" right after its parent,
+#      in the parent's color; agent-info moves it there (no list by hand).
 #      agent-info publishes the name under one of six tokens (busy/idle x
 #      ecosystem) because herdr row styles are static and rules only match a
 #      token's own value; on the same line, the agents and subagents counted

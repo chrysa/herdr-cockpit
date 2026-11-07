@@ -33,8 +33,14 @@ What herdr and the plugin marketplace do not cover reliably:
   8 s poll.
 - **Space names** under one of six tokens, `$space_<busy|idle>_<pro|perso|other>`
   (busy = an agent there works, waits on you or has finished), so the sidebar can
-  bold busy spaces and dim idle ones in their ecosystem color; a space named after
-  another plus "-suffix" shows "↳ suffix". An idle space gets no state counts.
+  bold busy spaces and dim idle ones in their ecosystem color. An idle space gets
+  no state counts.
+- **Space groups**: a space is the child of the space whose folder holds its own
+  (folders come from the panes' cwd: the one named like the space, else the most
+  common), else of the space whose name plus "-" starts its own. A child shows
+  "↳ name" (the parent's prefix dropped) in its parent's ecosystem color, and the
+  daemon moves it right after its parent (`workspace.move` over the socket; the
+  other spaces keep their order). Nothing is configured.
 - **State age and current action**: `$age` ("12m", "3h05", "2j") since the agent
   entered its state, measured by the daemon (herdr reports no timestamps) and kept
   in `~/.local/state/chrysa.agent-info/since.json`; `$doing`, the last tool call of

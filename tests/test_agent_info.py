@@ -274,18 +274,77 @@ def test_ecosystem(label, eco):
     assert monitor.ecosystem(label) == eco
 
 
-def test_short_name_drops_the_longest_parent_prefix():
-    labels = ["padam-av", "padam-av-GHA", "padam-av-GHA-ci", "heya", "padam"]
-    assert monitor.short_name("padam-av-GHA", labels) == "↳ GHA"
-    assert monitor.short_name("padam-av-GHA-ci", labels) == "↳ ci"
-    assert monitor.short_name("padam-av", labels) == "↳ av"
-    assert monitor.short_name("heya", labels) == "heya"
+def test_short_name_drops_the_parent_prefix():
+    assert monitor.short_name("padam-av-GHA", "padam-av") == "↳ GHA"
+    assert monitor.short_name("plateform_socle", "Forge-Stack-Workshop") == "↳ plateform_socle"
+    assert monitor.short_name("heya", None) == "heya"
 
 
 def test_name_tokens_set_exactly_one():
-    tokens = monitor.name_tokens("padam-av-GHA", ["padam-av", "padam-av-GHA"], busy=False)
-    assert tokens == names(space_idle_pro="↳ GHA")
-    assert monitor.name_tokens("", [""], busy=True) == names()
+    assert monitor.name_tokens("↳ GHA", "pro", busy=False) == names(space_idle_pro="↳ GHA")
+    assert monitor.name_tokens("", "other", busy=True) == names()
+
+
+def test_space_folders_prefer_the_pane_named_like_the_space():
+    workspaces = [{"workspace_id": "w1", "label": "padam-av"}, {"workspace_id": "w2", "label": "renamed"},
+                  {"workspace_id": "w3", "label": "empty"}]
+    panes = [{"workspace_id": "w1", "cwd": "/d/padam"}, {"workspace_id": "w1", "cwd": "/d/padam/padam-av/"},
+             {"workspace_id": "w2", "cwd": "/d/x/src"}, {"workspace_id": "w2", "cwd": "/d/x"},
+             {"workspace_id": "w2", "cwd": "/d/x/src"}]
+    assert monitor.space_folders(workspaces, panes) == {"w1": "/d/padam/padam-av", "w2": "/d/x/src", "w3": None}
+
+
+FSW = "/p/Forge-Stack-Workshop"
+SPACES = [("w1", "chrysa", "/p/chrysa"), ("w2", "Forge-Stack-Workshop", FSW), ("w3", "padam-av", "/d/padam-av"),
+          ("w4", "padam-av-GHA", "/d/padam-av-GHA"), ("w5", "plateform_socle", f"{FSW}/plateform_socle"),
+          ("w6", "platform-charts", f"{FSW}/platform-charts"), ("w7", "deep", f"{FSW}/platform-charts/deep"),
+          ("w8", "chrysa-site", None)]
+
+
+def test_space_parents_by_folder_then_by_name():
+    assert monitor.space_parents(SPACES) == {"w4": "w3", "w5": "w2", "w6": "w2", "w7": "w6", "w8": "w1"}
+
+
+def test_space_parents_skip_a_name_link_that_closes_a_loop():
+    spaces = [("w1", "a-b", "/x"), ("w2", "a", "/x/a")]  # w2 lives in w1's folder, w1 is named after w2
+    assert monitor.space_parents(spaces) == {"w2": "w1"}
+
+
+def test_children_follow_their_parent_and_the_rest_keeps_its_place():
+    ids = ["w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8"]
+    wanted = monitor.grouped_order(ids, monitor.space_parents(SPACES))
+    assert wanted == ["w1", "w8", "w2", "w5", "w6", "w7", "w3", "w4"]
+    moves = monitor.moves_to(ids, wanted)
+    order = list(ids)
+    for ws, index in moves:  # replay as herdr does: index = final place
+        order.remove(ws)
+        order.insert(index, ws)
+    assert order == wanted
+    assert monitor.moves_to(wanted, wanted) == []
+
+
+def test_tick_groups_spaces_by_folder(monkeypatch):
+    spaces, moved = [], []
+    workspaces = [{"workspace_id": "w1", "label": "Forge-Stack-Workshop"}, {"workspace_id": "w2", "label": "padam-av"},
+                  {"workspace_id": "w3", "label": "plateform_socle"}]
+    panes = [{"workspace_id": "w1", "cwd": FSW}, {"workspace_id": "w2", "cwd": "/d/padam-av"},
+             {"workspace_id": "w3", "cwd": f"{FSW}/plateform_socle"}]
+    replies = {("agent", "list"): {"result": {"agents": []}}, ("pane", "list"): {"result": {"panes": panes}},
+               ("workspace", "list"): {"result": {"workspaces": workspaces}}}
+    monkeypatch.setattr(monitor, "herdr", lambda *args: replies.get(args[:2], {}))
+    monkeypatch.setattr(monitor, "publish_space", lambda ws, tokens: spaces.append((ws, tokens)))
+    monkeypatch.setattr(monitor, "request", lambda method, params: moved.append((method, params)) or {})
+    state = monitor.new_state()
+    monitor.tick({"_refreshed": 10 ** 12}, state)
+    assert dict(spaces)["w3"] == {**waits(), **names(space_idle_other="↳ plateform_socle")}
+    assert moved == [("workspace.move", {"workspace_id": "w3", "insert_index": 1})]
+    monitor.tick({"_refreshed": 10 ** 12}, state)  # herdr did not take it: not asked again
+    assert len(moved) == 1
+    workspaces.insert(1, workspaces.pop())
+    monitor.tick({"_refreshed": 10 ** 12}, state)  # grouped now; a later move away is undone again
+    workspaces.append(workspaces.pop(1))
+    monitor.tick({"_refreshed": 10 ** 12}, state)
+    assert len(moved) == 2
 
 
 def test_publish_space_sets_and_clears(monkeypatch):

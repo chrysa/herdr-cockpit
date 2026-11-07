@@ -53,7 +53,7 @@ One fact, one place:
 
 | Surface | Shows |
 |---|---|
-| Sidebar, Spaces | per space: name (bold when an agent works, waits or has finished; dim when all idle), agent and subagent counts per state and account, the agents waiting on you |
+| Sidebar, Spaces | per space: name (bold when an agent works, waits or has finished; dim when all idle), agent and subagent counts per state and account, the agents waiting on you; a space inside another's folder (or named after it) follows it as `↳ name` |
 | Sidebar, Agents | the selected space's agents: state, age, PR, name, last tool call, subagents |
 | Tab bar | `‼` on tabs waiting on you; on the right, account · model · context of the focused agent |
 | agent-panel (right) | the focused conversation: header (folder in the account's color, git, services), Subagents, Messages, Refs, To do; an empty Subagents tab opens on To do or Messages |

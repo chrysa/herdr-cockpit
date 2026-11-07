@@ -27,6 +27,7 @@ import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -500,8 +501,11 @@ def topic_tokens(agent, account, name=None):
 # Line 1: the space name under one of six tokens, busy (holds agents, bold) or idle
 # (dim) x ecosystem color, one set and the others cleared: herdr row styles are
 # static and rules only match a token's own value, so the state and the ecosystem
-# must be in the token name. A space named after another one plus "-suffix" (e.g.
-# padam-av-GHA next to padam-av) shows "↳ suffix" so long names are not cut.
+# must be in the token name. A space is the child of the space whose folder holds
+# its own (plateform_socle in Forge-Stack-Workshop/), else of the space whose name
+# plus "-" starts its own (padam-av-GHA next to padam-av): it shows "↳ name" (the
+# parent's prefix dropped), takes its parent's ecosystem, and is moved right after
+# its parent. Nothing is listed by hand: folders come from the panes' cwd.
 ECOSYSTEMS = (("pro", lambda name: name.startswith("padam")), ("perso", lambda name: name == "chrysa"))
 NAME_TOKENS = tuple(f"space_{state}_{eco}" for state in ("busy", "idle") for eco in ("pro", "perso", "other"))
 WAIT_ROWS = 3
@@ -528,17 +532,130 @@ def ecosystem(label):
     return next((eco for eco, matches in ECOSYSTEMS if matches(label)), "other")
 
 
-def short_name(label, labels):
-    """label, or "↳ suffix" when another space's label plus "-" prefixes it (longest wins)."""
-    parents = [p for p in labels if p and p != label and label.startswith(p + "-")]
-    return f"↳ {label[len(max(parents, key=len)) + 1:]}" if parents else label
+def space_folders(workspaces, panes):
+    """workspace_id -> its folder: a pane's cwd named like the space, else the most common one."""
+    cwds = {}
+    for pane in panes:
+        if pane.get("cwd"):
+            cwds.setdefault(pane.get("workspace_id"), []).append(os.path.normpath(pane["cwd"]))
+    folders = {}
+    for workspace in workspaces:
+        paths = cwds.get(workspace.get("workspace_id"), [])
+        label = CONTROL.sub("", workspace.get("label") or "")
+        pool = [path for path in paths if os.path.basename(path) == label] or paths
+        folders[workspace.get("workspace_id")] = max(pool, key=lambda p: (pool.count(p), -len(p))) if pool else None
+    return folders
 
 
-def name_tokens(label, labels, busy):
-    """{space_<busy|idle>_<ecosystem>: shown name, the other name tokens: None}."""
-    key = f"space_{'busy' if busy else 'idle'}_{ecosystem(label)}"
-    shown = short_name(label, labels) if label else None
-    return {name: shown if name == key else None for name in NAME_TOKENS}
+def inside(folder, parent):
+    return bool(folder and parent) and folder != parent and folder.startswith(parent.rstrip("/") + "/")
+
+
+def space_parents(spaces):
+    """[(workspace_id, label, folder)] -> {workspace_id: parent workspace_id}.
+
+    The closest space whose folder holds this one's, else the longest label that plus
+    "-" starts this one's; a name link that would close a loop is skipped.
+    """
+    parents = {}
+    for ws, _, folder in spaces:
+        holders = [(len(other_folder), other) for other, _, other_folder in spaces
+                   if other != ws and inside(folder, other_folder)]
+        if holders:
+            parents[ws] = max(holders)[1]
+
+    def above(ws, target):  # is target ws or one of its parents?
+        seen = set()
+        while ws is not None and ws not in seen:
+            if ws == target:
+                return True
+            seen.add(ws)
+            ws = parents.get(ws)
+        return False
+
+    for ws, label, _ in spaces:
+        if ws in parents or not label:
+            continue
+        prefixes = sorted(((len(other_label), other) for other, other_label, _ in spaces
+                           if other != ws and other_label and label.startswith(other_label + "-")), reverse=True)
+        parent = next((other for _, other in prefixes if not above(other, ws)), None)
+        if parent is not None:
+            parents[ws] = parent
+    return parents
+
+
+def grouped_order(ids, parents):
+    """Sidebar order with every space right after its parent; the others keep their place."""
+    children = {}
+    for ws in ids:
+        if ws in parents:
+            children.setdefault(parents[ws], []).append(ws)
+    order = []
+
+    def add(ws):
+        order.append(ws)
+        for child in children.get(ws, []):
+            add(child)
+
+    for ws in ids:
+        if ws not in parents:
+            add(ws)
+    return order
+
+
+def moves_to(current, wanted):
+    """(workspace_id, insert_index) moves turning current into wanted (index = final place)."""
+    order, moves = list(current), []
+    for index, ws in enumerate(wanted):
+        if order[index] != ws:
+            order.remove(ws)
+            order.insert(index, ws)
+            moves.append((ws, index))
+    return moves
+
+
+def short_name(label, parent_label):
+    """label, or "↳ label" under a parent, its "parent-" prefix dropped."""
+    if parent_label is None:
+        return label
+    return f"↳ {label.removeprefix(parent_label + '-') if label != parent_label else label}"
+
+
+def name_tokens(shown, eco, busy):
+    """{space_<busy|idle>_<eco>: shown name, the other name tokens: None}."""
+    key = f"space_{'busy' if busy else 'idle'}_{eco}"
+    return {name: (shown or None) if name == key else None for name in NAME_TOKENS}
+
+
+def request(method, params):
+    """One socket request; herdr's CLI has no command for some methods (workspace.move)."""
+    with socket.socket(socket.AF_UNIX) as sock:
+        sock.settimeout(5)
+        sock.connect(events.socket_path())
+        sock.sendall((json.dumps({"id": PLUGIN_ID, "method": method, "params": params}) + "\n").encode())
+        buf = b""
+        while not buf.endswith(b"\n"):
+            chunk = sock.recv(65536)
+            if not chunk:
+                break
+            buf += chunk
+    reply = json.loads(buf or b"{}")
+    if "error" in reply:
+        raise RuntimeError(f"{method}: {reply['error']}")
+    return reply
+
+
+def group_spaces(ids, parents, state):
+    """Move children after their parent; a wanted order herdr did not take is not retried."""
+    wanted = grouped_order(ids, parents)
+    if wanted == ids:
+        state["tried_order"] = None
+        return
+    if state.get("tried_order") == wanted:
+        return
+    state["tried_order"] = wanted
+    for ws, index in moves_to(ids, wanted):
+        request("workspace.move", {"workspace_id": ws, "insert_index": index})
 
 
 def space_tokens(agents, details=None):
@@ -628,10 +745,22 @@ def tick(shown, state=None, now=None):
     labels = [CONTROL.sub("", w.get("label") or "") for w in workspaces]
     notify_blocked(agents, state, {w.get("workspace_id"): label for w, label in zip(workspaces, labels)}, names)
     state["first"] = False
+    folders = space_folders(workspaces, herdr("pane", "list").get("result", {}).get("panes", []))
+    listed = [(w["workspace_id"], label, folders.get(w["workspace_id"]))
+              for w, label in zip(workspaces, labels) if w.get("workspace_id")]
+    parents = space_parents(listed)
+    label_of = {ws: label for ws, label, _ in listed}
+
+    def root(ws):
+        while ws in parents:
+            ws = parents[ws]
+        return ws
+
     spaces = {
-        f"ws:{w['workspace_id']}": {**dict.fromkeys(AGENT_TOKENS), **subjects.get(w["workspace_id"], {}),
-                                    **name_tokens(label, labels, w["workspace_id"] in active)}
-        for w, label in zip(workspaces, labels) if w.get("workspace_id")
+        f"ws:{ws}": {**dict.fromkeys(AGENT_TOKENS), **subjects.get(ws, {}),
+                     **name_tokens(short_name(label, label_of.get(parents.get(ws))),
+                                   ecosystem(label_of[root(ws)]), ws in active)}
+        for ws, label, _ in listed
     }
     for key, tokens in spaces.items():
         if shown.get(key) != tokens:
@@ -645,6 +774,7 @@ def tick(shown, state=None, now=None):
                 publish_space(gone[3:], {})  # space no longer listed: clear its tokens
             except RuntimeError:
                 pass  # space closed meanwhile
+    group_spaces([ws for ws, _, _ in listed], parents, state)
 
 
 def daemon():
