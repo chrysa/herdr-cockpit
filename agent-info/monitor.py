@@ -709,10 +709,12 @@ def space_layout(spaces, parents, groups):
             names[ws] = label
             continue
         rest = groups[ws][1] if ws in groups else short_name(label, label_of.get(parents[ws]))[2:]
-        names[ws] = f"{INDENT * (level(ws) - 1)}↳ {rest}"
+        depth = level(ws) - 1
         if ws in groups and (parents[ws], groups[ws][0]) not in seen:
             seen.add((parents[ws], groups[ws][0]))
             headers[ws] = f"{INDENT * (level(ws) - 2)}↳ {groups[ws][0]}"
+            depth -= 1  # under its header the name row is a second row, which herdr indents by 2
+        names[ws] = f"{INDENT * depth}↳ {rest}"
     return names, headers
 
 

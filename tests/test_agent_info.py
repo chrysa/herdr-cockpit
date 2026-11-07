@@ -311,9 +311,10 @@ def test_siblings_sharing_a_first_word_get_a_header_row():
                       "w4": ("plateform", "charts"),  # one letter apart: one group
                       "w8": ("a", "b"), "w9": ("a", "b_c")}  # short words group only when equal
     shown, headers = monitor.space_layout(spaces, parents, groups)
-    assert shown == {"w1": "Forge-Stack-Workshop", "w2": f"{B}↳ socle", "w3": f"{B}↳ service_catalog",
+    # w2 and w8 carry their group's header: herdr indents their name row (a second row) itself
+    assert shown == {"w1": "Forge-Stack-Workshop", "w2": "↳ socle", "w3": f"{B}↳ service_catalog",
                      "w4": f"{B}↳ charts", "w5": "↳ plateform", "w6": "padam-av", "w7": "↳ GHA",
-                     "w8": f"{B}↳ b", "w9": f"{B}↳ b_c", "w10": "plateform_x"}
+                     "w8": "↳ b", "w9": f"{B}↳ b_c", "w10": "plateform_x"}
     assert headers == {"w2": "↳ plateform", "w8": "↳ a"}
 
 

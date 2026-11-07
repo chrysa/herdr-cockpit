@@ -46,7 +46,8 @@ What herdr and the plugin marketplace do not cover reliably:
   `platform-`) form a second level: a dim header row `$group_<eco>` ("↳ plateform",
   the most common spelling) above the first one, and each member drops that word
   and sits one level deeper ("⠀⠀↳ socle"; herdr trims spaces around a token, so the
-  indent is U+2800). Nothing is configured. A space reports its 18 tokens in two
+  indent is U+2800; the member under the header gets one level less, since herdr
+  already indents a space's second row by 2 columns). Nothing is configured. A space reports its 18 tokens in two
   calls: herdr takes at most 16 per report.
 - **State age and current action**: `$age` ("12m", "3h05", "2j") since the agent
   entered its state, measured by the daemon (herdr reports no timestamps) and kept
