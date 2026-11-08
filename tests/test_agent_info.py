@@ -603,3 +603,10 @@ def test_a_child_space_shows_its_icon_after_its_name(monkeypatch):
     assert (spaces["w1"]["space_icon"], spaces["w1"][monitor.CHILD_ICON]) == ("◐", None)
     assert (spaces["w2"]["space_icon"], spaces["w2"][monitor.CHILD_ICON]) == (None, "‼")
     assert spaces["w2"]["space_busy_pro"] == "└ GHA"
+
+
+def test_sub_tokens_summarize_for_an_agent_you_are_not_on():
+    subs = [{"status": s, "description": f"S{i}"} for i, s in enumerate(["running", "running", "done"])]
+    assert monitor.sub_tokens(subs, full=False) == {**dict.fromkeys(monitor.SUB_TOKENS), "sub1": "⑂ ●2 ✓1"}
+    one = [{"status": "running", "description": "Only one"}]
+    assert monitor.sub_tokens(one, full=False)["sub1"] == "⑂ ● Only one"  # one line either way

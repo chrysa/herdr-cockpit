@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- herdr tidies up on its own, with a desktop notification each time: a
+  Claude agent idle for 24 h (empty prompt, not in the focused tab, no
+  subtask) is quit, its conversation kept (`claude --resume`, logged in
+  `closed.jsonl`); a tab whose agent was started in a repo below its
+  space's folder moves to that repo's space (created and sorted under its
+  parent). Agents column: full subtask list for the focused agent, one
+  summary line (`⑂ ●2 ✓3`) for the others. Space folders ignore plugin
+  panes (agent-panel's cwd is its checkout).
 - Agents column: an idle agent shows no icon and its name in dim grey
   (`agent_icon`, `topic_idle`); the others get the space icons and colors
   (‼ ◐ ⑂ ✓). Subtasks: up to 13 per agent (was 3), a /subtask fork or

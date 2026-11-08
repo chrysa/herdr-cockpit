@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import events  # noqa: E402
 import services  # noqa: E402
 import subagents  # noqa: E402
+import tidy
 
 PLUGIN_ID = "chrysa.agent-info"
 SOURCE = f"plugin:{PLUGIN_ID}"
@@ -70,11 +71,16 @@ def herdr_bin():
 HERDR = herdr_bin()
 
 
-def herdr(*args):
+def herdr_text(*args):
     proc = subprocess.run([HERDR, *args], capture_output=True, text=True, timeout=10)
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip() or f"herdr {' '.join(args)} failed")
-    return json.loads(proc.stdout) if proc.stdout.strip() else {}
+    return proc.stdout
+
+
+def herdr(*args):
+    out = herdr_text(*args)
+    return json.loads(out) if out.strip() else {}
 
 
 def claude_dirs():
@@ -200,7 +206,12 @@ def agent_subagents(agent, logs, now):
     return subagents.listing(path, log, now)
 
 
-def sub_tokens(subs):
+def sub_tokens(subs, full=True):
+    """full (the focused agent): one line per subtask; else one summary line ("⑂ ●2 ✓3")."""
+    if not full and len(subs) > 1:
+        statuses = [s["status"] for s in subs]
+        return {**dict.fromkeys(SUB_TOKENS), "sub1": "⑂ " + " ".join(
+            f"{glyph}{statuses.count(state)}" for state, glyph in subagents.GLYPHS.items() if state in statuses)}
     lines = [f"⑂ {subagents.GLYPHS.get(s['status'], '•')} {s['description']}" for s in subs]
     extra = len(lines) - SUB_ROWS
     return {**{f"sub{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, SUB_ROWS + 1)},
@@ -215,6 +226,7 @@ SINCE = os.path.join(STATE_DIR, "since.json")
 # usagebar's context of the focused agent. Written here, on events, so the tab bar
 # command only reads a file; querying herdr from it timed out under load.
 TABBAR = os.path.join(STATE_DIR, "tabbar")
+CLOSED = os.path.join(STATE_DIR, "closed.jsonl")  # idle agents tidy.py quit: pane, space, session id
 
 
 def tabbar_line(agents, accounts):
@@ -600,7 +612,7 @@ def space_folders(workspaces, panes):
     """workspace_id -> its folder: a pane's cwd named like the space, else the most common one."""
     cwds = {}
     for pane in panes:
-        if pane.get("cwd"):
+        if pane.get("cwd") and not tidy.plugin_pane(pane):  # agent-panel's cwd is its checkout
             cwds.setdefault(pane.get("workspace_id"), []).append(os.path.normpath(pane["cwd"]))
     folders = {}
     for workspace in workspaces:
@@ -923,7 +935,7 @@ def tick(shown, state=None, now=None):
         tokens = {"account": account, "model": model, "agent_icon": icon,
                   **topic_tokens(agent, account, name, idle=icon is None),
                   "age": age_label(now - state["since"][agent["pane_id"]][2]), "doing": agent_doing(agent),
-                  **sub_tokens(subs)}
+                  **sub_tokens(subs, full=bool(agent.get("focused")))}
         if shown.get(agent["pane_id"]) != tokens:
             publish(agent["pane_id"], tokens)
             shown[agent["pane_id"]] = tokens
@@ -945,7 +957,8 @@ def tick(shown, state=None, now=None):
     labels = [CONTROL.sub("", w.get("label") or "") for w in workspaces]
     notify_blocked(agents, state, {w.get("workspace_id"): label for w, label in zip(workspaces, labels)}, names)
     state["first"] = False
-    folders = space_folders(workspaces, herdr("pane", "list").get("result", {}).get("panes", []))
+    panes = herdr("pane", "list").get("result", {}).get("panes", [])
+    folders = space_folders(workspaces, panes)
     listed = [(w["workspace_id"], label, folders.get(w["workspace_id"]))
               for w, label in zip(workspaces, labels) if w.get("workspace_id")]
     parents = space_parents(listed)
@@ -976,6 +989,9 @@ def tick(shown, state=None, now=None):
             except RuntimeError:
                 pass  # space closed meanwhile
     group_spaces([ws for ws, _, _ in listed], order, state)
+    tidy.run(agents, panes, workspaces, folders, state["since"],
+             {pane: info["subs"] for pane, info in details.items()}, names, state, now, herdr, herdr_text,
+             lambda title, body: desktop_notify(title, body) if NOTIFY else None, CLOSED)
 
 
 def daemon():
