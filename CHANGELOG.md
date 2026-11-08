@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Panes: tmux-style splitters (`pane_borders = "auto"`, no outer border,
+  no gaps): one thin divider between panes, which the mouse can drag to
+  resize agent-panel; still no frame and no title around panes.
 - Tab bar: the plan windows of the focused agent's account with % used and
   time to reset (`7j 72% ↻4j14h`, and `5h …` when Claude reports it). The
   cockpit status line now hands Claude Code's `rate_limits` to usagebar, so
