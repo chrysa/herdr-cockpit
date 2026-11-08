@@ -1,6 +1,6 @@
 id = "chrysa.agent-info"
 name = "Agent Info"
-version = "0.7.0"
+version = "0.8.0"
 min_herdr_version = "0.7.0"
 description = "Publishes, per agent pane, the account ($account), model ($model), subject colored by account ($topic_*), state age, last tool call and subagents; per space, a state icon, agent counts per account, the agents waiting on you and a tree name (spaces nested by folder and name, sorted alphabetically); the tab bar line; and a pane listing the tab project's containers and listening ports with their URLs. Local reads only - no network, no telemetry."
 platforms = ["macos", "linux"]
