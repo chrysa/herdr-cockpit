@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Linux only, declared: both manifests list `linux` alone (the services list
+  needs `ss` and `/proc`, `setup` installs systemd user units); the README
+  says so, and that account colors cover `perso`, `pro` and `codex`.
+- Release workflow: a release already published for the tag is kept
+  instead of failing the run.
+
 ## v0.8.0 — spaces tree, real-time sidebar, herdr 0.9.5 (2026-11-08)
 
 - Portability: `setup` also wires the default `~/.claude` (not only
