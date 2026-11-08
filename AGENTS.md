@@ -29,9 +29,3 @@ marketplace plugins; custom code only fills gaps. Plan and specs in `work/`.
 
 - Ask before any action with external effects (push, release, deploy, DNS, secrets, messages).
 - Never add assistant attribution to commits, PRs, files or docs.
-
-## Product design contract
-
-Before UI, component, style, navigation or asset work, read [DESIGN.md](DESIGN.md)
-and any product-specific specification it links. Keep the contract and acceptance
-evidence aligned with UI changes. Load it on demand; do not duplicate its tokens here.
