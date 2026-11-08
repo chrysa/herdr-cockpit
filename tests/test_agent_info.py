@@ -260,8 +260,8 @@ def test_spaces_cap_waiting_lines():
 
 
 def names(**set_):
-    """Name and group-header tokens of one space, all None but set_."""
-    return {name: set_.get(name) for name in (*monitor.NAME_TOKENS, *monitor.GROUP_TOKENS)}
+    """Child icon, name and group-header tokens of one space, all None but set_."""
+    return {name: set_.get(name) for name in (monitor.CHILD_ICON, *monitor.NAME_TOKENS, *monitor.GROUP_TOKENS)}
 
 
 def test_tick_publishes_space_tokens_and_clears_emptied_spaces(monkeypatch):
@@ -557,3 +557,20 @@ def test_spaces_with_only_idle_agents_are_dimmed(monkeypatch):
     monitor.tick({"_refreshed": 10 ** 12})
     named = {ws: {k: v for k, v in t.items() if k.startswith("space_") and v} for ws, t in spaces}
     assert named == {"w1": {"space_idle_perso": "chrysa"}, "w2": {"space_icon": "✓", "space_busy_perso": "padam-av"}}
+
+
+def test_a_child_space_shows_its_icon_after_its_name(monkeypatch):
+    spaces = {}
+    agents = [{"pane_id": "p1", "workspace_id": "w1", "agent_status": "working", "agent": "x"},
+              {"pane_id": "p2", "workspace_id": "w2", "agent_status": "blocked", "agent": "x"}]
+    workspaces = [{"workspace_id": "w1", "label": "padam-av"}, {"workspace_id": "w2", "label": "padam-av-GHA"}]
+    replies = {("agent", "list"): {"result": {"agents": agents}},
+               ("workspace", "list"): {"result": {"workspaces": workspaces}}}
+    monkeypatch.setattr(monitor, "herdr", lambda *args: replies.get(args[:2], {}))
+    monkeypatch.setattr(monitor, "agent_info", lambda agent: (None, "pro"))
+    monkeypatch.setattr(monitor, "publish", lambda pane, tokens: None)
+    monkeypatch.setattr(monitor, "publish_space", lambda ws, tokens: spaces.update({ws: tokens}))
+    monitor.tick({"_refreshed": 10 ** 12})
+    assert (spaces["w1"]["space_icon"], spaces["w1"][monitor.CHILD_ICON]) == ("◐", None)
+    assert (spaces["w2"]["space_icon"], spaces["w2"][monitor.CHILD_ICON]) == (None, "‼")
+    assert spaces["w2"]["space_busy_pro"] == "└ GHA"

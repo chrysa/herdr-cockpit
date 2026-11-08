@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Spaces: a child space's state icon comes after its name (`│ ├ GHA · ◐`,
+  token `child_icon`, same colors). In front, herdr's ` · ` after the icon
+  pushed the tree glyphs 4 columns right (`◐ · │ ├ GHA`). Roots keep
+  `◐ · chrysa`.
 - agent-panel pinned to chrysa/agent-panel#6: the panel keeps the width you
   gave it (also after a server restart restores the split), and an empty
   Subagents tab opens on To do or Messages instead.
