@@ -31,7 +31,9 @@ ORDER = tuple(GLYPHS)  # display order: what needs a look first
 TASK_ID = re.compile(r"<task-id>([^<]+)</task-id>")
 STATUS = re.compile(r"<status>([^<]+)</status>")
 AGENT_FILE = re.compile(r"agent-(.+)\.jsonl")
-BACKGROUND_ID = re.compile(r"(?:running in background with ID: |moved to the background \(ID: )([A-Za-z0-9_-]+)")
+# Only at the start of a Bash result: anywhere else it is output quoting the phrase.
+BACKGROUND_ID = re.compile(r"Command (?:running in background with ID: |did not complete within its \S+ timeout "
+                           r"and was moved to the background \(ID: )([A-Za-z0-9_-]+)")
 
 
 def entry_time(entry, default):
@@ -108,9 +110,16 @@ class MainLog:
                 self.calls[item["id"]] = (ts, described[:80])
             elif item.get("type") == "tool_result" and item.get("tool_use_id"):
                 self.results[item["tool_use_id"]] = ts
-                task = BACKGROUND_ID.search(json.dumps(item.get("content")))
+                task = BACKGROUND_ID.match(result_text(item.get("content")).lstrip())
                 if task and task.group(1) not in self.tasks:
                     self.tasks[task.group(1)] = (ts, self.calls.get(item["tool_use_id"], (ts, "Bash"))[1])
+
+
+def result_text(content):
+    """A tool_result's text: the string itself, or its first text block."""
+    if isinstance(content, list):
+        content = next((c.get("text") for c in content if isinstance(c, dict) and c.get("type") == "text"), "")
+    return content if isinstance(content, str) else ""
 
 
 def read_meta(path):

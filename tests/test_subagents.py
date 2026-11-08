@@ -103,7 +103,9 @@ def test_background_tasks_run_until_their_notification(tmp_path):
         {"type": "tool_result", "tool_use_id": tid, "content": text}]}}
     main, _ = write_session(tmp_path, [
         call("t1", "Run the suite"), result("t1", "Command running in background with ID: bg1. Output is being written"),
-        call("t2", "Long build"), result("t2", "Command did not complete... moved to the background (ID: bg2). Output"),
+        call("t2", "Long build"), result("t2", [{"type": "text", "text": "Command did not complete within its 300s "
+                                                  "timeout and was moved to the background (ID: bg2). Output"}]),
+        call("t3", "Show a test"), result("t3", 'assert x == "Command running in background with ID: bg9."'),
         notification("bg2", "completed", iso_at(now - 20)),
     ])
     log = subagents.MainLog(str(main))
