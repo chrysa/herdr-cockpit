@@ -229,14 +229,65 @@ TABBAR = os.path.join(STATE_DIR, "tabbar")
 CLOSED = os.path.join(STATE_DIR, "closed.jsonl")  # idle agents tidy.py quit: pane, space, session id
 
 
-def tabbar_line(agents, accounts):
-    """account  model  context of the focused agent; "" when none is focused."""
+QUOTA_WINDOWS = (("5h", "limit_5h"), ("7j", "limit_7d"))  # usagebar: "<% left> <reset in>" per band
+
+
+def quota_parts(tokens):
+    """["5h 88% ↻2h", "7j 48% ↻5j"] from usagebar's per-window tokens."""
+    parts = []
+    for label, prefix in QUOTA_WINDOWS:
+        value = next((tokens[f"{prefix}_{band}"] for band in ("low", "mid", "high") if tokens.get(f"{prefix}_{band}")), "")
+        left, _, reset = str(value).partition(" ")
+        if left:
+            parts.append(f"{label} {left}" + (f" ↻{reset.replace('d', 'j')}" if reset else ""))
+    return parts
+
+
+LIMITS_CACHE = os.path.join("herdr-usagebar", "claude-limits-latest.json")  # in each Claude config dir
+
+
+def reset_label(seconds):
+    """Time to a window's reset: "45m", "3h05", "4j14h"."""
+    minutes = max(0, int(seconds // 60))
+    if minutes < 60:
+        return f"{minutes}m"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h{minutes:02d}" if hours < 24 else f"{hours // 24}j{hours % 24:02d}h"
+
+
+def cached_quotas(account, now, home=HOME):
+    """["5h 12% ↻3h05", "7j 72% ↻4j14h"]: % used and time to reset of the account's plan
+    windows, from usagebar's cache (cockpit's status line hands it Claude Code's
+    rate_limits). Windows already reset are left out; [] without a cache."""
+    folder = f".claude-{account}" if account and account != "default" else ".claude"
+    try:
+        with open(os.path.join(home, folder, LIMITS_CACHE)) as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return []
+    parts = []
+    for label, key in (("5h", "fiveHour"), ("7j", "sevenDay")):
+        window = data.get(key) if isinstance(data, dict) else None
+        if not isinstance(window, dict) or window.get("usedPercentage") is None:
+            continue
+        reset = window.get("resetsAt")
+        if reset and reset <= now:
+            continue
+        parts.append(f"{label} {round(window['usedPercentage'])}%" + (f" ↻{reset_label(reset - now)}" if reset else ""))
+    return parts
+
+
+def tabbar_line(agents, accounts, now=None):
+    """account  model  plan windows (% used, time to reset)  context, for the focused
+    agent; "" when none is focused. Without usagebar's cache, its tokens."""
     agent = next((a for a in agents if a.get("focused")), None)
     if not agent:
         return ""
     account, model = accounts.get(agent["pane_id"], (None, None))
-    context = (agent.get("tokens") or {}).get("context")
-    return "  ".join(CONTROL.sub("", str(p)) for p in (account, model, context) if p)
+    tokens = agent.get("tokens") or {}
+    quotas = cached_quotas(account, time.time() if now is None else now) or quota_parts(tokens)
+    tail = [" · ".join(quotas), tokens.get("context_meter")] if quotas else [tokens.get("context")]
+    return "  ".join(CONTROL.sub("", str(p)) for p in (account, model, *tail) if p)
 
 
 def write_tabbar(line, path=None):

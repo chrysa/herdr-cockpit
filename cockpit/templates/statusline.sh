@@ -3,6 +3,14 @@
 # context / savings / cache. Plan limits and pay-as-you-go cost come from usagebar
 # in herdr's sidebar and limits pane, so they are not repeated here.
 input=$(cat)
+# usagebar reads the plan windows (5h, 7d and when each resets) from this input
+# (rate_limits), into a cache per account: hand it over in the background, before
+# the early exit below. Newest install first; nothing happens when it is absent.
+plugins="$HOME/.config/herdr/plugins"
+for usagebar in $(ls -dt "$plugins"/github-installations/usagebar-*/*/checkout/bin/usagebar \
+                         "$plugins"/github/usagebar-*/bin/usagebar 2>/dev/null | head -1); do
+  (printf '%s' "$input" | "$usagebar" statusline >/dev/null 2>&1 &)
+done
 # agent-panel (chrysa fork) already shows all of this for this pane: no footer.
 shown="${XDG_STATE_HOME:-$HOME/.local/state}/agent-panel/shown/${HERDR_PANE_ID:-none}"
 if [[ -f "$shown" ]] && kill -0 "$(<"$shown")" 2>/dev/null; then

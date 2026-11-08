@@ -555,13 +555,30 @@ def test_waiting_line_uses_the_sidebar_name():
     assert monitor.space_tokens(agents, {"a": {"name": "audit"}})["w1"]["wait1"] == "‼ audit"
 
 
-def test_tabbar_line_shows_the_focused_agent():
+def test_tabbar_line_shows_the_focused_agent(monkeypatch):
+    monkeypatch.setattr(monitor, "cached_quotas", lambda account, now: [])  # not this machine's cache
     agents = [{"pane_id": "a", "focused": False, "tokens": {"context": "5h 10%"}},
               {"pane_id": "b", "focused": True, "tokens": {"context": "5h 100% · 41% (407k)"}}]
     accounts = {"a": ("pro", "sonnet-5.5"), "b": ("perso", "opus-5.5")}
     assert monitor.tabbar_line(agents, accounts) == "perso  opus-5.5  5h 100% · 41% (407k)"
     assert monitor.tabbar_line([{"pane_id": "a"}], accounts) == ""
     assert monitor.tabbar_line([{"pane_id": "x", "focused": True, "tokens": {"context": "\x1b[2Jc"}}], {}) == "[2Jc"
+    windows = {"limit_5h_high": "88% 2h", "limit_7d_mid": "48% 5d", "context_meter": "⛁ 43% (432k)", "context": "x"}
+    assert monitor.tabbar_line([{"pane_id": "b", "focused": True, "tokens": windows}], accounts) == \
+        "perso  opus-5.5  5h 88% ↻2h · 7j 48% ↻5j  ⛁ 43% (432k)"
+    assert monitor.quota_parts({"limit_7d_low": "9%"}) == ["7j 9%"]  # no reset reported
+
+
+def test_cached_quotas_give_percent_used_and_exact_time_to_reset(tmp_path):
+    now = 1_800_000_000
+    cache = tmp_path / ".claude-perso" / monitor.LIMITS_CACHE
+    cache.parent.mkdir(parents=True)
+    cache.write_text(json.dumps({"fiveHour": {"usedPercentage": 12.4, "resetsAt": now + 3 * 3600 + 300},
+                                 "sevenDay": {"usedPercentage": 72, "resetsAt": now + 4 * 86400 + 14 * 3600},
+                                 "fetchedAtMs": now * 1000}))
+    assert monitor.cached_quotas("perso", now, home=str(tmp_path)) == ["5h 12% ↻3h05", "7j 72% ↻4j14h"]
+    assert monitor.cached_quotas("perso", now + 4 * 3600, home=str(tmp_path))[0] == "7j 72% ↻4j10h"  # 5h reset
+    assert monitor.cached_quotas("pro", now, home=str(tmp_path)) == []
 
 
 def test_write_tabbar_replaces_the_file(tmp_path):

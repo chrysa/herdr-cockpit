@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Tab bar: the plan windows of the focused agent's account with % used and
+  time to reset (`7j 72% ↻4j14h`, and `5h …` when Claude reports it). The
+  cockpit status line now hands Claude Code's `rate_limits` to usagebar, so
+  its per-account cache is fresh (it read a `~/.claude.json` snapshot hours
+  old, and had nothing for the pro account).
 - herdr tidies up on its own, with a desktop notification each time: a
   Claude agent idle for 24 h (empty prompt, not in the focused tab, no
   subtask) is quit, its conversation kept (`claude --resume`, logged in
