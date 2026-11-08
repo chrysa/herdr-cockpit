@@ -76,8 +76,8 @@ enabled = true
 
 [[plugin]]
 id = "agent-panel"
-source = "chrysa/agent-panel"  # fork of flowy11/agent-panel: header lines + shown marker
-ref = "1acd90f65cb06cf3bb05bcccd0f6c252af489c33"
+source = "chrysa/agent-panel"  # fork of flowy11/agent-panel: header lines, shown marker, kept width
+ref = "96c1fd67acd1cb4504e20659dab62cb964608055"
 enabled = true
 
 [[plugin]]
