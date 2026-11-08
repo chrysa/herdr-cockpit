@@ -25,8 +25,10 @@ pane_history = true                   # keep pane output across a server restart
 [ui]
 sidebar_width = 40                    # the longest folder name fits on an indented line
 sidebar_max_width = 40                # herdr caps the width at 36 by default
-agent_panel_sort = "spaces"           # agents grouped under their space
+agent_panel_sort = "priority"         # attention queue, the order agent_view also uses
 status_indicators = "symbols"         # distinct shapes per state, not only colors
+pane_borders = "off"                  # no frame or title around split panes (agent-panel
+                                      # splits every agent tab); the tab name carries the subject
 confirm_close = true                  # pinned
 # Right of the tab bar: account · model · context of the focused agent.
 tab_bar_right = [
@@ -45,35 +47,77 @@ position = "top-right"
 enabled = false
 
 # Spaces, compact:
-#   1. only with agents: the space's subject (agent-info: a blocked agent's
-#      first, else the latest), "+N" for its other subjects;
-#   2. state and the folder alone, colored by ecosystem (padam = pro account
-#      color, chrysa = perso), so the name is never cut;
+#   1. state icon only when an agent there works, waits on you or has finished
+#      (agent-info's space_icon: herdr's state_icon also marks idle spaces), in
+#      its own color ([states]: ‼ red, ◐ peach, ✓ mauve, never an account color;
+#      ⑂ blue when only subagents, workflow agents or background tasks work),
+#      then the name. Active (an agent works, waits or has finished): bold, in
+#      the color of the account most of its agents run under (pro, perso; else
+#      plain text). Idle: dim grey, so active spaces stand out; an idle-only
+#      count ("○2") is dim grey too. A space whose folder sits in another
+#      space's folder (plateform_socle in Forge-Stack-Workshop/), else named
+#      after another plus "-suffix" (padam-av-GHA), is its child: spaces form a
+#      tree in alphabetical order at every level ("├ GHA", "└ simul"), and
+#      agent-info moves them into that order (no list by hand).
+#      agent-info publishes the name under one of six tokens (busy/idle x
+#      ecosystem) because herdr row styles are static and rules only match a
+#      token's own value; on the same line, the agents and subagents counted
+#      per state ("‼1 ◐2 ○1 ⑂●2✓1"; ⑂ = subagents, ● running ◌ stalled
+#      ✗ failed ⊘ killed ✓ done), one group per account in its color;
+#      idle agents counted too ("○2"), also where every agent sits idle;
+#   0. above line 1, on the first space of a sibling group only: the group's
+#      header, dim grey ("└ plateform" over "├ charts", "├ service_catalog",
+#      "└ socle": children whose names start with the same word, one letter of
+#      difference allowed); the members drop that word and sit one level deeper;
+#   2+. only the agents waiting on you (blocked), one red "‼ subject" line
+#      each, longest wait first, at most 3 then "+N en attente". Every other
+#      agent is in the Agents column, so no space line reads like an agent.
 # RTK savings are not shown here: they stay in the RTK pane (prefix+ctrl+r) and
 # the Claude status line.
-# The state icon sits on line 2 because it always has a value: on line 1 it
-# would keep an empty line for idle spaces. An idle space takes one line.
+# Line 1 always has a value; herdr drops empty rows, so a space with nobody
+# waiting takes one line.
 [ui.sidebar.spaces]
 rows = [
-  [{ token = "$theme", bold = true }, { token = "$more", fg = "#9399b2" }],
-  ["state_icon",
-   { token = "workspace", rules = [
-      { starts_with = "padam", fg = "#89dceb" },
-      { equals = "chrysa", fg = "#f9e2af" },
-    ] }],
+  [{ token = "$group_pro", fg = "#9399b2", dim = true }, { token = "$group_perso", fg = "#9399b2", dim = true },
+   { token = "$group_other", fg = "#9399b2", dim = true }],
+  [{ token = "$space_icon", bold = true, rules = [{ equals = "‼", fg = "#f38ba8" },
+     { equals = "◐", fg = "#fab387" }, { equals = "✓", fg = "#cba6f7" },
+     { equals = "⑂", fg = "#89b4fa" }] },
+   { token = "$space_busy_pro", fg = "#89dceb", bold = true }, { token = "$space_busy_perso", fg = "#f9e2af", bold = true },
+   { token = "$space_busy_other", fg = "#cdd6f4", bold = true },
+   { token = "$space_idle_pro", fg = "#9399b2", dim = true }, { token = "$space_idle_perso", fg = "#9399b2", dim = true },
+   { token = "$space_idle_other", fg = "#9399b2", dim = true },
+   { token = "$count_perso", fg = "#f9e2af", rules = [{ starts_with = "○", fg = "#9399b2", dim = true }] },
+   { token = "$count_pro", fg = "#89dceb", rules = [{ starts_with = "○", fg = "#9399b2", dim = true }] },
+   { token = "$count_codex", fg = "#a6e3a1", rules = [{ starts_with = "○", fg = "#9399b2", dim = true }] },
+   { token = "$count_other", fg = "#9399b2", rules = [{ starts_with = "○", dim = true }] }],
+  [{ token = "$wait1", fg = "#f38ba8" }],
+  [{ token = "$wait2", fg = "#f38ba8" }],
+  [{ token = "$wait3", fg = "#f38ba8" }],
+  [{ token = "$wait_more", fg = "#f38ba8", dim = true }],
 ]
 
-# Agents, one line each: state, then the subject (conversation title, follows
-# /rename) in the color of its account (perso yellow, pro sky, codex green,
-# other grey), then the space, dimmed. agent-info publishes the title under one
-# token per account because herdr rules can only match a token's own value.
+# Agents: state, how long in that state (dim, "12m"; agent-info measures it),
+# then the branch's PR (gh-pr, "#123 ✓"), then the name (the tab's, else the
+# conversation title) in the color of its
+# account (perso yellow, pro sky, codex green, other grey). agent-info publishes
+# the title under one token per account because herdr rules can only match a
+# token's own value. A working Claude agent gets a dim second line with its
+# last tool call ("Edit monitor.py"), then one mauve line per subagent active
+# in the last 30 min ("⑂ ● Security review"), 3 max then "⑂ +N".
+# No space name: the column shows the selected space by default (agent_view),
+# so the whole width goes to the title.
 # The model is in the tab bar and the panel header, not repeated here.
 [ui.sidebar.agents]
 rows = [
-  ["state_icon",
+  ["state_icon", { token = "$age", dim = true }, { token = "$pr", fg = "#9399b2" },
    { token = "$topic_perso", fg = "#f9e2af" }, { token = "$topic_pro", fg = "#89dceb" },
-   { token = "$topic_codex", fg = "#a6e3a1" }, { token = "$topic_other", fg = "#9399b2" },
-   { token = "workspace", dim = true }],
+   { token = "$topic_codex", fg = "#a6e3a1" }, { token = "$topic_other", fg = "#9399b2" }],
+  [{ token = "$doing", dim = true }],
+  [{ token = "$sub1", fg = "#cba6f7" }],
+  [{ token = "$sub2", fg = "#cba6f7" }],
+  [{ token = "$sub3", fg = "#cba6f7" }],
+  [{ token = "$sub_more", fg = "#cba6f7", dim = true }],
 ]
 
 # ── Keys ─────────────────────────────────────────────────────────────────────
@@ -94,7 +138,8 @@ swap_pane_down = "prefix+shift+down"
 swap_pane_up = "prefix+shift+up"
 switch_workspace = "prefix+shift+1..9"
 new_workspace = "prefix+shift+c"      # its default prefix+shift+n is the navigator
-rename_workspace = "prefix+shift+e"   # its default prefix+shift+w is worktrunk
+open_worktree = "prefix+ctrl+w"       # native worktrees (unset by default); new_worktree = prefix+shift+g
+remove_worktree = "prefix+alt+w"      # asks for confirmation
 
 # Agents column filters (chrysa.cockpit, native agent.view.set; they combine).
 [[keys.command]]
@@ -201,18 +246,6 @@ key = "prefix+ctrl+o"
 type = "plugin_action"
 command = "herdr-navigator.jump-back"
 description = "navigator: jump back"
-
-[[keys.command]]
-key = "prefix+shift+w"                # herdr default: rename_workspace
-type = "plugin_action"
-command = "worktrunk.open"
-description = "worktree: switch / create (worktrunk)"
-
-[[keys.command]]
-key = "prefix+ctrl+w"
-type = "plugin_action"
-command = "worktrunk.remove"
-description = "worktree: remove (worktrunk)"
 
 # Transcripts.
 [[keys.command]]

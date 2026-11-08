@@ -1,5 +1,121 @@
 # Changelog
 
+## Unreleased
+
+- Spaces: a blue `⑂` icon when only subagents, workflow agents or background
+  tasks work (the main agent idle or done); such a space counts as active.
+  agent-info now also lists workflow agents (`subagents/workflows/<run>/`,
+  finished with their run) and background Bash tasks (finished by their
+  task notification), in the Agents column too.
+- Hierarchy: a space goes under the more specific of its folder parent and its
+  name parent (`padam-av-GHA` under `padam-av` even when a space holds the
+  whole `padam/` folder), and a child drops the leading words it shares with
+  its parent (`padam-k8s` under `padam-av-and-more` shows `k8s`). Same-named
+  spaces: the first listed takes the children.
+- Spaces sort themselves alphabetically (case-insensitive) at every level,
+  each child right after its parent, and the hierarchy is drawn as a tree:
+  `├ GHA`, `└ supervision-interface`, `│ ` carrying the line on, instead of
+  `↳`. A group header reads `└ plateform` over `├ charts`, `└ socle`.
+- Spaces: state icons get their own colors (`[states]` in the palette: ‼ red,
+  ◐ peach, ✓ mauve), never an account's (◐ was perso yellow, ✓ codex green),
+  so an icon no longer blends into its name. Active spaces stay bold in their
+  account color; idle spaces, their idle-only `○N` count and group headers
+  turn dim grey, so active and idle spaces part at a glance.
+- Space colors come from the agents' accounts: a space takes the account most
+  of its agents run under (pro sky, perso yellow, any other grey); without
+  agents, the last color seen there, else its nearest parent's. The rule on
+  names (`padam*` pro, `chrysa` perso) is gone.
+- herdr.auto-title v0.5.0 -> v0.20.0, with `HERDR_AUTO_TITLE_PREFER_AGENT=true`
+  (a tab keeps its agent's name while agent-panel has focus) and
+  `HERDR_AUTO_TITLE_PANES=false` (tabs only, panes keep their names). Its
+  install downloads the release binary and checks it against the release's
+  SHA256SUMS. Prefixes added since (icons, pane id, agent status, agent
+  handle) stay off by default.
+- Spaces: the folder comes first, bold, as the space's title; the subject
+  ("+N" for the others) moves under it. An idle space still takes one line.
+- Agents column: shows only the selected space by default (`prefix+ctrl+x`
+  toggles it, `prefix+ctrl+z` shows every agent), in herdr's native
+  "priority" order: an active view drops herdr's own sort, so the view now
+  carries it (`prefix+ctrl+s` switches to the spaces order). Short view label.
+- Agent lines drop the dimmed space name: the column shows one space by
+  default, so the conversation title gets the whole width.
+- Busy spaces stand out: agent-info publishes each space name under a
+  busy (bold) or idle (dim) token per ecosystem color. A space named after
+  another plus "-suffix" shows "↳ suffix" (`padam-av-GHA` → `↳ GHA`), so long
+  names are no longer cut.
+- `agent_panel_sort = "priority"`: herdr's own order matches the Agents view.
+- Tabs are auto-named again: agent-info no longer puts ◐ ‼ ✓ in front of tab
+  names. herdr.auto-title read each such rename as the user's and locked the
+  tab for good; at startup agent-info clears the names it prefixed so
+  auto-title takes them back. The state stays in the sidebar.
+- Information surfaced from agents: a desktop notification when an agent starts
+  waiting on you (once per wait, not for the focused pane; `AGENT_INFO_NOTIFY=0`
+  turns it off); how long each agent has been in its state ("12m"); a dim
+  second line with a working Claude agent's last tool call ("Edit monitor.py").
+- Spaces list only the agents waiting on you: one red "‼ subject" line each
+  under the space (longest wait first, 3 max then "+N en attente"), instead of
+  the latest subject, which read like an agent line. Every other agent is in
+  the Agents column; a space with nobody waiting takes one line.
+- Spaces count agents and subagents per state, one group per account in its
+  color ("‼1 ◐2 ○1 ⑂●2✓1"), on the same line as the name.
+- Agents column lists each Claude agent's subagents active in the last 30 min
+  with their state ("⑂ ● Security review"; ● running, ◌ stalled, ✗ failed,
+  ⊘ killed, ✓ done), 3 max then "⑂ +N". New `agent-info/subagents.py` reads
+  Claude's subagent files and the main transcript incrementally, with the
+  agent-panel rules.
+- Agents are named after their tab, as in the tab bar (`audit`, `vscode`): the
+  conversation title only when the tab is unnamed or auto-title derived its
+  name from that title (and cut it); a tab with several agents adds each title.
+- Real time: the agent-info daemon wakes on herdr events (agent status, panes,
+  tabs, spaces) and on Claude transcript writes instead of every 8 s; a change
+  reaches the sidebar in about a second. docker/ss snapshots stay every 8 s.
+- The cockpit plugin no longer runs `daemon.py` (removed in v0.4.0) at startup and
+  on every space focus, where it failed each time; agent-info starts its own daemon.
+- Plugins trimmed from 21 to 14 after an audit: herdmates, agent-config-manager,
+  mermaid-preview, espalier, workspace-manager, plugin-manager (unused, or doing
+  nothing here) and worktrunk (`wt` not installed) are no longer declared.
+- Worktrees use herdr's native actions: `open_worktree` prefix+ctrl+w,
+  `remove_worktree` prefix+alt+w (`new_worktree` stays prefix+shift+g);
+  `rename_workspace` is back on its default prefix+shift+w.
+- Agent lines show the branch's PR from gh-pr (`$pr`, "#123 ✓") before the name.
+- Tabs whose agent waits on you carry "‼" in front of their name, and only those.
+  The mark comes off by giving a hand-named tab its name back, or by clearing an
+  auto-title name so auto-title names the tab afresh; auto-title's own rules,
+  checked live, so no tab gets stuck on a stale name.
+- Plugin pins moved: usagebar v0.5.24, reviewr v0.49.1, memex v0.32.0,
+  file-viewer v1.18.0, navigator v0.3.6 head; every bound action still exists.
+  auto-title stays on v0.5.0 (v0.20.0 names panes by default and renames every
+  pane on first start).
+- The Agents-column filter survives a herdr server restart: the startup apply
+  waits up to 10 s for the socket, and a space switch re-applies the view only
+  when the server changed (setting a view resets the column and its selection).
+- Tab bar right side (account · model · context) shows again: agent-info writes
+  the focused agent's line on every focus or status change and `herdr-tabbar`
+  only reads it (19 ms, against ~0.4 s and 18 timeouts of 2 s before).
+- A space whose agents all sit idle is dimmed; bold means an agent there works,
+  waits on you or has finished. herdr relaunches an idle Claude in every space on
+  restore, which had made every space bold.
+- No pane borders (`ui.pane_borders = "off"`): agent-panel splits every agent
+  tab, so herdr framed the conversation in the accent color with Claude's
+  terminal title on top. The tab name already carries the subject.
+- Every space counts its idle agents (`○N`), also a space where all of them
+  sit idle; only the state icon is left out there.
+- Agent names drop a default branch from auto-title's context
+  (`prism-ai-lint › main › Gain` shows `prism-ai-lint › Gain`); a tab named
+  only `main`, `master` or `develop` gives the conversation title instead.
+- agent-panel header: the folder in the account's color, git and services;
+  account and model are left to the tab bar, which already shows them.
+- Spaces show a state icon only when an agent there works (◐), waits on you (‼)
+  or has finished (✓): agent-info's `$space_icon` replaces herdr's `state_icon`,
+  which also drew ○ on idle spaces and · on spaces without an agent.
+- Spaces grouped by folder: a space whose folder sits in another space's
+  (`plateform_socle` in `Forge-Stack-Workshop/`) shows `↳ …` right after it,
+  like `padam-av-*` under `padam-av`, in its parent's color. Children whose
+  names start with the same word (`plateform_`, `platform-`: one letter apart)
+  get a second level: a dim `↳ plateform` header, then `↳ socle`,
+  `↳ service_catalog`, `↳ charts` one level deeper. agent-info moves children
+  after their parent; nothing is listed by hand.
+
 ## v0.7.0 — compact sidebar, keys without shadowed defaults (2026-11-02)
 
 - Space folder names are never cut: the folder sits alone on its line and the

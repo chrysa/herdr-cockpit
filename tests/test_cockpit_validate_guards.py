@@ -28,6 +28,13 @@ def test_palette_errors_are_reported():
     assert any("expected 8" in e for e in errors)
 
 
+def test_state_icon_colors_are_required_and_differ_from_accounts():
+    palette = render.load_palette()
+    assert not set(palette["states"].values()) & set(palette["accounts"].values())
+    del palette["states"]["working"]
+    assert "palette [states] misses 'working'" in validate.check_palette(palette)
+
+
 def test_herdr_check_skipped_without_herdr(monkeypatch):
     monkeypatch.setattr(validate.shutil, "which", lambda name: None)
     errors, note = validate.check_herdr("x = 1\n")

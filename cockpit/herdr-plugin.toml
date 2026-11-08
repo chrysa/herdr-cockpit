@@ -17,19 +17,17 @@ title = "Cockpit: setup (install or repair)"
 contexts = ["workspace"]
 command = ["sh", "-c", "python3 setup.py | ${PAGER:-less -R}"]
 
-# One poller for spaces + agent-info (chrysa.cockpit daemon).
-[[startup]]
-platforms = ["linux", "macos"]
-command = ["python3", "daemon.py", "ensure"]
-
-[[events]]
-on = "workspace.focused"
-command = ["python3", "daemon.py", "ensure"]
-
 # Filters for herdr's native Agents column (agent.view.set), re-applied at startup.
 [[startup]]
 platforms = ["linux", "macos"]
 command = ["python3", "agent_view.py", "apply"]
+
+# herdr forgets the view when its server restarts. On a space switch, `refresh`
+# re-applies it only if the server changed since the last apply: setting a view
+# resets the Agents column (selection included), so not on every switch.
+[[events]]
+on = "workspace.focused"
+command = ["python3", "agent_view.py", "refresh"]
 
 [[actions]]
 id = "agents-profile"

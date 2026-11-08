@@ -32,6 +32,14 @@ pro = "#89dceb"
 codex = "#a6e3a1"
 other = "#9399b2"
 
+# One color per agent state icon, distinct from every account color so an icon
+# never blends into the name next to it (working was perso yellow, done codex green).
+[states]
+blocked = "#f38ba8"
+working = "#fab387"
+done = "#cba6f7"
+background = "#89b4fa"  # only subagents, workflow agents or background tasks work
+
 [roles]
 done = "green"
 subagents = "sky"
