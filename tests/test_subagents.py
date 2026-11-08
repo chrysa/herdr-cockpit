@@ -106,12 +106,14 @@ def test_background_tasks_run_until_their_notification(tmp_path):
         call("t2", "Long build"), result("t2", [{"type": "text", "text": "Command did not complete within its 300s "
                                                   "timeout and was moved to the background (ID: bg2). Output"}]),
         call("t3", "Show a test"), result("t3", 'assert x == "Command running in background with ID: bg9."'),
+        call("t4", "Watch CI"), result("t4", "Command running in background with ID: bg4. Output"),
+        notification("bg4", "stopped", iso_at(now - 10)),
         notification("bg2", "completed", iso_at(now - 20)),
     ])
     log = subagents.MainLog(str(main))
     log.refresh(now)
     found = {s["id"]: (s["status"], s["description"]) for s in subagents.listing(str(main), log, now)}
-    assert found == {"bg1": ("running", "Run the suite"), "bg2": ("done", "Long build")}
+    assert found == {"bg1": ("running", "Run the suite"), "bg2": ("done", "Long build"), "bg4": ("killed", "Watch CI")}
 
 
 def test_a_long_background_task_stays_listed_until_it_stops(tmp_path):

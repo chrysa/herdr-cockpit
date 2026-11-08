@@ -28,6 +28,11 @@ LONG_S = 6 * 3600  # how long an unfinished subagent or background task stays li
 FIRST_READ = 2 * 1024 * 1024  # how far back the first read of a main transcript goes
 GLYPHS = {"running": "●", "stalled": "◌", "failed": "✗", "killed": "⊘", "done": "✓"}
 ORDER = tuple(GLYPHS)  # display order: what needs a look first
+STOP_STATUSES = {"completed": "done", "stopped": "killed"}  # <status> of a task notification
+
+
+def stop_status(status):
+    return STOP_STATUSES.get(status, status)
 TASK_ID = re.compile(r"<task-id>([^<]+)</task-id>")
 STATUS = re.compile(r"<status>([^<]+)</status>")
 AGENT_FILE = re.compile(r"agent-(.+)\.jsonl")
@@ -135,7 +140,7 @@ def status_of(agent_id, tool_use_id, last, log, now, finished=False):
     """finished: the meta file says so (Claude Code sets "finished": true at the end)."""
     stop = log.stops.get(agent_id)
     if stop and stop[0] >= last - 2:
-        return "done" if stop[1] == "completed" else stop[1]
+        return stop_status(stop[1])
     result = log.results.get(tool_use_id) if tool_use_id else None
     if (result and result >= last - 2) or finished:
         return "done"
@@ -202,6 +207,6 @@ def listing(main_path, log, now):
         last = stop[0] if stop else started
         if now - last > (WINDOW_S if stop else LONG_S):
             continue
-        status = ("done" if stop[1] == "completed" else stop[1]) if stop else "running"
+        status = stop_status(stop[1]) if stop else "running"
         found.append({"id": task_id, "status": status, "description": description, "last": last})
     return sorted(found, key=lambda s: (ORDER.index(s["status"]) if s["status"] in ORDER else len(ORDER), -s["last"]))
