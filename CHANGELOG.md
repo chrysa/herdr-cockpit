@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- agent-panel pinned to chrysa/agent-panel#6: the panel keeps the width you
+  gave it (also after a server restart restores the split), and an empty
+  Subagents tab opens on To do or Messages instead.
 - Spaces: a blue `⑂` icon when only subagents, workflow agents or background
   tasks work (the main agent idle or done); such a space counts as active.
   agent-info now also lists workflow agents (`subagents/workflows/<run>/`,
