@@ -3,4 +3,4 @@ Description=Validate and reload herdr config
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c '%h/.local/bin/herdr config check && %h/.local/bin/herdr server reload-config'
+ExecStart=/bin/sh -c '"{{paths.herdr}}" config check && "{{paths.herdr}}" server reload-config'
