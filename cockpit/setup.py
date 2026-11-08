@@ -43,6 +43,11 @@ UNITS = ("herdr-config-reload.path", "herdr-config-reload.service",
 ENABLE = ("herdr-config-reload.path", "herdr-logrotate.timer")
 
 
+def herdr_path(home):
+    """The herdr binary on PATH, else its installer's default (~/.local/bin/herdr)."""
+    return shutil.which("herdr") or os.path.join(home, ".local", "bin", "herdr")
+
+
 class Paths:
     def __init__(self, home=HOME):
         self.home = home
@@ -54,8 +59,9 @@ class Paths:
         self.backups = os.path.join(self.state, "backups", time.strftime("%Y%m%d-%H%M%S"))
 
     def claude_dirs(self):
-        return sorted({os.path.realpath(d) for d in glob.glob(os.path.join(self.home, ".claude-*"))
-                       if os.path.isfile(os.path.join(d, "settings.json"))})
+        """Claude config dirs: ~/.claude and every ~/.claude-<account> (symlinks counted once)."""
+        dirs = [os.path.join(self.home, ".claude"), *glob.glob(os.path.join(self.home, ".claude-*"))]
+        return sorted({os.path.realpath(d) for d in dirs if os.path.isfile(os.path.join(d, "settings.json"))})
 
 
 class Setup:
@@ -107,7 +113,8 @@ class Setup:
 
     def palette(self):
         palette = render.load_palette()
-        palette["paths"] = {"config": os.path.join(self.p.rendered, CONFIG), "bin": self.p.bin}
+        palette["paths"] = {"config": os.path.join(self.p.rendered, CONFIG), "bin": self.p.bin,
+                            "herdr": herdr_path(self.p.home)}
         return palette
 
     def render_templates(self, palette):

@@ -122,3 +122,19 @@ def test_claude_integration_installed_in_every_account(tmp_path):
     changes = setup.Setup(paths, run=run).apply()
     assert sum("integration install claude" in c for c in changes) == 2
     assert len(run.integrated) == 2
+
+
+def test_claude_dirs_include_the_default_one(tmp_path):
+    for account in (".claude", ".claude-pro"):
+        (tmp_path / account).mkdir()
+        (tmp_path / account / "settings.json").write_text("{}")
+    (tmp_path / ".claude-perso").symlink_to(tmp_path / ".claude")  # counted once
+    assert setup.Paths(home=str(tmp_path)).claude_dirs() == [str(tmp_path / ".claude"), str(tmp_path / ".claude-pro")]
+
+
+def test_reload_unit_calls_the_herdr_on_path(tmp_path, monkeypatch):
+    monkeypatch.setattr(setup.shutil, "which", lambda name: "/opt/herdr/bin/herdr" if name == "herdr" else None)
+    paths = make_home(tmp_path)
+    setup.Setup(paths, run=FakeRun()).apply()
+    unit = (tmp_path / ".config/systemd/user/herdr-config-reload.service").read_text()
+    assert "'\"/opt/herdr/bin/herdr\" config check && \"/opt/herdr/bin/herdr\" server reload-config'" in unit

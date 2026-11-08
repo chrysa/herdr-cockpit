@@ -529,11 +529,19 @@ ACTIVE_STATES = ("working", "blocked", "done")  # bold space name
 BACKGROUND_GLYPH = "⑂"
 ICON_ORDER = ("blocked", "working", "background", "done")
 AGENT_TOKENS = ("space_icon", *WAIT_TOKENS, *COUNT_TOKENS)
+# A child's icon comes after its name instead ("│ ├ GHA · ◐"): herdr puts " · "
+# after every custom token, so an icon in front would push the tree glyphs right.
+CHILD_ICON = "child_icon"
 # Above line 1, on the first space of a sibling group only: the group's header
 # ("└ plateform" over "├ charts", "├ service_catalog", "└ socle"), one token per
 # ecosystem color like the names.
 GROUP_TOKENS = tuple(f"group_{eco}" for eco in ("pro", "perso", "other"))
-SPACE_TOKENS = (*AGENT_TOKENS, *NAME_TOKENS, *GROUP_TOKENS)
+SPACE_TOKENS = (*AGENT_TOKENS, CHILD_ICON, *NAME_TOKENS, *GROUP_TOKENS)
+
+
+def icon_tokens(icon, child):
+    """{space_icon: icon} for a root space, {child_icon: icon} for a child (CHILD_ICON)."""
+    return {"space_icon": None if child else icon, CHILD_ICON: icon if child else None}
 
 
 def counts_label(statuses, sub_statuses):
@@ -928,6 +936,7 @@ def tick(shown, state=None, now=None):
     ecos = space_ecosystems([ws for ws, _, _ in listed], parents, accounts, state.setdefault("ecosystems", {}))
     spaces = {
         f"ws:{ws}": {**dict.fromkeys(AGENT_TOKENS), **subjects.get(ws, {}),
+                     **icon_tokens(subjects.get(ws, {}).get("space_icon"), ws in parents),
                      **name_tokens(display[ws], ecos[ws], ws in active),
                      # the header belongs to the parent's row of children: the parent's color
                      **group_tokens(headers.get(ws), ecos.get(parents.get(ws), ecos[ws]))}

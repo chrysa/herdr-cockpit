@@ -58,7 +58,9 @@ enabled = false
 #      space's folder (plateform_socle in Forge-Stack-Workshop/), else named
 #      after another plus "-suffix" (padam-av-GHA), is its child: spaces form a
 #      tree in alphabetical order at every level ("├ GHA", "└ simul"), and
-#      agent-info moves them into that order (no list by hand).
+#      agent-info moves them into that order (no list by hand). A child's icon
+#      comes after its name ("│ ├ GHA · ◐", child_icon): herdr puts " · " after
+#      every custom token, so an icon in front would push the tree glyphs right.
 #      agent-info publishes the name under one of six tokens (busy/idle x
 #      ecosystem) because herdr row styles are static and rules only match a
 #      token's own value; on the same line, the agents and subagents counted
@@ -87,6 +89,9 @@ rows = [
    { token = "$space_busy_other", fg = "#cdd6f4", bold = true },
    { token = "$space_idle_pro", fg = "#9399b2", dim = true }, { token = "$space_idle_perso", fg = "#9399b2", dim = true },
    { token = "$space_idle_other", fg = "#9399b2", dim = true },
+   { token = "$child_icon", bold = true, rules = [{ equals = "‼", fg = "#f38ba8" },
+     { equals = "◐", fg = "#fab387" }, { equals = "✓", fg = "#cba6f7" },
+     { equals = "⑂", fg = "#89b4fa" }] },
    { token = "$count_perso", fg = "#f9e2af", rules = [{ starts_with = "○", fg = "#9399b2", dim = true }] },
    { token = "$count_pro", fg = "#89dceb", rules = [{ starts_with = "○", fg = "#9399b2", dim = true }] },
    { token = "$count_codex", fg = "#a6e3a1", rules = [{ starts_with = "○", fg = "#9399b2", dim = true }] },

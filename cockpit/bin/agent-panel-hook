@@ -1,7 +1,11 @@
 #!/bin/sh
 # Run one of agent-panel's Claude Code hooks (session-start, subagent-start) from
 # wherever herdr installed the plugin; the checkout path changes on every update.
-for dir in "$HOME"/.config/herdr/plugins/github/agent-panel-*/hooks; do
+# herdr >= 0.9.5 installs under github-installations/<id>-<hash>/<n>-0/checkout and
+# may leave an older copy in github/: the newest checkout wins.
+plugins="$HOME/.config/herdr/plugins"
+for dir in $(ls -dt "$plugins"/github-installations/agent-panel-*/*/checkout/hooks \
+                    "$plugins"/github/agent-panel-*/hooks 2>/dev/null); do
   [ -x "$dir/$1.sh" ] && exec "$dir/$1.sh"
 done
 cat >/dev/null

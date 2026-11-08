@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Portability: `setup` also wires the default `~/.claude` (not only
+  `~/.claude-<account>`); the config-reload unit calls the herdr found on
+  PATH instead of `~/.local/bin/herdr`; `agent-panel-hook` finds agent-panel
+  where herdr >= 0.9.5 installs it (`github-installations/…/checkout`, the
+  newest copy first; it was running a stale copy left in `github/`);
+  `herdr-logrotate` measures logs with `wc -c` (`stat -c` is GNU only).
+  agent-info's manifest describes what it publishes today.
+- Spaces: a child space's state icon comes after its name (`│ ├ GHA · ◐`,
+  token `child_icon`, same colors). In front, herdr's ` · ` after the icon
+  pushed the tree glyphs 4 columns right (`◐ · │ ├ GHA`). Roots keep
+  `◐ · chrysa`.
 - agent-panel pinned to chrysa/agent-panel#6: the panel keeps the width you
   gave it (also after a server restart restores the split), and an empty
   Subagents tab opens on To do or Messages instead.
