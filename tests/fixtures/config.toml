@@ -49,7 +49,8 @@ enabled = false
 # Spaces, compact:
 #   1. state icon only when an agent there works, waits on you or has finished
 #      (agent-info's space_icon: herdr's state_icon also marks idle spaces), in
-#      its own color ([states]: ‼ red, ◐ peach, ✓ mauve, never an account color),
+#      its own color ([states]: ‼ red, ◐ peach, ✓ mauve, never an account color;
+#      ⑂ blue when only subagents, workflow agents or background tasks work),
 #      then the name. Active (an agent works, waits or has finished): bold, in
 #      the color of the account most of its agents run under (pro, perso; else
 #      plain text). Idle: dim grey, so active spaces stand out; an idle-only
@@ -80,7 +81,8 @@ rows = [
   [{ token = "$group_pro", fg = "#9399b2", dim = true }, { token = "$group_perso", fg = "#9399b2", dim = true },
    { token = "$group_other", fg = "#9399b2", dim = true }],
   [{ token = "$space_icon", bold = true, rules = [{ equals = "‼", fg = "#f38ba8" },
-     { equals = "◐", fg = "#fab387" }, { equals = "✓", fg = "#cba6f7" }] },
+     { equals = "◐", fg = "#fab387" }, { equals = "✓", fg = "#cba6f7" },
+     { equals = "⑂", fg = "#89b4fa" }] },
    { token = "$space_busy_pro", fg = "#89dceb", bold = true }, { token = "$space_busy_perso", fg = "#f9e2af", bold = true },
    { token = "$space_busy_other", fg = "#cdd6f4", bold = true },
    { token = "$space_idle_pro", fg = "#9399b2", dim = true }, { token = "$space_idle_perso", fg = "#9399b2", dim = true },

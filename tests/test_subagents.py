@@ -69,3 +69,40 @@ def test_missing_files_are_harmless(tmp_path):
     log = subagents.MainLog(str(tmp_path / "missing.jsonl"))
     log.refresh(0)
     assert subagents.listing(str(tmp_path / "missing.jsonl"), log, 0) == []
+
+
+def iso_at(t):
+    from datetime import UTC, datetime
+    return datetime.fromtimestamp(t, UTC).isoformat()
+
+
+def test_workflow_agents_follow_their_run(tmp_path):
+    now = 1_800_000_000.0
+    main, folder = write_session(tmp_path, [])
+    for run, agent in (("wf_live", "a1"), ("wf_over", "a2")):
+        (folder / "workflows" / run).mkdir(parents=True)
+        add_subagent(folder / "workflows" / run, agent, now - 30, description=f"step {agent}")
+    runs = tmp_path / "s1" / "workflows"
+    runs.mkdir()
+    (runs / "wf_over.json").write_text(json.dumps({"status": "completed"}))
+    log = subagents.MainLog(str(main))
+    log.refresh(now)
+    found = {s["id"]: (s["status"], s["description"]) for s in subagents.listing(str(main), log, now)}
+    assert found == {"a1": ("running", "step a1"), "a2": ("done", "step a2")}
+
+
+def test_background_tasks_run_until_their_notification(tmp_path):
+    now = 1_800_000_000.0
+    call = lambda tid, description: {"type": "assistant", "timestamp": iso_at(now - 100), "message": {"content": [
+        {"type": "tool_use", "id": tid, "name": "Bash", "input": {"command": "make test", "description": description}}]}}
+    result = lambda tid, text: {"type": "user", "timestamp": iso_at(now - 99), "message": {"content": [
+        {"type": "tool_result", "tool_use_id": tid, "content": text}]}}
+    main, _ = write_session(tmp_path, [
+        call("t1", "Run the suite"), result("t1", "Command running in background with ID: bg1. Output is being written"),
+        call("t2", "Long build"), result("t2", "Command did not complete... moved to the background (ID: bg2). Output"),
+        notification("bg2", "completed", iso_at(now - 20)),
+    ])
+    log = subagents.MainLog(str(main))
+    log.refresh(now)
+    found = {s["id"]: (s["status"], s["description"]) for s in subagents.listing(str(main), log, now)}
+    assert found == {"bg1": ("running", "Run the suite"), "bg2": ("done", "Long build")}

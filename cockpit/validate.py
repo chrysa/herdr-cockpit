@@ -38,7 +38,7 @@ def check_palette(palette):
     errors += [f"palette slot {s!r} is not a defined color" for s in slots if s not in palette["colors"]]
     errors += [f"palette [accounts] misses {a!r}" for a in ("perso", "pro", "codex", "other")
                if a not in palette.get("accounts", {})]
-    errors += [f"palette [states] misses {s!r}" for s in ("blocked", "working", "done")
+    errors += [f"palette [states] misses {s!r}" for s in ("blocked", "working", "done", "background")
                if s not in palette.get("states", {})]
     return errors
 

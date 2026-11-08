@@ -17,7 +17,11 @@ What herdr and the plugin marketplace do not cover reliably:
 - **Subagents** of each Claude agent active in the last 30 min, `$sub1`..`$sub3`
   ("⑂ ● Security review") and `$sub_more`, from `<session>/subagents/` and the
   main transcript's `<task-notification>` entries, read incrementally
-  (`subagents.py`, same state rules as agent-panel).
+  (`subagents.py`, same state rules as agent-panel). Also listed: workflow agents
+  (`subagents/workflows/<run>/`, finished once `<session>/workflows/<run>.json`
+  reports a final status) and background Bash tasks (a result saying "running in
+  background with ID" or "moved to the background (ID: …)", finished by their
+  task notification).
 - **"‼" on tabs waiting on you** (herdr's tab `agent_status` = blocked). A tab
   herdr.auto-title named gets its name cleared when the wait ends, so auto-title
   names it again; a tab you named gets your name back. Which kind a tab is comes
@@ -38,11 +42,14 @@ What herdr and the plugin marketplace do not cover reliably:
   without agents keeps the last color seen there, else takes its nearest parent's.
   Every space counts its agents per state, idle ones included (`○2`); an idle
   space gets no icon: `$space_icon` (‼ ◐ ✓, the most urgent state there) replaces
-  herdr's `state_icon`, which also marks idle and unknown spaces. The config
-  colors the icon from the palette's `[states]` and greys out idle spaces.
+  herdr's `state_icon`, which also marks idle and unknown spaces; `⑂` when only
+  subagents, workflow agents or background tasks work. The config colors the
+  icon from the palette's `[states]` and greys out idle spaces.
 - **Space groups**: a space is the child of the space whose folder holds its own
   (folders come from the panes' cwd: the one named like the space, else the most
-  common), else of the space whose name plus "-" starts its own. Spaces are drawn
+  common), else of the space whose name plus "-" starts its own; the name wins
+  when it is the more specific (its space sits inside the folder parent). A child
+  drops the leading words it shares with its parent's name. Spaces are drawn
   as a tree, in alphabetical order (case-insensitive) at every level, each child
   right after its parent: a child shows its name without the parent's prefix
   behind `├ ` (`└ ` for the last one, `│ ` to carry the line on). The daemon

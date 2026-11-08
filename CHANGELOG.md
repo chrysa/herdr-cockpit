@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Spaces: a blue `⑂` icon when only subagents, workflow agents or background
+  tasks work (the main agent idle or done); such a space counts as active.
+  agent-info now also lists workflow agents (`subagents/workflows/<run>/`,
+  finished with their run) and background Bash tasks (finished by their
+  task notification), in the Agents column too.
+- Hierarchy: a space goes under the more specific of its folder parent and its
+  name parent (`padam-av-GHA` under `padam-av` even when a space holds the
+  whole `padam/` folder), and a child drops the leading words it shares with
+  its parent (`padam-k8s` under `padam-av-and-more` shows `k8s`). Same-named
+  spaces: the first listed takes the children.
 - Spaces sort themselves alphabetically (case-insensitive) at every level,
   each child right after its parent, and the hierarchy is drawn as a tree:
   `├ GHA`, `└ supervision-interface`, `│ ` carrying the line on, instead of

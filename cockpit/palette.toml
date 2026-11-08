@@ -38,6 +38,7 @@ other = "#9399b2"
 blocked = "#f38ba8"
 working = "#fab387"
 done = "#cba6f7"
+background = "#89b4fa"  # only subagents, workflow agents or background tasks work
 
 [roles]
 done = "green"

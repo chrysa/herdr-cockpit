@@ -522,9 +522,12 @@ COUNT_TOKENS = tuple(f"count_{name}" for name in (*NAMED_ACCOUNTS, "other"))
 AGENT_GLYPHS = {"blocked": "‼", "working": "◐", "done": "✓", "idle": "○"}
 ACTIVE_STATES = ("working", "blocked", "done")  # bold space name
 # Line 1 starts with space_icon, the most urgent state among the space's agents, only
-# when one works, waits on you or has finished. herdr's own state_icon also draws
-# idle and unknown spaces and takes fixed styles only, so it is not used here.
-ICON_STATES = ("blocked", "working", "done")
+# when one works, waits on you or has finished, or when only its subagents, workflow
+# agents or background tasks work ("⑂", main agent idle or done). herdr's own
+# state_icon also draws idle and unknown spaces and takes fixed styles only, so it
+# is not used here.
+BACKGROUND_GLYPH = "⑂"
+ICON_ORDER = ("blocked", "working", "background", "done")
 AGENT_TOKENS = ("space_icon", *WAIT_TOKENS, *COUNT_TOKENS)
 # Above line 1, on the first space of a sibling group only: the group's header
 # ("└ plateform" over "├ charts", "├ service_catalog", "└ socle"), one token per
@@ -590,7 +593,9 @@ def space_parents(spaces):
     """[(workspace_id, label, folder)] -> {workspace_id: parent workspace_id}.
 
     The closest space whose folder holds this one's, else the longest label that plus
-    "-" starts this one's; a name link that would close a loop is skipped.
+    "-" starts this one's; the name wins when it is the more specific of the two
+    (padam-av-GHA in ~/padam/ goes under padam-av, itself in ~/padam/, not under the
+    space of ~/padam/). A name link that would close a loop is skipped.
     """
     parents = {}
     for ws, _, folder in spaces:
@@ -608,12 +613,16 @@ def space_parents(spaces):
             ws = parents.get(ws)
         return False
 
+    by_folder = dict(parents)
     for ws, label, _ in spaces:
-        if ws in parents or not label:
+        if not label:
             continue
-        prefixes = sorted(((len(other_label), other) for other, other_label, _ in spaces
-                           if other != ws and other_label and label.startswith(other_label + "-")), reverse=True)
-        parent = next((other for _, other in prefixes if not above(other, ws)), None)
+        prefixes = sorted((-len(other_label), position, other) for position, (other, other_label, _) in enumerate(spaces)
+                          if other != ws and other_label and label.startswith(other_label + "-"))
+        prefixes = [(None, other) for _, _, other in prefixes]  # longest label first, then the first listed
+        held = by_folder.get(ws)
+        parent = next((other for _, other in prefixes if not above(other, ws)
+                       and (held is None or (other != held and above(other, held)))), None)
         if parent is not None:
             parents[ws] = parent
     return parents
@@ -631,10 +640,18 @@ def moves_to(current, wanted):
 
 
 def short_name(label, parent_label):
-    """label without its parent's "parent-" prefix (unchanged without a parent)."""
-    if parent_label is None or label == parent_label:
+    """label without the leading words it shares with its parent's label (case
+    ignored), at least its last word kept: padam-av-GHA under padam-av -> GHA,
+    padam-k8s under padam-av-and-more -> k8s, plateform_socle under
+    Forge-Stack-Workshop unchanged."""
+    if parent_label is None:
         return label
-    return label.removeprefix(parent_label + "-")
+    words, parent_words = WORDS.findall(label), WORDS.findall(parent_label)
+    shared = 0
+    while (shared < min(len(words) - 1, len(parent_words))
+           and word_key(words[shared]) == word_key(parent_words[shared])):
+        shared += 1
+    return "".join(words[shared:])
 
 
 WORDS = re.compile(r"[^-_. ]+[-_. ]*")  # "plateform_socle" -> "plateform_", "socle"
@@ -794,6 +811,13 @@ def group_spaces(ids, wanted, state):
         request("workspace.move", {"workspace_id": ws, "insert_index": index})
 
 
+def background_only(agent, details):
+    """True when the agent itself neither works nor waits but a subagent, workflow
+    agent or background task of its session runs."""
+    subs = details.get(agent.get("pane_id"), {}).get("subs", [])
+    return agent.get("agent_status") not in ("working", "blocked") and "running" in subs
+
+
 def space_tokens(agents, details=None):
     """workspace_id -> count and waiting-agent tokens, for every space that holds agents.
 
@@ -818,7 +842,10 @@ def space_tokens(agents, details=None):
             statuses.append(agent.get("agent_status"))
             subs.extend(info.get("subs", []))
         states = {a.get("agent_status") for a in members}
-        icon = next((AGENT_GLYPHS[state] for state in ICON_STATES if state in states), None)
+        if any(background_only(a, details) for a in members):
+            states.add("background")
+        glyphs = {**AGENT_GLYPHS, "background": BACKGROUND_GLYPH}
+        icon = next((glyphs[state] for state in ICON_ORDER if state in states), None)
         tokens[ws] = {"space_icon": icon,
                       **{f"wait{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, WAIT_ROWS + 1)},
                       "wait_more": f"+{extra} en attente" if extra > 0 else None,
@@ -883,7 +910,8 @@ def tick(shown, state=None, now=None):
     subjects = space_tokens(agents, details)
     # Bold space name: an agent there works, waits on you or has finished. A space
     # whose agents all sit idle (herdr relaunches one in each space on restore) dims.
-    active = {a.get("workspace_id") for a in agents if a.get("agent_status") in ACTIVE_STATES}
+    active = {a.get("workspace_id") for a in agents
+              if a.get("agent_status") in ACTIVE_STATES or background_only(a, details)}
     workspaces = herdr("workspace", "list").get("result", {}).get("workspaces", [])
     labels = [CONTROL.sub("", w.get("label") or "") for w in workspaces]
     notify_blocked(agents, state, {w.get("workspace_id"): label for w, label in zip(workspaces, labels)}, names)

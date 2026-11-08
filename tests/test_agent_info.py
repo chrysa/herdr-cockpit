@@ -242,6 +242,17 @@ def test_space_icon_only_for_working_waiting_or_done():
     assert icon("working", "blocked", "idle") == "‼"
 
 
+def test_icon_when_only_subagents_or_tasks_work():
+    agents = [{"pane_id": "a", "workspace_id": "w1", "agent_status": "idle"},
+              {"pane_id": "b", "workspace_id": "w2", "agent_status": "done"},
+              {"pane_id": "c", "workspace_id": "w3", "agent_status": "working"},
+              {"pane_id": "d", "workspace_id": "w4", "agent_status": "idle"}]
+    details = {"a": {"subs": ["running"]}, "b": {"subs": ["running", "done"]}, "c": {"subs": ["running"]},
+               "d": {"subs": ["done"]}}
+    icons = {ws: tokens["space_icon"] for ws, tokens in monitor.space_tokens(agents, details).items()}
+    assert icons == {"w1": "⑂", "w2": "⑂", "w3": "◐", "w4": None}  # ⑂ outranks ✓, not ◐
+
+
 def test_spaces_cap_waiting_lines():
     agents = [{"pane_id": f"p{i}", "workspace_id": "w1", "agent_status": "blocked", "state_change_seq": i,
                "terminal_title_stripped": f"T{i}"} for i in range(5)]
@@ -371,6 +382,23 @@ SPACES = [("w1", "chrysa", "/p/chrysa"), ("w2", "Forge-Stack-Workshop", FSW), ("
 
 def test_space_parents_by_folder_then_by_name():
     assert monitor.space_parents(SPACES) == {"w4": "w3", "w5": "w2", "w6": "w2", "w7": "w6", "w8": "w1"}
+
+
+def test_a_name_parent_inside_the_folder_parent_is_more_specific():
+    spaces = [("w1", "padam-av-and-more", "/d/padam"), ("w2", "padam-av", "/d/padam/padam-av"),
+              ("w3", "padam-av-GHA", "/d/padam/padam-av-GHA"), ("w4", "padam-k8s", "/d/padam/padam-k8s"),
+              ("w5", "padam-av", "/d/padam/padam-av")]  # same name and folder as w2: w2, listed first, wins
+    parents = monitor.space_parents(spaces)
+    assert parents == {"w2": "w1", "w3": "w2", "w4": "w1", "w5": "w1"}
+    _, shown, headers = monitor.space_tree(spaces, parents, monitor.sibling_groups(spaces, parents))
+    assert shown == {"w1": "padam-av-and-more", "w2": "├ av", "w5": "├ av", "w3": "│ └ GHA", "w4": "└ k8s"}
+    assert headers == {}
+
+
+def test_short_name_drops_the_words_shared_with_the_parent():
+    assert monitor.short_name("padam-k8s", "padam-av-and-more") == "k8s"
+    assert monitor.short_name("padam-av", "padam-av-and-more") == "av"  # the last word stays
+    assert monitor.short_name("Chrysa-site", "chrysa") == "site"
 
 
 def test_space_parents_skip_a_name_link_that_closes_a_loop():

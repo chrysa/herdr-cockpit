@@ -53,7 +53,7 @@ One fact, one place:
 
 | Surface | Shows |
 |---|---|
-| Sidebar, Spaces | per space: a state icon only when an agent works, waits or has finished (‼ red, ◐ peach, ✓ mauve), name bold in the color of its agents' account (dim grey when all idle), agent and subagent counts per state and account, idle ones included (`○2`), the agents waiting on you. A space inside another's folder (or named after it) is its child: spaces form a tree in alphabetical order (`├ GHA`, `└ simul`); siblings starting with the same word get a dim header (`└ plateform` over `├ charts`, `└ socle`) |
+| Sidebar, Spaces | per space: a state icon only when an agent works, waits or has finished (‼ red, ◐ peach, ✓ mauve; ⑂ blue when only subagents, workflows or background tasks work), name bold in the color of its agents' account (dim grey when all idle), agent and subagent counts per state and account, idle ones included (`○2`), the agents waiting on you. A space inside another's folder (or named after it) is its child: spaces form a tree in alphabetical order (`├ GHA`, `└ simul`); siblings starting with the same word get a dim header (`└ plateform` over `├ charts`, `└ socle`) |
 | Sidebar, Agents | the selected space's agents: state, age, PR, name, last tool call, subagents |
 | Tab bar | `‼` on tabs waiting on you; on the right, account · model · context of the focused agent |
 | agent-panel (right) | the focused conversation: header (folder in the account's color, git, services), Subagents, Messages, Refs, To do; an empty Subagents tab opens on To do or Messages |
