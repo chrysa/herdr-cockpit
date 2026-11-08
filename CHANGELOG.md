@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Agents column: an idle agent shows no icon and its name in dim grey
+  (`agent_icon`, `topic_idle`); the others get the space icons and colors
+  (‼ ◐ ⑂ ✓). Subtasks: up to 13 per agent (was 3), a /subtask fork or
+  subagent still running stays listed up to 6 h (was 30 min after its last
+  write), a background task too (it vanished 30 min after it started);
+  Claude Code's `finished` meta flag marks a subtask done. A background
+  task is only read from the start of a Bash result (a command printing
+  the phrase was listed), and a stopped one shows ⊘.
 - Linux only, declared: both manifests list `linux` alone (the services list
   needs `ss` and `/proc`, `setup` installs systemd user units); the README
   says so, and that account colors cover `perso`, `pro` and `codex`.
