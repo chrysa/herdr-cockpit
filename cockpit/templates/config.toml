@@ -102,26 +102,44 @@ rows = [
   [{ token = "$wait_more", fg = "{{colors.red}}", dim = true }],
 ]
 
-# Agents: state, how long in that state (dim, "12m"; agent-info measures it),
-# then the branch's PR (gh-pr, "#123 ✓"), then the name (the tab's, else the
-# conversation title) in the color of its
-# account (perso yellow, pro sky, codex green, other grey). agent-info publishes
-# the title under one token per account because herdr rules can only match a
-# token's own value. A working Claude agent gets a dim second line with its
-# last tool call ("Edit monitor.py"), then one mauve line per subagent active
-# in the last 30 min ("⑂ ● Security review"), 3 max then "⑂ +N".
+# Agents: a state icon only when the agent works, waits on you or has finished,
+# or when only its subtasks run (agent-info's agent_icon, colored as on spaces:
+# herdr's state_icon also marks idle agents), how long in that state (dim,
+# "12m"; agent-info measures it), the branch's PR (gh-pr, "#123 ✓"), then the
+# name (the tab's, else the conversation title) in the color of its account
+# (perso yellow, pro sky, codex green, other grey), or dim grey when the agent
+# is idle (topic_idle). agent-info publishes the title under one token per
+# account because herdr rules can only match a token's own value. A working
+# Claude agent gets a dim second line with its last tool call ("Edit
+# monitor.py"), then one mauve line per subtask: subagent, /subtask fork,
+# workflow agent or background task ("⑂ ● Security review"), finished ones for
+# 30 min, unfinished ones up to 6 h; 13 max (herdr allows 16 rows) then "⑂ +N".
 # No space name: the column shows the selected space by default (agent_view),
 # so the whole width goes to the title.
 # The model is in the tab bar and the panel header, not repeated here.
 [ui.sidebar.agents]
 rows = [
-  ["state_icon", { token = "$age", dim = true }, { token = "$pr", fg = "{{colors.overlay}}" },
+  [{ token = "$agent_icon", bold = true, rules = [{ equals = "{{symbols.blocked}}", fg = "{{states.blocked}}" },
+     { equals = "{{symbols.working}}", fg = "{{states.working}}" }, { equals = "{{symbols.done}}", fg = "{{states.done}}" },
+     { equals = "{{symbols.branch}}", fg = "{{states.background}}" }] },
+   { token = "$age", dim = true }, { token = "$pr", fg = "{{colors.overlay}}" },
    { token = "$topic_perso", fg = "{{accounts.perso}}" }, { token = "$topic_pro", fg = "{{accounts.pro}}" },
-   { token = "$topic_codex", fg = "{{accounts.codex}}" }, { token = "$topic_other", fg = "{{accounts.other}}" }],
+   { token = "$topic_codex", fg = "{{accounts.codex}}" }, { token = "$topic_other", fg = "{{accounts.other}}" },
+   { token = "$topic_idle", fg = "{{colors.overlay}}", dim = true }],
   [{ token = "$doing", dim = true }],
   [{ token = "$sub1", fg = "{{colors.mauve}}" }],
   [{ token = "$sub2", fg = "{{colors.mauve}}" }],
   [{ token = "$sub3", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub4", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub5", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub6", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub7", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub8", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub9", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub10", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub11", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub12", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub13", fg = "{{colors.mauve}}" }],
   [{ token = "$sub_more", fg = "{{colors.mauve}}", dim = true }],
 ]
 

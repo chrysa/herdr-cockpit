@@ -6,7 +6,9 @@ agent-<id>.meta.json its description and spawning tool call. In the main transcr
 marks each stop, and a tool_result for the spawning call marks the end of a
 foreground subagent. Same rules as the agent-panel plugin: a stop counts only if
 nothing happened after it (a stopped subagent can be resumed); silent for
-STALL_S = stalled. Only subagents active in the last WINDOW_S are listed.
+STALL_S = stalled. A finished subagent is listed for WINDOW_S after its last write;
+one still running (no stop, no result, meta "finished" not true) for LONG_S, so a
+long one stays visible while it works silently.
 """
 
 import json
@@ -22,6 +24,7 @@ from datetime import datetime
 
 STALL_S = 5 * 60
 WINDOW_S = 30 * 60
+LONG_S = 6 * 3600  # how long an unfinished subagent or background task stays listed
 FIRST_READ = 2 * 1024 * 1024  # how far back the first read of a main transcript goes
 GLYPHS = {"running": "●", "stalled": "◌", "failed": "✗", "killed": "⊘", "done": "✓"}
 ORDER = tuple(GLYPHS)  # display order: what needs a look first
@@ -68,11 +71,12 @@ class MainLog:
             lines = lines[1:]  # read from the middle of a line
         for raw in lines:
             self.read_line(raw.decode("utf-8", "replace"), now)
-        horizon = now - 2 * WINDOW_S
+        # LONG_S, not WINDOW_S: a long subagent or task must keep its stop or start.
+        horizon = now - LONG_S
+        self.tasks = {k: v for k, v in self.tasks.items() if (self.stops.get(k) or v)[0] >= horizon}
         self.stops = {k: v for k, v in self.stops.items() if v[0] >= horizon}
         self.results = {k: v for k, v in self.results.items() if v >= horizon}
         self.calls = {k: v for k, v in self.calls.items() if v[0] >= horizon}
-        self.tasks = {k: v for k, v in self.tasks.items() if v[0] >= horizon}
 
     def read_line(self, line, now):
         notification = "<task-notification>" in line
@@ -118,14 +122,18 @@ def read_meta(path):
         return {}
 
 
-def status_of(agent_id, tool_use_id, last, log, now):
+def status_of(agent_id, tool_use_id, last, log, now, finished=False):
+    """finished: the meta file says so (Claude Code sets "finished": true at the end)."""
     stop = log.stops.get(agent_id)
     if stop and stop[0] >= last - 2:
         return "done" if stop[1] == "completed" else stop[1]
-    finished = log.results.get(tool_use_id) if tool_use_id else None
-    if finished and finished >= last - 2:
+    result = log.results.get(tool_use_id) if tool_use_id else None
+    if (result and result >= last - 2) or finished:
         return "done"
     return "stalled" if now - last > STALL_S else "running"
+
+
+UNFINISHED = ("running", "stalled")
 
 
 def agent_files(folder):
@@ -157,7 +165,7 @@ def workflow_status(session_dir, run):
 
 def listing(main_path, log, now):
     """[{id, status, description, last}] of the session's subagents, workflow agents and
-    background tasks active in WINDOW_S."""
+    background tasks: finished ones active in WINDOW_S, unfinished ones in LONG_S."""
     session_dir = main_path.removesuffix(".jsonl")
     found, finished = [], {}
     for path, agent_id, run in agent_files(os.path.join(session_dir, "subagents")):
@@ -165,21 +173,25 @@ def listing(main_path, log, now):
             last = os.path.getmtime(path)
         except OSError:
             continue
-        if now - last > WINDOW_S:
+        if now - last > LONG_S:
             continue
         meta = read_meta(path.removesuffix(".jsonl") + ".meta.json")
         if run is not None and run not in finished:
             finished[run] = workflow_status(session_dir, run)
+        status = (run and finished[run]) or status_of(agent_id, meta.get("toolUseId"), last, log, now,
+                                                      meta.get("finished") is True)
+        if now - last > (LONG_S if status in UNFINISHED else WINDOW_S):
+            continue
         found.append({
             "id": agent_id,
-            "status": (run and finished[run]) or status_of(agent_id, meta.get("toolUseId"), last, log, now),
+            "status": status,
             "description": str(meta.get("description") or meta.get("agentType") or "agent"),
             "last": last,
         })
     for task_id, (started, description) in log.tasks.items():
         stop = log.stops.get(task_id)
         last = stop[0] if stop else started
-        if now - last > WINDOW_S:
+        if now - last > (WINDOW_S if stop else LONG_S):
             continue
         status = ("done" if stop[1] == "completed" else stop[1]) if stop else "running"
         found.append({"id": task_id, "status": status, "description": description, "last": last})

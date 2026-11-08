@@ -46,10 +46,11 @@ def test_tick_publishes_only_changes(monkeypatch):
     shown = {"_refreshed": 10 ** 12}
     monitor.tick(shown)
     monitor.tick(shown)
-    assert published == [("p1", {"account": "perso", "model": "opus-5.5", "topic_perso": "Fix the parser",
-                                 "topic_pro": None, "topic_codex": None, "topic_other": None,
-                                 "age": None, "doing": None, "sub1": None, "sub2": None, "sub3": None,
-                                 "sub_more": None})]
+    # no state reported: idle, so no icon and the name under topic_idle (dim grey)
+    assert published == [("p1", {"account": "perso", "model": "opus-5.5", "agent_icon": None,
+                                 "topic_perso": None, "topic_pro": None, "topic_codex": None, "topic_other": None,
+                                 "topic_idle": "Fix the parser", "age": None, "doing": None,
+                                 **dict.fromkeys(monitor.SUB_TOKENS)})]
 
 
 def test_tick_publishes_the_age_of_the_state(monkeypatch):
@@ -488,9 +489,37 @@ def test_idle_spaces_count_their_idle_agents():
 
 
 def test_sub_tokens_list_then_overflow():
-    subs = [{"status": s, "description": f"S{i}"} for i, s in enumerate(["running", "stalled", "done", "done"])]
-    assert monitor.sub_tokens(subs) == {"sub1": "⑂ ● S0", "sub2": "⑂ ◌ S1", "sub3": "⑂ ✓ S2", "sub_more": "⑂ +1"}
-    assert monitor.sub_tokens([]) == {"sub1": None, "sub2": None, "sub3": None, "sub_more": None}
+    statuses = ["running", "stalled"] + ["done"] * monitor.SUB_ROWS
+    subs = [{"status": s, "description": f"S{i}"} for i, s in enumerate(statuses)]
+    tokens = monitor.sub_tokens(subs)
+    assert (tokens["sub1"], tokens["sub2"], tokens["sub3"]) == ("⑂ ● S0", "⑂ ◌ S1", "⑂ ✓ S2")
+    assert tokens[f"sub{monitor.SUB_ROWS}"] == f"⑂ ✓ S{monitor.SUB_ROWS - 1}"
+    assert tokens["sub_more"] == "⑂ +2"
+    assert monitor.sub_tokens([]) == dict.fromkeys(monitor.SUB_TOKENS)
+
+
+def test_agent_icon_only_when_working_waiting_done_or_subtasks_run():
+    icon = lambda status, subs=(): monitor.agent_icon({"agent_status": status}, list(subs))
+    assert (icon("blocked", ["running"]), icon("working"), icon("done"), icon("idle"), icon(None)) == ("‼", "◐", "✓", None, None)
+    assert (icon("idle", ["running"]), icon("done", ["running"]), icon("idle", ["done"])) == ("⑂", "⑂", None)
+
+
+def test_idle_agent_name_goes_grey():
+    agent = {"terminal_title_stripped": "Fix the parser"}
+    assert monitor.topic_tokens(agent, "pro", idle=True) == {
+        "topic_perso": None, "topic_pro": None, "topic_codex": None, "topic_other": None, "topic_idle": "Fix the parser"}
+    assert monitor.topic_tokens(agent, "pro")["topic_pro"] == "Fix the parser"
+
+
+def test_agent_tokens_go_out_in_reports_of_at_most_16(monkeypatch):
+    calls = []
+    monkeypatch.setattr(monitor, "herdr", lambda *args: calls.append(args))
+    monitor.publish("p1", {"agent_icon": "◐", "sub13": "⑂ ● last"})
+    assert len(calls) == -(-len(monitor.TOKENS) // monitor.REPORT_MAX)
+    named = [a for args in calls for a in args if a.startswith(tuple(f"{t}=" for t in monitor.TOKENS))
+             or a in monitor.TOKENS]
+    assert sorted(a.split("=")[0] for a in named) == sorted(monitor.TOKENS)
+    assert all(sum(a in ("--token", "--clear-token") for a in args) <= monitor.REPORT_MAX for args in calls)
 
 
 @pytest.mark.parametrize("tab, shared, name", [
