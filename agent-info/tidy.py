@@ -67,6 +67,14 @@ def prompt_empty(screen):
     return not ANSI.sub("", GHOST.sub("", after)).replace("\xa0", " ").strip(" │\r")
 
 
+def still_idle(pane, herdr):
+    """Fresh state right before a key press: the prompt line looks empty while an
+    agent works too, so the list read at the start of the pass is not enough."""
+    reply = herdr("pane", "get", pane)
+    current = (reply.get("result") or {}).get("pane") or {}
+    return current.get("agent") == "claude" and current.get("agent_status") == "idle"
+
+
 def runs_claude(process_info):
     procs = ((process_info.get("result") or {}).get("process_info") or {}).get("foreground_processes") or []
     return any(p.get("name") == "claude" for p in procs)
@@ -78,11 +86,16 @@ def close_idle(agent, herdr, herdr_text, wait=None):
     pane = agent["pane_id"]
     if not prompt_empty(herdr_text("pane", "read", pane, "--source", "visible", "--lines", "60", "--format", "ansi")):
         return False  # a draft is waiting: leave it
-    herdr("pane", "send-keys", pane, "ctrl+c", "ctrl+c")
-    for _ in range(6):
-        wait(0.5)
-        if not runs_claude(herdr("pane", "process-info", "--pane", pane)):
-            return True
+    # Ctrl+C twice quits an empty prompt; with a suggestion shown, the first pair only
+    # clears it, so a second pair follows when claude is still there.
+    for _ in range(2):
+        if not still_idle(pane, herdr):
+            return False  # it started working (or waits on you) meanwhile
+        herdr("pane", "send-keys", pane, "ctrl+c", "ctrl+c")
+        for _ in range(6):
+            wait(0.5)
+            if not runs_claude(herdr("pane", "process-info", "--pane", pane)):
+                return True
     return False
 
 

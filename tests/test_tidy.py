@@ -35,20 +35,27 @@ def test_idle_to_close_takes_only_long_idle_unfocused_agents_without_subtasks():
 
 def test_close_idle_quits_with_ctrl_c_only_on_an_empty_prompt():
     calls = []
-    still = iter([True, False])
+    still = iter([True] * 6 + [False])  # the first pair only clears a suggestion
+
+    status = {"now": "idle"}
 
     def herdr(*args):
         calls.append(args)
         if args[:2] == ("pane", "process-info"):
             names = ["claude"] if next(still) else ["zsh"]
             return {"result": {"process_info": {"foreground_processes": [{"name": n} for n in names]}}}
+        if args[:2] == ("pane", "get"):
+            return {"result": {"pane": {"agent": "claude", "agent_status": status["now"]}}}
         return {}
 
     assert tidy.close_idle(agent("p1"), herdr, lambda *a: screen("❯\xa0"), wait=lambda s: None)
-    assert ("pane", "send-keys", "p1", "ctrl+c", "ctrl+c") in calls
+    assert calls.count(("pane", "send-keys", "p1", "ctrl+c", "ctrl+c")) == 2
     calls.clear()
     assert not tidy.close_idle(agent("p1"), herdr, lambda *a: screen("❯ draft"), wait=lambda s: None)
     assert calls == []
+    status["now"] = "working"  # started meanwhile: the empty prompt line must not be enough
+    assert not tidy.close_idle(agent("p1"), herdr, lambda *a: screen("❯\xa0"), wait=lambda s: None)
+    assert not any(c[:2] == ("pane", "send-keys") for c in calls)
 
 
 def test_repo_root_only_below_the_space_folder(tmp_path):
@@ -82,6 +89,8 @@ def test_run_closes_moves_logs_and_notifies_once(tmp_path, monkeypatch):
 
     def herdr(*args):
         calls.append(args)
+        if args[:2] == ("pane", "get"):
+            return {"result": {"pane": {"agent": "claude", "agent_status": "idle"}}}
         return {"result": {"process_info": {"foreground_processes": [{"name": "zsh"}]}}}
 
     log = tmp_path / "closed.jsonl"
