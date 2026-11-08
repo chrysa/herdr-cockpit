@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.8.0 — spaces tree, real-time sidebar, herdr 0.9.5 (2026-11-08)
 
 - Portability: `setup` also wires the default `~/.claude` (not only
   `~/.claude-<account>`); the config-reload unit calls the herdr found on
