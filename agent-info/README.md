@@ -85,6 +85,9 @@ What herdr and the plugin marketplace do not cover reliably:
     folder moves to that repo's space, a new one if needed, sorted under its
     parent (`AGENT_INFO_SORT_TABS=0` turns it off). Never the focused tab, nor an
     agent waiting on you.
+- **agent-panel services** (`panel_services.py`, its `services-command`, written by cockpit
+  setup): every container and listener of the agent's project, one `up|down<TAB>name<TAB>url`
+  line each, for agent-panel's Apps tab.
 - **Services pane** (`prefix+ctrl+g`): containers of the tab's git project (compose
   working dir or bind mounts inside it) and processes listening on a port from
   inside it, with their URLs. `docker ps` and `ss` run in background threads.

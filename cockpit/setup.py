@@ -161,10 +161,12 @@ class Setup:
             self.update_settings(d, f"statusLine -> {script}", edit)
 
     def install_panel_header(self):
-        """agent-panel (chrysa fork) shows agent-info's header: account, model, folder, git, services."""
-        header = os.path.join(os.path.dirname(ROOT), "agent-info", "header.py")
-        self.write(os.path.join(self.p.home, DOT_CONFIG, "herdr", "plugins", "config", "agent-panel",
-                                "header-command"), header + "\n")
+        """agent-panel (chrysa fork) shows agent-info's header (account, model, folder, git,
+        services) and, in its Apps tab, every service of the project."""
+        agent_info = os.path.join(os.path.dirname(ROOT), "agent-info")
+        config = os.path.join(self.p.home, DOT_CONFIG, "herdr", "plugins", "config", "agent-panel")
+        self.write(os.path.join(config, "header-command"), os.path.join(agent_info, "header.py") + "\n")
+        self.write(os.path.join(config, "services-command"), os.path.join(agent_info, "panel_services.py") + "\n")
 
     def install_codex_todo(self):
         """Codex has no SessionStart hook: agent-panel's To do tab needs its rule in AGENTS.md."""

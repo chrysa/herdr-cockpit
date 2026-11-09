@@ -50,6 +50,14 @@ def git_state(cwd):
     return root or None, f"⑂ {safe(branch)}" + (f" {marks}" if marks else " ✓")
 
 
+def service_items(root):
+    """[(name, url, up)]: the project's containers, then its listening processes."""
+    boxes = services.containers(root, services.saved_snapshot("docker"))
+    procs = services.listeners(root, services.saved_snapshot("ss"))
+    items = [(b["name"], (b["urls"] or [""])[0], b["state"] == "running") for b in boxes]
+    return items + [(p["name"], p["url"], True) for p in procs]
+
+
 def lines(cwd, provider, session):
     _, account = monitor.agent_info({"agent": provider, "agent_session": {"value": session}, "cwd": cwd})
     color = ACCOUNT.get(account or "", "38;2;147;153;178")
@@ -58,10 +66,7 @@ def lines(cwd, provider, session):
     if state:
         out.append(f"{YELLOW if '✓' not in state else GREEN}{state}{RESET}")
     if root:
-        boxes = services.containers(root, services.saved_snapshot("docker"))
-        procs = services.listeners(root, services.saved_snapshot("ss"))
-        items = [(b["name"], (b["urls"] or [""])[0], b["state"] == "running") for b in boxes]
-        items += [(p["name"], p["url"], True) for p in procs]
+        items = service_items(root)
         for name, url, up in items[:MAX_SERVICES]:
             out.append(f"{GREEN if up else DIM}●{RESET} {safe(name)} {SKY}{safe(url)}{RESET}")
         if len(items) > MAX_SERVICES:
