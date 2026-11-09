@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Tab bar in real time: plan windows and context come from the focused pane's
+  latest status line input (copied per pane on every message and every
+  refreshInterval; agent-info wakes on it), the bar refreshes every second (was
+  5 s), and the context no longer waits for the agent to finish.
+- Tab bar: quotas in words, `hebdo 82% (reset 3j20h)` instead of
+  `7j 82% ↻3j20h` (window and reset both read "…j"; herdr strips colors there).
 - Docs: the "What each surface shows" table covers the agents column icons,
   idle grey and subtasks, agent-panel tab clicks and mouse resize, and the
   housekeeping notifications.

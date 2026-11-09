@@ -42,11 +42,13 @@ add it here and run setup.
 
 ## Tab bar
 
-`ui.tab_bar_right` runs `bin/herdr-tabbar` every 5 s: account · model · plan
-windows with % used and time to reset (`5h 12% ↻3h05 · 7j 72% ↻4j14h`) ·
-context of the focused agent. The windows come from usagebar's cache per
-Claude account, which the cockpit status line feeds with Claude Code's
-`rate_limits` (before it hides itself behind agent-panel). chrysa.agent-info writes that line to
+`ui.tab_bar_right` runs `bin/herdr-tabbar` every second: account · model · plan
+windows with % used and time to reset (`5h 12% (reset 3h05) · hebdo 72% (reset 4j14h)`) ·
+context of the focused agent. Both come from the latest Claude Code status line
+input of that pane, which the cockpit status line copies to
+`~/.local/state/chrysa.cockpit/statusline/<pane>.json` on every message and every
+`refreshInterval` (agent-info wakes up when that file changes); without it,
+usagebar's cache per account, which the status line also feeds. chrysa.agent-info writes that line to
 `~/.local/state/chrysa.agent-info/tabbar` on every focus or status change;
 the script only reads the file (no socket call, well under the 2 s timeout).
 

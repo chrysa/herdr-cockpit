@@ -229,17 +229,17 @@ TABBAR = os.path.join(STATE_DIR, "tabbar")
 CLOSED = os.path.join(STATE_DIR, "closed.jsonl")  # idle agents tidy.py quit: pane, space, session id
 
 
-QUOTA_WINDOWS = (("5h", "limit_5h"), ("7j", "limit_7d"))  # usagebar: "<% left> <reset in>" per band
+QUOTA_WINDOWS = (("5h", "limit_5h"), ("hebdo", "limit_7d"))  # usagebar: "<% left> <reset in>" per band
 
 
 def quota_parts(tokens):
-    """["5h 88% ↻2h", "7j 48% ↻5j"] from usagebar's per-window tokens."""
+    """["5h 88% (reset 2h)", "hebdo 48% (reset 5j)"] from usagebar's per-window tokens."""
     parts = []
     for label, prefix in QUOTA_WINDOWS:
         value = next((tokens[f"{prefix}_{band}"] for band in ("low", "mid", "high") if tokens.get(f"{prefix}_{band}")), "")
         left, _, reset = str(value).partition(" ")
         if left:
-            parts.append(f"{label} {left}" + (f" ↻{reset.replace('d', 'j')}" if reset else ""))
+            parts.append(f"{label} {left}" + (f" (reset {reset.replace('d', 'j')})" if reset else ""))
     return parts
 
 
@@ -255,8 +255,75 @@ def reset_label(seconds):
     return f"{hours}h{minutes:02d}" if hours < 24 else f"{hours // 24}j{hours % 24:02d}h"
 
 
+STATUSLINE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or f"{HOME}/.local/state", "chrysa.cockpit", "statusline")
+SNAPSHOT_FRESH_S = 30 * 60  # older: the pane's Claude is gone or stuck; fall back to usagebar
+
+
+def snapshot_path(pane_id, folder=None):
+    """The cockpit status line's copy of its latest input for this pane."""
+    return os.path.join(folder or STATUSLINE_DIR, re.sub(r"[^A-Za-z0-9_-]", "_", pane_id) + ".json")
+
+
+def statusline_snapshot(pane_id, now, folder=None):
+    """The latest Claude Code status line input of the pane (rate_limits, context_window),
+    refreshed on each message and every refreshInterval; None when absent or stale."""
+    path = snapshot_path(pane_id, folder)
+    try:
+        if now - os.path.getmtime(path) > SNAPSHOT_FRESH_S:
+            return None
+        with open(path) as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def window_label(label, used, reset, now):
+    """"hebdo 72% (reset 4j14h)", None once the window has reset."""
+    if reset and reset <= now:
+        return None
+    return f"{label} {round(used)}%" + (f" (reset {reset_label(reset - now)})" if reset else "")
+
+
+def snapshot_quotas(snapshot, now):
+    """["5h 12% (reset 3h05)", "hebdo 72% (reset 4j14h)"] from the status line input."""
+    limits = snapshot.get("rate_limits") if isinstance(snapshot.get("rate_limits"), dict) else {}
+    parts = []
+    for label, key in (("5h", "five_hour"), ("hebdo", "seven_day")):
+        window = limits.get(key)
+        if isinstance(window, dict) and window.get("used_percentage") is not None:
+            part = window_label(label, window["used_percentage"], window.get("resets_at"), now)
+            parts += [part] if part else []
+    return parts
+
+
+def snapshot_context(snapshot):
+    """"⛁ 18% (175k)": the share of the context window in use, from the status line input."""
+    window = snapshot.get("context_window") if isinstance(snapshot.get("context_window"), dict) else {}
+    used, tokens = window.get("used_percentage"), window.get("total_input_tokens")
+    if used is None:
+        return None
+    return f"⛁ {round(used)}%" + (f" ({round(tokens / 1000)}k)" if tokens else "")
+
+
+def prune_snapshots(live_panes, folder=None):
+    """Drop the status line copies of panes that no longer exist."""
+    folder = folder or STATUSLINE_DIR
+    keep = {os.path.basename(snapshot_path(pane, folder)) for pane in live_panes}
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return
+    for name in names:
+        if name.endswith(".json") and name not in keep:
+            try:
+                os.remove(os.path.join(folder, name))
+            except OSError:
+                pass
+
+
 def cached_quotas(account, now, home=HOME):
-    """["5h 12% ↻3h05", "7j 72% ↻4j14h"]: % used and time to reset of the account's plan
+    """["5h 12% (reset 3h05)", "hebdo 72% (reset 4j14h)"]: % used and time to reset of the account's plan
     windows, from usagebar's cache (cockpit's status line hands it Claude Code's
     rate_limits). Windows already reset are left out; [] without a cache."""
     folder = f".claude-{account}" if account and account != "default" else ".claude"
@@ -266,27 +333,29 @@ def cached_quotas(account, now, home=HOME):
     except (OSError, ValueError):
         return []
     parts = []
-    for label, key in (("5h", "fiveHour"), ("7j", "sevenDay")):
+    for label, key in (("5h", "fiveHour"), ("hebdo", "sevenDay")):
         window = data.get(key) if isinstance(data, dict) else None
         if not isinstance(window, dict) or window.get("usedPercentage") is None:
             continue
-        reset = window.get("resetsAt")
-        if reset and reset <= now:
-            continue
-        parts.append(f"{label} {round(window['usedPercentage'])}%" + (f" ↻{reset_label(reset - now)}" if reset else ""))
+        part = window_label(label, window["usedPercentage"], window.get("resetsAt"), now)
+        parts += [part] if part else []
     return parts
 
 
 def tabbar_line(agents, accounts, now=None):
     """account  model  plan windows (% used, time to reset)  context, for the focused
-    agent; "" when none is focused. Without usagebar's cache, its tokens."""
+    agent; "" when none is focused. From the pane's status line input (fresh on every
+    message), else usagebar's cache, else its tokens."""
     agent = next((a for a in agents if a.get("focused")), None)
     if not agent:
         return ""
+    now = time.time() if now is None else now
     account, model = accounts.get(agent["pane_id"], (None, None))
     tokens = agent.get("tokens") or {}
-    quotas = cached_quotas(account, time.time() if now is None else now) or quota_parts(tokens)
-    tail = [" · ".join(quotas), tokens.get("context_meter")] if quotas else [tokens.get("context")]
+    snapshot = statusline_snapshot(agent["pane_id"], now) or {}
+    quotas = snapshot_quotas(snapshot, now) or cached_quotas(account, now) or quota_parts(tokens)
+    context = snapshot_context(snapshot)
+    tail = [" · ".join(quotas), context or tokens.get("context_meter")] if quotas else [context or tokens.get("context")]
     return "  ".join(CONTROL.sub("", str(p)) for p in (account, model, *tail) if p)
 
 
@@ -994,6 +1063,9 @@ def tick(shown, state=None, now=None):
     # What wakes the daemon besides herdr events: each Claude transcript and its
     # subagents folder (a new subagent adds a file there).
     state["watch"] = [p for path in state["logs"] for p in (path, os.path.join(path.removesuffix(".jsonl"), "subagents"))]
+    # The focused pane's status line copy: its plan windows and context reach the tab bar at once.
+    state["watch"] += [snapshot_path(a["pane_id"]) for a in agents if a.get("focused")]
+    prune_snapshots(a["pane_id"] for a in agents)
     state["panes"] = [a["pane_id"] for a in agents]
     line = tabbar_line(agents, state["accounts"])
     if line != state.get("tabbar"):

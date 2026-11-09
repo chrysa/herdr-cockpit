@@ -1,4 +1,5 @@
 import json
+import os
 
 import pytest
 
@@ -565,8 +566,8 @@ def test_tabbar_line_shows_the_focused_agent(monkeypatch):
     assert monitor.tabbar_line([{"pane_id": "x", "focused": True, "tokens": {"context": "\x1b[2Jc"}}], {}) == "[2Jc"
     windows = {"limit_5h_high": "88% 2h", "limit_7d_mid": "48% 5d", "context_meter": "⛁ 43% (432k)", "context": "x"}
     assert monitor.tabbar_line([{"pane_id": "b", "focused": True, "tokens": windows}], accounts) == \
-        "perso  opus-5.5  5h 88% ↻2h · 7j 48% ↻5j  ⛁ 43% (432k)"
-    assert monitor.quota_parts({"limit_7d_low": "9%"}) == ["7j 9%"]  # no reset reported
+        "perso  opus-5.5  5h 88% (reset 2h) · hebdo 48% (reset 5j)  ⛁ 43% (432k)"
+    assert monitor.quota_parts({"limit_7d_low": "9%"}) == ["hebdo 9%"]  # no reset reported
 
 
 def test_cached_quotas_give_percent_used_and_exact_time_to_reset(tmp_path):
@@ -576,8 +577,8 @@ def test_cached_quotas_give_percent_used_and_exact_time_to_reset(tmp_path):
     cache.write_text(json.dumps({"fiveHour": {"usedPercentage": 12.4, "resetsAt": now + 3 * 3600 + 300},
                                  "sevenDay": {"usedPercentage": 72, "resetsAt": now + 4 * 86400 + 14 * 3600},
                                  "fetchedAtMs": now * 1000}))
-    assert monitor.cached_quotas("perso", now, home=str(tmp_path)) == ["5h 12% ↻3h05", "7j 72% ↻4j14h"]
-    assert monitor.cached_quotas("perso", now + 4 * 3600, home=str(tmp_path))[0] == "7j 72% ↻4j10h"  # 5h reset
+    assert monitor.cached_quotas("perso", now, home=str(tmp_path)) == ["5h 12% (reset 3h05)", "hebdo 72% (reset 4j14h)"]
+    assert monitor.cached_quotas("perso", now + 4 * 3600, home=str(tmp_path))[0] == "hebdo 72% (reset 4j10h)"  # 5h reset
     assert monitor.cached_quotas("pro", now, home=str(tmp_path)) == []
 
 
@@ -627,3 +628,32 @@ def test_sub_tokens_summarize_for_an_agent_you_are_not_on():
     assert monitor.sub_tokens(subs, full=False) == {**dict.fromkeys(monitor.SUB_TOKENS), "sub1": "⑂ ●2 ✓1"}
     one = [{"status": "running", "description": "Only one"}]
     assert monitor.sub_tokens(one, full=False)["sub1"] == "⑂ ● Only one"  # one line either way
+
+
+def test_tab_bar_reads_the_panes_status_line_input_first(monkeypatch, tmp_path):
+    now = 1_800_000_000
+    snapshot = {"rate_limits": {"seven_day": {"used_percentage": 83.4, "resets_at": now + 3 * 86400 + 19 * 3600},
+                                "five_hour": {"used_percentage": 12, "resets_at": now - 60}},  # already reset
+                "context_window": {"used_percentage": 18, "total_input_tokens": 175217}}
+    folder = tmp_path / "statusline"
+    folder.mkdir()
+    path = monitor.snapshot_path("w31:p1XH", str(folder))
+    with open(path, "w") as fh:
+        json.dump(snapshot, fh)
+    os.utime(path, (now, now))
+    monkeypatch.setattr(monitor, "STATUSLINE_DIR", str(folder))
+    agents = [{"pane_id": "w31:p1XH", "focused": True, "tokens": {"context_meter": "⛁ old", "limit_7d_mid": "1% 9d"}}]
+    assert monitor.tabbar_line(agents, {"w31:p1XH": ("perso", "opus-5.5")}, now=now) == \
+        "perso  opus-5.5  hebdo 83% (reset 3j19h)  ⛁ 18% (175k)"
+    os.utime(path, (now - monitor.SNAPSHOT_FRESH_S - 1,) * 2)  # stale: back to usagebar
+    monkeypatch.setattr(monitor, "cached_quotas", lambda account, now: [])
+    assert monitor.tabbar_line(agents, {"w31:p1XH": ("perso", "opus-5.5")}, now=now) == \
+        "perso  opus-5.5  hebdo 1% (reset 9j)  ⛁ old"
+
+
+def test_prune_snapshots_keeps_live_panes_only(tmp_path):
+    for pane in ("w1:p1", "w1:p2"):
+        (tmp_path / os.path.basename(monitor.snapshot_path(pane, str(tmp_path)))).write_text("{}")
+    (tmp_path / "notes.txt").write_text("kept")
+    monitor.prune_snapshots(["w1:p1"], str(tmp_path))
+    assert sorted(os.listdir(tmp_path)) == ["notes.txt", "w1_p1.json"]
