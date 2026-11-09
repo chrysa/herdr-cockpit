@@ -76,8 +76,8 @@ enabled = true
 
 [[plugin]]
 id = "agent-panel"
-source = "chrysa/agent-panel"  # fork of flowy11/agent-panel: header lines, shown marker, kept width, tab clicks, Made/Apps tabs, real-time redraw
-ref = "bc0074d76291812745e9cd7ca49a9e01049a7ef1"
+source = "chrysa/agent-panel"  # fork of flowy11/agent-panel: header lines, shown marker, kept width, tab clicks, Made/Apps tabs, real-time redraw, Nerd Font pictograms
+ref = "2cea2f56666054820c7ef6d7bd5abc25ecceaa02"
 enabled = true
 
 [[plugin]]

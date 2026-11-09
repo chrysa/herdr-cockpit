@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- agent-panel pinned to chrysa/agent-panel#10 (Nerd Font pictograms).
+- agent-panel shows Nerd Font pictograms (setup writes its `icons` file):
+  tabs, Made/Apps/Refs rows by kind and file type, section headers; the
+  header follows (folder, git branch, services) through `AGENT_PANEL_ICONS`.
 - agent-panel pinned to chrysa/agent-panel#9: redrawn as soon as the transcript
   changes, and two tabs: Made (published pages, GitHub PRs/releases/pushes,
   files written) and Apps (project services, background commands, browser tabs,

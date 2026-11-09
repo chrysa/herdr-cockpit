@@ -167,6 +167,8 @@ class Setup:
         config = os.path.join(self.p.home, DOT_CONFIG, "herdr", "plugins", "config", "agent-panel")
         self.write(os.path.join(config, "header-command"), os.path.join(agent_info, "header.py") + "\n")
         self.write(os.path.join(config, "services-command"), os.path.join(agent_info, "panel_services.py") + "\n")
+        # Nerd Font pictograms in the panel and its header (the cockpit is Linux only, with a Nerd Font).
+        self.write(os.path.join(config, "icons"), "nerd\n")
 
     def install_codex_todo(self):
         """Codex has no SessionStart hook: agent-panel's To do tab needs its rule in AGENTS.md."""

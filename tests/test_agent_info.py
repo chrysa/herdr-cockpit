@@ -665,3 +665,15 @@ def test_panel_services_lists_every_service_as_tsv(monkeypatch):
     monkeypatch.setattr(header, "git_state", lambda cwd: ("/repo", "⑂ main ✓"))
     monkeypatch.setattr(header, "service_items", lambda root: [("api", "http://localhost:8000", True), ("db\x1b[2J", "", False)])
     assert panel_services.rows("/repo") == ["up\tapi\thttp://localhost:8000", "down\tdb[2J\t"]
+
+
+def test_header_uses_pictograms_only_when_the_panel_asks(monkeypatch):
+    import importlib
+
+    import header
+    monkeypatch.setenv("AGENT_PANEL_ICONS", "nerd")
+    nerd = importlib.reload(header)
+    assert (nerd.FOLDER, nerd.BRANCH) == ("\uf07c ", "\ue725 ")
+    monkeypatch.delenv("AGENT_PANEL_ICONS")
+    plain = importlib.reload(header)
+    assert (plain.FOLDER, plain.BRANCH, plain.SERVER) == ("", "⑂ ", "")
