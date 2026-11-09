@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- agent-panel's Apps tab lists every service of the project: agent-info's
+  `panel_services.py` (same docker/ss snapshots as the header), written as the
+  panel's `services-command` by setup.
 - Tab bar in real time: plan windows and context come from the focused pane's
   latest status line input (copied per pane on every message and every
   refreshInterval; agent-info wakes on it), the bar refreshes every second (was

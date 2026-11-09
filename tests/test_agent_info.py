@@ -657,3 +657,11 @@ def test_prune_snapshots_keeps_live_panes_only(tmp_path):
     (tmp_path / "notes.txt").write_text("kept")
     monitor.prune_snapshots(["w1:p1"], str(tmp_path))
     assert sorted(os.listdir(tmp_path)) == ["notes.txt", "w1_p1.json"]
+
+
+def test_panel_services_lists_every_service_as_tsv(monkeypatch):
+    import header
+    import panel_services
+    monkeypatch.setattr(header, "git_state", lambda cwd: ("/repo", "⑂ main ✓"))
+    monkeypatch.setattr(header, "service_items", lambda root: [("api", "http://localhost:8000", True), ("db\x1b[2J", "", False)])
+    assert panel_services.rows("/repo") == ["up\tapi\thttp://localhost:8000", "down\tdb[2J\t"]
