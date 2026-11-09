@@ -1,4 +1,5 @@
 import json
+import os
 
 import pytest
 
@@ -627,3 +628,32 @@ def test_sub_tokens_summarize_for_an_agent_you_are_not_on():
     assert monitor.sub_tokens(subs, full=False) == {**dict.fromkeys(monitor.SUB_TOKENS), "sub1": "⑂ ●2 ✓1"}
     one = [{"status": "running", "description": "Only one"}]
     assert monitor.sub_tokens(one, full=False)["sub1"] == "⑂ ● Only one"  # one line either way
+
+
+def test_tab_bar_reads_the_panes_status_line_input_first(monkeypatch, tmp_path):
+    now = 1_800_000_000
+    snapshot = {"rate_limits": {"seven_day": {"used_percentage": 83.4, "resets_at": now + 3 * 86400 + 19 * 3600},
+                                "five_hour": {"used_percentage": 12, "resets_at": now - 60}},  # already reset
+                "context_window": {"used_percentage": 18, "total_input_tokens": 175217}}
+    folder = tmp_path / "statusline"
+    folder.mkdir()
+    path = monitor.snapshot_path("w31:p1XH", str(folder))
+    with open(path, "w") as fh:
+        json.dump(snapshot, fh)
+    os.utime(path, (now, now))
+    monkeypatch.setattr(monitor, "STATUSLINE_DIR", str(folder))
+    agents = [{"pane_id": "w31:p1XH", "focused": True, "tokens": {"context_meter": "⛁ old", "limit_7d_mid": "1% 9d"}}]
+    assert monitor.tabbar_line(agents, {"w31:p1XH": ("perso", "opus-5.5")}, now=now) == \
+        "perso  opus-5.5  hebdo 83% (reset 3j19h)  ⛁ 18% (175k)"
+    os.utime(path, (now - monitor.SNAPSHOT_FRESH_S - 1,) * 2)  # stale: back to usagebar
+    monkeypatch.setattr(monitor, "cached_quotas", lambda account, now: [])
+    assert monitor.tabbar_line(agents, {"w31:p1XH": ("perso", "opus-5.5")}, now=now) == \
+        "perso  opus-5.5  hebdo 1% (reset 9j)  ⛁ old"
+
+
+def test_prune_snapshots_keeps_live_panes_only(tmp_path):
+    for pane in ("w1:p1", "w1:p2"):
+        (tmp_path / os.path.basename(monitor.snapshot_path(pane, str(tmp_path)))).write_text("{}")
+    (tmp_path / "notes.txt").write_text("kept")
+    monitor.prune_snapshots(["w1:p1"], str(tmp_path))
+    assert sorted(os.listdir(tmp_path)) == ["notes.txt", "w1_p1.json"]

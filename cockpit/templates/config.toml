@@ -33,7 +33,7 @@ pane_gaps = false                     # title on them: tmux-style splitters, the
 confirm_close = true                  # pinned
 # Right of the tab bar: account · model · plan windows (% used, time to reset) · context of the focused agent.
 tab_bar_right = [
-  { type = "command", command = "{{paths.bin}}/herdr-tabbar", interval_seconds = 5, timeout_seconds = 2 },
+  { type = "command", command = "{{paths.bin}}/herdr-tabbar", interval_seconds = 1, timeout_seconds = 2 },
 ]
 
 # herdr's own toasts (agent done or waiting, clipboard copy), top right;

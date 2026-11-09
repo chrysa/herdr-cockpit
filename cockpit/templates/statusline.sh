@@ -11,6 +11,15 @@ for usagebar in $(ls -dt "$plugins"/github-installations/usagebar-*/*/checkout/b
                          "$plugins"/github/usagebar-*/bin/usagebar 2>/dev/null | head -1); do
   (printf '%s' "$input" | "$usagebar" statusline >/dev/null 2>&1 &)
 done
+# The tab bar (chrysa.agent-info) shows this pane's plan windows and context from
+# the latest input, written here on every refresh (each message, and every
+# refreshInterval): a file per herdr pane, owner-only, replaced atomically.
+if [[ -n "${HERDR_PANE_ID:-}" ]]; then
+  snapshots="${XDG_STATE_HOME:-$HOME/.local/state}/chrysa.cockpit/statusline"
+  mkdir -p -m 700 "$snapshots" 2>/dev/null
+  snapshot="$snapshots/${HERDR_PANE_ID//[^A-Za-z0-9_-]/_}.json"
+  (umask 077; printf '%s' "$input" > "$snapshot.tmp" && mv -f "$snapshot.tmp" "$snapshot") 2>/dev/null
+fi
 # agent-panel (chrysa fork) already shows all of this for this pane: no footer.
 shown="${XDG_STATE_HOME:-$HOME/.local/state}/agent-panel/shown/${HERDR_PANE_ID:-none}"
 if [[ -f "$shown" ]] && kill -0 "$(<"$shown")" 2>/dev/null; then
