@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- agent-panel pinned to chrysa/agent-panel#8: clicks on its tab bar switch
+  tabs again (they only worked on row 1, above the fork's header lines).
 - Panes: tmux-style splitters (`pane_borders = "auto"`, no outer border,
   no gaps): one thin divider between panes, which the mouse can drag to
   resize agent-panel; still no frame and no title around panes.
