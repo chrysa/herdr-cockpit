@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- agent-panel pinned to chrysa/agent-panel#8: clicks on its tab bar switch
+  tabs again (they only worked on row 1, above the fork's header lines).
+- Panes: tmux-style splitters (`pane_borders = "auto"`, no outer border,
+  no gaps): one thin divider between panes, which the mouse can drag to
+  resize agent-panel; still no frame and no title around panes.
+- Tab bar: the plan windows of the focused agent's account with % used and
+  time to reset (`7j 72% ↻4j14h`, and `5h …` when Claude reports it). The
+  cockpit status line now hands Claude Code's `rate_limits` to usagebar, so
+  its per-account cache is fresh (it read a `~/.claude.json` snapshot hours
+  old, and had nothing for the pro account).
+- herdr tidies up on its own, with a desktop notification each time: a
+  Claude agent idle for 24 h (empty prompt, not in the focused tab, no
+  subtask) is quit, its conversation kept (`claude --resume`, logged in
+  `closed.jsonl`); a tab whose agent was started in a repo below its
+  space's folder moves to that repo's space (created and sorted under its
+  parent). Agents column: full subtask list for the focused agent, one
+  summary line (`⑂ ●2 ✓3`) for the others. Space folders ignore plugin
+  panes (agent-panel's cwd is its checkout).
+- Agents column: an idle agent shows no icon and its name in dim grey
+  (`agent_icon`, `topic_idle`); the others get the space icons and colors
+  (‼ ◐ ⑂ ✓). Subtasks: up to 13 per agent (was 3), a /subtask fork or
+  subagent still running stays listed up to 6 h (was 30 min after its last
+  write), a background task too (it vanished 30 min after it started);
+  Claude Code's `finished` meta flag marks a subtask done. A background
+  task is only read from the start of a Bash result (a command printing
+  the phrase was listed), and a stopped one shows ⊘.
 - Linux only, declared: both manifests list `linux` alone (the services list
   needs `ss` and `/proc`, `setup` installs systemd user units); the README
   says so, and that account colors cover `perso`, `pro` and `codex`.

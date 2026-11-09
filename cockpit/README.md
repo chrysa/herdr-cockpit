@@ -42,8 +42,11 @@ add it here and run setup.
 
 ## Tab bar
 
-`ui.tab_bar_right` runs `bin/herdr-tabbar` every 5 s: account · model ·
-context of the focused agent. chrysa.agent-info writes that line to
+`ui.tab_bar_right` runs `bin/herdr-tabbar` every 5 s: account · model · plan
+windows with % used and time to reset (`5h 12% ↻3h05 · 7j 72% ↻4j14h`) ·
+context of the focused agent. The windows come from usagebar's cache per
+Claude account, which the cockpit status line feeds with Claude Code's
+`rate_limits` (before it hides itself behind agent-panel). chrysa.agent-info writes that line to
 `~/.local/state/chrysa.agent-info/tabbar` on every focus or status change;
 the script only reads the file (no socket call, well under the 2 s timeout).
 
@@ -55,7 +58,7 @@ One fact, one place:
 |---|---|
 | Sidebar, Spaces | per space: a state icon only when an agent works, waits or has finished (‼ red, ◐ peach, ✓ mauve; ⑂ blue when only subagents, workflows or background tasks work), name bold in the color of its agents' account (dim grey when all idle), agent and subagent counts per state and account, idle ones included (`○2`), the agents waiting on you. A space inside another's folder (or named after it) is its child: spaces form a tree in alphabetical order (`├ GHA`, `└ simul`); siblings starting with the same word get a dim header (`└ plateform` over `├ charts`, `└ socle`) |
 | Sidebar, Agents | the selected space's agents: state, age, PR, name, last tool call, subagents |
-| Tab bar | `‼` on tabs waiting on you; on the right, account · model · context of the focused agent |
+| Tab bar | `‼` on tabs waiting on you; on the right, account · model · plan windows (% used, time to reset) · context of the focused agent |
 | agent-panel (right) | the focused conversation: header (folder in the account's color, git, services), Subagents, Messages, Refs, To do; an empty Subagents tab opens on To do or Messages |
 
 Claude Code's `mission-control` mod (a box under the prompt: context, cost,

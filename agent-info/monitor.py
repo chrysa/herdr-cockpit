@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import events  # noqa: E402
 import services  # noqa: E402
 import subagents  # noqa: E402
+import tidy
 
 PLUGIN_ID = "chrysa.agent-info"
 SOURCE = f"plugin:{PLUGIN_ID}"
@@ -44,9 +45,10 @@ POLL_S = 8
 TTL_MS = POLL_S * 20 * 1000
 REFRESH_S = TTL_MS / 1000 / 3  # republish unchanged tokens before herdr expires them
 TAIL_BYTES = 256 * 1024
-SUB_ROWS = 3
+SUB_ROWS = 13  # herdr's 16 rows per agent: its line, its last tool call, 13 subtasks, "+N"
 SUB_TOKENS = (*(f"sub{i}" for i in range(1, SUB_ROWS + 1)), "sub_more")
-TOKENS = ("account", "model", "topic_perso", "topic_pro", "topic_codex", "topic_other", "age", "doing", *SUB_TOKENS)
+TOKENS = ("account", "model", "agent_icon", "topic_perso", "topic_pro", "topic_codex", "topic_other", "topic_idle",
+          "age", "doing", *SUB_TOKENS)
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 HOME = os.path.expanduser("~")
 STATE_DIR = os.path.expanduser(f"~/.local/state/{PLUGIN_ID}")
@@ -69,11 +71,16 @@ def herdr_bin():
 HERDR = herdr_bin()
 
 
-def herdr(*args):
+def herdr_text(*args):
     proc = subprocess.run([HERDR, *args], capture_output=True, text=True, timeout=10)
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip() or f"herdr {' '.join(args)} failed")
-    return json.loads(proc.stdout) if proc.stdout.strip() else {}
+    return proc.stdout
+
+
+def herdr(*args):
+    out = herdr_text(*args)
+    return json.loads(out) if out.strip() else {}
 
 
 def claude_dirs():
@@ -183,10 +190,11 @@ def agent_doing(agent):
     return last_tool(path) if path else None
 
 
-# Agents column, lines 3+: the Claude agent's subagents active in the last 30 min,
-# "⑂ ● description" (● running, ◌ stalled, ✗ failed, ⊘ killed, ✓ done), what needs
-# a look first, at most SUB_ROWS then "⑂ +N". Main transcripts are read
-# incrementally (state["logs"]), never whole.
+# Agents column, lines 3+: the Claude agent's subagents, /subtask forks, workflow
+# agents and background tasks ("⑂ ● description": ● running, ◌ stalled, ✗ failed,
+# ⊘ killed, ✓ done), what needs a look first, at most SUB_ROWS then "⑂ +N".
+# Finished ones stay 30 min, unfinished ones up to 6 h (subagents.LONG_S). Main
+# transcripts are read incrementally (state["logs"]), never whole.
 def agent_subagents(agent, logs, now):
     """[{id, status, description, last}] for a Claude agent, [] for any other."""
     session = (agent.get("agent_session") or {}).get("value")
@@ -198,7 +206,12 @@ def agent_subagents(agent, logs, now):
     return subagents.listing(path, log, now)
 
 
-def sub_tokens(subs):
+def sub_tokens(subs, full=True):
+    """full (the focused agent): one line per subtask; else one summary line ("⑂ ●2 ✓3")."""
+    if not full and len(subs) > 1:
+        statuses = [s["status"] for s in subs]
+        return {**dict.fromkeys(SUB_TOKENS), "sub1": "⑂ " + " ".join(
+            f"{glyph}{statuses.count(state)}" for state, glyph in subagents.GLYPHS.items() if state in statuses)}
     lines = [f"⑂ {subagents.GLYPHS.get(s['status'], '•')} {s['description']}" for s in subs]
     extra = len(lines) - SUB_ROWS
     return {**{f"sub{i}": lines[i - 1] if i <= len(lines) else None for i in range(1, SUB_ROWS + 1)},
@@ -213,16 +226,68 @@ SINCE = os.path.join(STATE_DIR, "since.json")
 # usagebar's context of the focused agent. Written here, on events, so the tab bar
 # command only reads a file; querying herdr from it timed out under load.
 TABBAR = os.path.join(STATE_DIR, "tabbar")
+CLOSED = os.path.join(STATE_DIR, "closed.jsonl")  # idle agents tidy.py quit: pane, space, session id
 
 
-def tabbar_line(agents, accounts):
-    """account  model  context of the focused agent; "" when none is focused."""
+QUOTA_WINDOWS = (("5h", "limit_5h"), ("7j", "limit_7d"))  # usagebar: "<% left> <reset in>" per band
+
+
+def quota_parts(tokens):
+    """["5h 88% ↻2h", "7j 48% ↻5j"] from usagebar's per-window tokens."""
+    parts = []
+    for label, prefix in QUOTA_WINDOWS:
+        value = next((tokens[f"{prefix}_{band}"] for band in ("low", "mid", "high") if tokens.get(f"{prefix}_{band}")), "")
+        left, _, reset = str(value).partition(" ")
+        if left:
+            parts.append(f"{label} {left}" + (f" ↻{reset.replace('d', 'j')}" if reset else ""))
+    return parts
+
+
+LIMITS_CACHE = os.path.join("herdr-usagebar", "claude-limits-latest.json")  # in each Claude config dir
+
+
+def reset_label(seconds):
+    """Time to a window's reset: "45m", "3h05", "4j14h"."""
+    minutes = max(0, int(seconds // 60))
+    if minutes < 60:
+        return f"{minutes}m"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h{minutes:02d}" if hours < 24 else f"{hours // 24}j{hours % 24:02d}h"
+
+
+def cached_quotas(account, now, home=HOME):
+    """["5h 12% ↻3h05", "7j 72% ↻4j14h"]: % used and time to reset of the account's plan
+    windows, from usagebar's cache (cockpit's status line hands it Claude Code's
+    rate_limits). Windows already reset are left out; [] without a cache."""
+    folder = f".claude-{account}" if account and account != "default" else ".claude"
+    try:
+        with open(os.path.join(home, folder, LIMITS_CACHE)) as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return []
+    parts = []
+    for label, key in (("5h", "fiveHour"), ("7j", "sevenDay")):
+        window = data.get(key) if isinstance(data, dict) else None
+        if not isinstance(window, dict) or window.get("usedPercentage") is None:
+            continue
+        reset = window.get("resetsAt")
+        if reset and reset <= now:
+            continue
+        parts.append(f"{label} {round(window['usedPercentage'])}%" + (f" ↻{reset_label(reset - now)}" if reset else ""))
+    return parts
+
+
+def tabbar_line(agents, accounts, now=None):
+    """account  model  plan windows (% used, time to reset)  context, for the focused
+    agent; "" when none is focused. Without usagebar's cache, its tokens."""
     agent = next((a for a in agents if a.get("focused")), None)
     if not agent:
         return ""
     account, model = accounts.get(agent["pane_id"], (None, None))
-    context = (agent.get("tokens") or {}).get("context")
-    return "  ".join(CONTROL.sub("", str(p)) for p in (account, model, context) if p)
+    tokens = agent.get("tokens") or {}
+    quotas = cached_quotas(account, time.time() if now is None else now) or quota_parts(tokens)
+    tail = [" · ".join(quotas), tokens.get("context_meter")] if quotas else [tokens.get("context")]
+    return "  ".join(CONTROL.sub("", str(p)) for p in (account, model, *tail) if p)
 
 
 def write_tabbar(line, path=None):
@@ -344,11 +409,13 @@ def agent_info(agent):
 
 
 def publish(pane_id, tokens):
-    args = ["pane", "report-metadata", pane_id, "--source", SOURCE, "--ttl-ms", str(TTL_MS)]
-    for name in TOKENS:
-        value = CONTROL.sub("", tokens.get(name) or "")
-        args += ["--token", f"{name}={value}"] if value else ["--clear-token", name]
-    herdr(*args)
+    """One report per REPORT_MAX tokens; herdr leaves the tokens a report does not name."""
+    for start in range(0, len(TOKENS), REPORT_MAX):
+        args = ["pane", "report-metadata", pane_id, "--source", SOURCE, "--ttl-ms", str(TTL_MS)]
+        for name in TOKENS[start:start + REPORT_MAX]:
+            value = CONTROL.sub("", tokens.get(name) or "")
+            args += ["--token", f"{name}={value}"] if value else ["--clear-token", name]
+        herdr(*args)
 
 
 # A tab whose agent waits on you (herdr's tab agent_status "blocked") carries
@@ -488,11 +555,25 @@ def agent_names(agents, tabs):
             for a in agents}
 
 
-def topic_tokens(agent, account, name=None):
-    """{topic_<account>: name, other topic tokens: None} for one agent row."""
+IDLE_TOPIC = "topic_idle"  # an idle agent's name, dim grey whatever its account
+
+
+def topic_tokens(agent, account, name=None, idle=False):
+    """{topic_<account> (topic_idle when idle): name, the other topic tokens: None}."""
     title = name or topic_title(agent)
-    key = f"topic_{account}" if account in NAMED_ACCOUNTS else "topic_other"
-    return {token: (title or None) if token == key else None for token in TOPIC_TOKENS}
+    key = IDLE_TOPIC if idle else f"topic_{account}" if account in NAMED_ACCOUNTS else "topic_other"
+    return {token: (title or None) if token == key else None for token in (*TOPIC_TOKENS, IDLE_TOPIC)}
+
+
+def agent_icon(agent, sub_statuses):
+    """The agent row's icon, as for spaces: ‼ waits on you, ◐ works, ⑂ only its
+    subtasks run, ✓ finished; none when idle (herdr's state_icon also marks idle)."""
+    status = agent.get("agent_status")
+    if status in ("blocked", "working"):
+        return AGENT_GLYPHS[status]
+    if "running" in sub_statuses:
+        return BACKGROUND_GLYPH
+    return AGENT_GLYPHS["done"] if status == "done" else None
 
 
 # Spaces column, lines 2+: only the agents waiting on you (blocked), longest wait
@@ -582,7 +663,7 @@ def space_folders(workspaces, panes):
     """workspace_id -> its folder: a pane's cwd named like the space, else the most common one."""
     cwds = {}
     for pane in panes:
-        if pane.get("cwd"):
+        if pane.get("cwd") and not tidy.plugin_pane(pane):  # agent-panel's cwd is its checkout
             cwds.setdefault(pane.get("workspace_id"), []).append(os.path.normpath(pane["cwd"]))
     folders = {}
     for workspace in workspaces:
@@ -899,10 +980,13 @@ def tick(shown, state=None, now=None):
         state["accounts"][agent["pane_id"]] = (account, model)
         subs = agent_subagents(agent, state["logs"], now)
         name = names[agent["pane_id"]]
-        details[agent["pane_id"]] = {"account": account, "subs": [s["status"] for s in subs], "name": name}
-        tokens = {"account": account, "model": model, **topic_tokens(agent, account, name),
+        statuses = [s["status"] for s in subs]
+        details[agent["pane_id"]] = {"account": account, "subs": statuses, "name": name}
+        icon = agent_icon(agent, statuses)
+        tokens = {"account": account, "model": model, "agent_icon": icon,
+                  **topic_tokens(agent, account, name, idle=icon is None),
                   "age": age_label(now - state["since"][agent["pane_id"]][2]), "doing": agent_doing(agent),
-                  **sub_tokens(subs)}
+                  **sub_tokens(subs, full=bool(agent.get("focused")))}
         if shown.get(agent["pane_id"]) != tokens:
             publish(agent["pane_id"], tokens)
             shown[agent["pane_id"]] = tokens
@@ -924,7 +1008,8 @@ def tick(shown, state=None, now=None):
     labels = [CONTROL.sub("", w.get("label") or "") for w in workspaces]
     notify_blocked(agents, state, {w.get("workspace_id"): label for w, label in zip(workspaces, labels)}, names)
     state["first"] = False
-    folders = space_folders(workspaces, herdr("pane", "list").get("result", {}).get("panes", []))
+    panes = herdr("pane", "list").get("result", {}).get("panes", [])
+    folders = space_folders(workspaces, panes)
     listed = [(w["workspace_id"], label, folders.get(w["workspace_id"]))
               for w, label in zip(workspaces, labels) if w.get("workspace_id")]
     parents = space_parents(listed)
@@ -955,6 +1040,9 @@ def tick(shown, state=None, now=None):
             except RuntimeError:
                 pass  # space closed meanwhile
     group_spaces([ws for ws, _, _ in listed], order, state)
+    tidy.run(agents, panes, workspaces, folders, state["since"],
+             {pane: info["subs"] for pane, info in details.items()}, names, state, now, herdr, herdr_text,
+             lambda title, body: desktop_notify(title, body) if NOTIFY else None, CLOSED)
 
 
 def daemon():

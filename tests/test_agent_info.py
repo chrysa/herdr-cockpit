@@ -46,10 +46,11 @@ def test_tick_publishes_only_changes(monkeypatch):
     shown = {"_refreshed": 10 ** 12}
     monitor.tick(shown)
     monitor.tick(shown)
-    assert published == [("p1", {"account": "perso", "model": "opus-5.5", "topic_perso": "Fix the parser",
-                                 "topic_pro": None, "topic_codex": None, "topic_other": None,
-                                 "age": None, "doing": None, "sub1": None, "sub2": None, "sub3": None,
-                                 "sub_more": None})]
+    # no state reported: idle, so no icon and the name under topic_idle (dim grey)
+    assert published == [("p1", {"account": "perso", "model": "opus-5.5", "agent_icon": None,
+                                 "topic_perso": None, "topic_pro": None, "topic_codex": None, "topic_other": None,
+                                 "topic_idle": "Fix the parser", "age": None, "doing": None,
+                                 **dict.fromkeys(monitor.SUB_TOKENS)})]
 
 
 def test_tick_publishes_the_age_of_the_state(monkeypatch):
@@ -488,9 +489,37 @@ def test_idle_spaces_count_their_idle_agents():
 
 
 def test_sub_tokens_list_then_overflow():
-    subs = [{"status": s, "description": f"S{i}"} for i, s in enumerate(["running", "stalled", "done", "done"])]
-    assert monitor.sub_tokens(subs) == {"sub1": "⑂ ● S0", "sub2": "⑂ ◌ S1", "sub3": "⑂ ✓ S2", "sub_more": "⑂ +1"}
-    assert monitor.sub_tokens([]) == {"sub1": None, "sub2": None, "sub3": None, "sub_more": None}
+    statuses = ["running", "stalled"] + ["done"] * monitor.SUB_ROWS
+    subs = [{"status": s, "description": f"S{i}"} for i, s in enumerate(statuses)]
+    tokens = monitor.sub_tokens(subs)
+    assert (tokens["sub1"], tokens["sub2"], tokens["sub3"]) == ("⑂ ● S0", "⑂ ◌ S1", "⑂ ✓ S2")
+    assert tokens[f"sub{monitor.SUB_ROWS}"] == f"⑂ ✓ S{monitor.SUB_ROWS - 1}"
+    assert tokens["sub_more"] == "⑂ +2"
+    assert monitor.sub_tokens([]) == dict.fromkeys(monitor.SUB_TOKENS)
+
+
+def test_agent_icon_only_when_working_waiting_done_or_subtasks_run():
+    icon = lambda status, subs=(): monitor.agent_icon({"agent_status": status}, list(subs))
+    assert (icon("blocked", ["running"]), icon("working"), icon("done"), icon("idle"), icon(None)) == ("‼", "◐", "✓", None, None)
+    assert (icon("idle", ["running"]), icon("done", ["running"]), icon("idle", ["done"])) == ("⑂", "⑂", None)
+
+
+def test_idle_agent_name_goes_grey():
+    agent = {"terminal_title_stripped": "Fix the parser"}
+    assert monitor.topic_tokens(agent, "pro", idle=True) == {
+        "topic_perso": None, "topic_pro": None, "topic_codex": None, "topic_other": None, "topic_idle": "Fix the parser"}
+    assert monitor.topic_tokens(agent, "pro")["topic_pro"] == "Fix the parser"
+
+
+def test_agent_tokens_go_out_in_reports_of_at_most_16(monkeypatch):
+    calls = []
+    monkeypatch.setattr(monitor, "herdr", lambda *args: calls.append(args))
+    monitor.publish("p1", {"agent_icon": "◐", "sub13": "⑂ ● last"})
+    assert len(calls) == -(-len(monitor.TOKENS) // monitor.REPORT_MAX)
+    named = [a for args in calls for a in args if a.startswith(tuple(f"{t}=" for t in monitor.TOKENS))
+             or a in monitor.TOKENS]
+    assert sorted(a.split("=")[0] for a in named) == sorted(monitor.TOKENS)
+    assert all(sum(a in ("--token", "--clear-token") for a in args) <= monitor.REPORT_MAX for args in calls)
 
 
 @pytest.mark.parametrize("tab, shared, name", [
@@ -526,13 +555,30 @@ def test_waiting_line_uses_the_sidebar_name():
     assert monitor.space_tokens(agents, {"a": {"name": "audit"}})["w1"]["wait1"] == "‼ audit"
 
 
-def test_tabbar_line_shows_the_focused_agent():
+def test_tabbar_line_shows_the_focused_agent(monkeypatch):
+    monkeypatch.setattr(monitor, "cached_quotas", lambda account, now: [])  # not this machine's cache
     agents = [{"pane_id": "a", "focused": False, "tokens": {"context": "5h 10%"}},
               {"pane_id": "b", "focused": True, "tokens": {"context": "5h 100% · 41% (407k)"}}]
     accounts = {"a": ("pro", "sonnet-5.5"), "b": ("perso", "opus-5.5")}
     assert monitor.tabbar_line(agents, accounts) == "perso  opus-5.5  5h 100% · 41% (407k)"
     assert monitor.tabbar_line([{"pane_id": "a"}], accounts) == ""
     assert monitor.tabbar_line([{"pane_id": "x", "focused": True, "tokens": {"context": "\x1b[2Jc"}}], {}) == "[2Jc"
+    windows = {"limit_5h_high": "88% 2h", "limit_7d_mid": "48% 5d", "context_meter": "⛁ 43% (432k)", "context": "x"}
+    assert monitor.tabbar_line([{"pane_id": "b", "focused": True, "tokens": windows}], accounts) == \
+        "perso  opus-5.5  5h 88% ↻2h · 7j 48% ↻5j  ⛁ 43% (432k)"
+    assert monitor.quota_parts({"limit_7d_low": "9%"}) == ["7j 9%"]  # no reset reported
+
+
+def test_cached_quotas_give_percent_used_and_exact_time_to_reset(tmp_path):
+    now = 1_800_000_000
+    cache = tmp_path / ".claude-perso" / monitor.LIMITS_CACHE
+    cache.parent.mkdir(parents=True)
+    cache.write_text(json.dumps({"fiveHour": {"usedPercentage": 12.4, "resetsAt": now + 3 * 3600 + 300},
+                                 "sevenDay": {"usedPercentage": 72, "resetsAt": now + 4 * 86400 + 14 * 3600},
+                                 "fetchedAtMs": now * 1000}))
+    assert monitor.cached_quotas("perso", now, home=str(tmp_path)) == ["5h 12% ↻3h05", "7j 72% ↻4j14h"]
+    assert monitor.cached_quotas("perso", now + 4 * 3600, home=str(tmp_path))[0] == "7j 72% ↻4j10h"  # 5h reset
+    assert monitor.cached_quotas("pro", now, home=str(tmp_path)) == []
 
 
 def test_write_tabbar_replaces_the_file(tmp_path):
@@ -574,3 +620,10 @@ def test_a_child_space_shows_its_icon_after_its_name(monkeypatch):
     assert (spaces["w1"]["space_icon"], spaces["w1"][monitor.CHILD_ICON]) == ("◐", None)
     assert (spaces["w2"]["space_icon"], spaces["w2"][monitor.CHILD_ICON]) == (None, "‼")
     assert spaces["w2"]["space_busy_pro"] == "└ GHA"
+
+
+def test_sub_tokens_summarize_for_an_agent_you_are_not_on():
+    subs = [{"status": s, "description": f"S{i}"} for i, s in enumerate(["running", "running", "done"])]
+    assert monitor.sub_tokens(subs, full=False) == {**dict.fromkeys(monitor.SUB_TOKENS), "sub1": "⑂ ●2 ✓1"}
+    one = [{"status": "running", "description": "Only one"}]
+    assert monitor.sub_tokens(one, full=False)["sub1"] == "⑂ ● Only one"  # one line either way
