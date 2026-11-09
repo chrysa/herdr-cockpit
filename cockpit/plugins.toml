@@ -6,13 +6,13 @@
 [[plugin]]
 id = "chrysa.agent-info"
 source = "chrysa/herdr-cockpit/agent-info"
-ref = "v0.7.0"
+ref = "v0.8.0"
 enabled = true
 
 [[plugin]]
 id = "chrysa.cockpit"
 source = "chrysa/herdr-cockpit/cockpit"
-ref = "v0.7.0"
+ref = "v0.8.0"
 enabled = true
 
 [[plugin]]
@@ -76,8 +76,8 @@ enabled = true
 
 [[plugin]]
 id = "agent-panel"
-source = "chrysa/agent-panel"  # fork of flowy11/agent-panel: header lines + shown marker
-ref = "1acd90f65cb06cf3bb05bcccd0f6c252af489c33"
+source = "chrysa/agent-panel"  # fork of flowy11/agent-panel: header lines, shown marker, kept width, tab clicks, Made/Apps tabs, real-time redraw, Nerd Font pictograms
+ref = "2cea2f56666054820c7ef6d7bd5abc25ecceaa02"
 enabled = true
 
 [[plugin]]

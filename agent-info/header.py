@@ -17,6 +17,9 @@ import services  # noqa: E402
 
 HOME = os.path.expanduser("~")
 MAX_SERVICES = 3
+# agent-panel passes AGENT_PANEL_ICONS=nerd when it shows Nerd Font pictograms: the header follows.
+NERD = os.environ.get("AGENT_PANEL_ICONS") == "nerd"
+FOLDER, BRANCH, SERVER = ("\uf07c ", "\ue725 ", "\uf233 ") if NERD else ("", "⑂ ", "")
 ACCOUNT = {"perso": "38;2;249;226;175", "pro": "38;2;137;220;235", "codex": "38;2;166;227;161"}
 DIM, GREEN, YELLOW, SKY, RESET = "\033[2m", "\033[32m", "\033[33m", "\033[38;2;137;220;235m", "\033[0m"
 
@@ -47,23 +50,28 @@ def git_state(cwd):
     root = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "rev-parse", "--show-toplevel"],
                           capture_output=True, text=True, timeout=2).stdout.strip()
     marks = " ".join(f"{k}{v}" for k, v in counts.items() if v)
-    return root or None, f"⑂ {safe(branch)}" + (f" {marks}" if marks else " ✓")
+    return root or None, f"{BRANCH}{safe(branch)}" + (f" {marks}" if marks else " ✓")
+
+
+def service_items(root):
+    """[(name, url, up)]: the project's containers, then its listening processes."""
+    boxes = services.containers(root, services.saved_snapshot("docker"))
+    procs = services.listeners(root, services.saved_snapshot("ss"))
+    items = [(b["name"], (b["urls"] or [""])[0], b["state"] == "running") for b in boxes]
+    return items + [(p["name"], p["url"], True) for p in procs]
 
 
 def lines(cwd, provider, session):
     _, account = monitor.agent_info({"agent": provider, "agent_session": {"value": session}, "cwd": cwd})
     color = ACCOUNT.get(account or "", "38;2;147;153;178")
-    out = [f"\033[{color}m{safe(cwd.replace(HOME, '~', 1))}{RESET}"]
+    out = [f"\033[{color}m{FOLDER}{safe(cwd.replace(HOME, '~', 1))}{RESET}"]
     root, state = git_state(cwd)
     if state:
         out.append(f"{YELLOW if '✓' not in state else GREEN}{state}{RESET}")
     if root:
-        boxes = services.containers(root, services.saved_snapshot("docker"))
-        procs = services.listeners(root, services.saved_snapshot("ss"))
-        items = [(b["name"], (b["urls"] or [""])[0], b["state"] == "running") for b in boxes]
-        items += [(p["name"], p["url"], True) for p in procs]
+        items = service_items(root)
         for name, url, up in items[:MAX_SERVICES]:
-            out.append(f"{GREEN if up else DIM}●{RESET} {safe(name)} {SKY}{safe(url)}{RESET}")
+            out.append(f"{GREEN if up else DIM}●{RESET} {SERVER}{safe(name)} {SKY}{safe(url)}{RESET}")
         if len(items) > MAX_SERVICES:
             out.append(f"{DIM}+{len(items) - MAX_SERVICES} services (prefix+ctrl+g){RESET}")
     return out

@@ -1,9 +1,9 @@
 id = "chrysa.cockpit"
 name = "Cockpit"
-version = "0.7.0"
+version = "0.8.0"
 min_herdr_version = "0.9.0"
-description = "Owns the herdr configuration: one palette rendered into herdr, Claude Code and opencode surfaces. setup and status arrive in the next releases."
-platforms = ["macos", "linux"]
+description = "Owns the herdr configuration: one palette rendered into herdr, Claude Code and opencode surfaces; setup, status and validate; the plugin manifest; filters for the native Agents column."
+platforms = ["linux"]
 
 [[actions]]
 id = "status"
@@ -19,7 +19,7 @@ command = ["sh", "-c", "python3 setup.py | ${PAGER:-less -R}"]
 
 # Filters for herdr's native Agents column (agent.view.set), re-applied at startup.
 [[startup]]
-platforms = ["linux", "macos"]
+platforms = ["linux"]
 command = ["python3", "agent_view.py", "apply"]
 
 # herdr forgets the view when its server restarts. On a space switch, `refresh`

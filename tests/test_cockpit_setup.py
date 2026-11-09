@@ -65,6 +65,9 @@ def test_first_run_installs_everything(tmp_path):
         assert hooks == [os.path.join(paths.bin, "agent-panel-hook") + " session-start"]
     header = tmp_path / ".config/herdr/plugins/config/agent-panel/header-command"
     assert header.read_text().strip().endswith("agent-info/header.py")
+    services_command = tmp_path / ".config/herdr/plugins/config/agent-panel/services-command"
+    assert services_command.read_text().strip().endswith("agent-info/panel_services.py")
+    assert (tmp_path / ".config/herdr/plugins/config/agent-panel/icons").read_text() == "nerd\n"
     unit = (tmp_path / ".config/systemd/user/herdr-config-reload.path").read_text()
     assert os.path.join(paths.rendered, "config.toml") in unit
     assert "{{" not in unit
@@ -122,3 +125,19 @@ def test_claude_integration_installed_in_every_account(tmp_path):
     changes = setup.Setup(paths, run=run).apply()
     assert sum("integration install claude" in c for c in changes) == 2
     assert len(run.integrated) == 2
+
+
+def test_claude_dirs_include_the_default_one(tmp_path):
+    for account in (".claude", ".claude-pro"):
+        (tmp_path / account).mkdir()
+        (tmp_path / account / "settings.json").write_text("{}")
+    (tmp_path / ".claude-perso").symlink_to(tmp_path / ".claude")  # counted once
+    assert setup.Paths(home=str(tmp_path)).claude_dirs() == [str(tmp_path / ".claude"), str(tmp_path / ".claude-pro")]
+
+
+def test_reload_unit_calls_the_herdr_on_path(tmp_path, monkeypatch):
+    monkeypatch.setattr(setup.shutil, "which", lambda name: "/opt/herdr/bin/herdr" if name == "herdr" else None)
+    paths = make_home(tmp_path)
+    setup.Setup(paths, run=FakeRun()).apply()
+    unit = (tmp_path / ".config/systemd/user/herdr-config-reload.service").read_text()
+    assert "'\"/opt/herdr/bin/herdr\" config check && \"/opt/herdr/bin/herdr\" server reload-config'" in unit

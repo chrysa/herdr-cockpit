@@ -27,12 +27,13 @@ sidebar_width = 40                    # the longest folder name fits on an inden
 sidebar_max_width = 40                # herdr caps the width at 36 by default
 agent_panel_sort = "priority"         # attention queue, the order agent_view also uses
 status_indicators = "symbols"         # distinct shapes per state, not only colors
-pane_borders = "off"                  # no frame or title around split panes (agent-panel
-                                      # splits every agent tab); the tab name carries the subject
+pane_borders = "auto"                 # a split gets one thin divider, draggable with the mouse
+pane_outer_borders = false            # (agent-panel's width); no frame around the panes and no
+pane_gaps = false                     # title on them: tmux-style splitters, the tab name carries the subject
 confirm_close = true                  # pinned
-# Right of the tab bar: account · model · context of the focused agent.
+# Right of the tab bar: account · model · plan windows (% used, time to reset) · context of the focused agent.
 tab_bar_right = [
-  { type = "command", command = "{{paths.bin}}/herdr-tabbar", interval_seconds = 5, timeout_seconds = 2 },
+  { type = "command", command = "{{paths.bin}}/herdr-tabbar", interval_seconds = 1, timeout_seconds = 2 },
 ]
 
 # herdr's own toasts (agent done or waiting, clipboard copy), top right;
@@ -58,7 +59,9 @@ enabled = false
 #      space's folder (plateform_socle in Forge-Stack-Workshop/), else named
 #      after another plus "-suffix" (padam-av-GHA), is its child: spaces form a
 #      tree in alphabetical order at every level ("├ GHA", "└ simul"), and
-#      agent-info moves them into that order (no list by hand).
+#      agent-info moves them into that order (no list by hand). A child's icon
+#      comes after its name ("│ ├ GHA · ◐", child_icon): herdr puts " · " after
+#      every custom token, so an icon in front would push the tree glyphs right.
 #      agent-info publishes the name under one of six tokens (busy/idle x
 #      ecosystem) because herdr row styles are static and rules only match a
 #      token's own value; on the same line, the agents and subagents counted
@@ -87,6 +90,9 @@ rows = [
    { token = "$space_busy_other", fg = "{{colors.text}}", bold = true },
    { token = "$space_idle_pro", fg = "{{colors.overlay}}", dim = true }, { token = "$space_idle_perso", fg = "{{colors.overlay}}", dim = true },
    { token = "$space_idle_other", fg = "{{colors.overlay}}", dim = true },
+   { token = "$child_icon", bold = true, rules = [{ equals = "{{symbols.blocked}}", fg = "{{states.blocked}}" },
+     { equals = "{{symbols.working}}", fg = "{{states.working}}" }, { equals = "{{symbols.done}}", fg = "{{states.done}}" },
+     { equals = "{{symbols.branch}}", fg = "{{states.background}}" }] },
    { token = "$count_perso", fg = "{{accounts.perso}}", rules = [{ starts_with = "{{symbols.idle}}", fg = "{{colors.overlay}}", dim = true }] },
    { token = "$count_pro", fg = "{{accounts.pro}}", rules = [{ starts_with = "{{symbols.idle}}", fg = "{{colors.overlay}}", dim = true }] },
    { token = "$count_codex", fg = "{{accounts.codex}}", rules = [{ starts_with = "{{symbols.idle}}", fg = "{{colors.overlay}}", dim = true }] },
@@ -97,26 +103,44 @@ rows = [
   [{ token = "$wait_more", fg = "{{colors.red}}", dim = true }],
 ]
 
-# Agents: state, how long in that state (dim, "12m"; agent-info measures it),
-# then the branch's PR (gh-pr, "#123 ✓"), then the name (the tab's, else the
-# conversation title) in the color of its
-# account (perso yellow, pro sky, codex green, other grey). agent-info publishes
-# the title under one token per account because herdr rules can only match a
-# token's own value. A working Claude agent gets a dim second line with its
-# last tool call ("Edit monitor.py"), then one mauve line per subagent active
-# in the last 30 min ("⑂ ● Security review"), 3 max then "⑂ +N".
+# Agents: a state icon only when the agent works, waits on you or has finished,
+# or when only its subtasks run (agent-info's agent_icon, colored as on spaces:
+# herdr's state_icon also marks idle agents), how long in that state (dim,
+# "12m"; agent-info measures it), the branch's PR (gh-pr, "#123 ✓"), then the
+# name (the tab's, else the conversation title) in the color of its account
+# (perso yellow, pro sky, codex green, other grey), or dim grey when the agent
+# is idle (topic_idle). agent-info publishes the title under one token per
+# account because herdr rules can only match a token's own value. A working
+# Claude agent gets a dim second line with its last tool call ("Edit
+# monitor.py"), then one mauve line per subtask: subagent, /subtask fork,
+# workflow agent or background task ("⑂ ● Security review"), finished ones for
+# 30 min, unfinished ones up to 6 h; 13 max (herdr allows 16 rows) then "⑂ +N".
 # No space name: the column shows the selected space by default (agent_view),
 # so the whole width goes to the title.
 # The model is in the tab bar and the panel header, not repeated here.
 [ui.sidebar.agents]
 rows = [
-  ["state_icon", { token = "$age", dim = true }, { token = "$pr", fg = "{{colors.overlay}}" },
+  [{ token = "$agent_icon", bold = true, rules = [{ equals = "{{symbols.blocked}}", fg = "{{states.blocked}}" },
+     { equals = "{{symbols.working}}", fg = "{{states.working}}" }, { equals = "{{symbols.done}}", fg = "{{states.done}}" },
+     { equals = "{{symbols.branch}}", fg = "{{states.background}}" }] },
+   { token = "$age", dim = true }, { token = "$pr", fg = "{{colors.overlay}}" },
    { token = "$topic_perso", fg = "{{accounts.perso}}" }, { token = "$topic_pro", fg = "{{accounts.pro}}" },
-   { token = "$topic_codex", fg = "{{accounts.codex}}" }, { token = "$topic_other", fg = "{{accounts.other}}" }],
+   { token = "$topic_codex", fg = "{{accounts.codex}}" }, { token = "$topic_other", fg = "{{accounts.other}}" },
+   { token = "$topic_idle", fg = "{{colors.overlay}}", dim = true }],
   [{ token = "$doing", dim = true }],
   [{ token = "$sub1", fg = "{{colors.mauve}}" }],
   [{ token = "$sub2", fg = "{{colors.mauve}}" }],
   [{ token = "$sub3", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub4", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub5", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub6", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub7", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub8", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub9", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub10", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub11", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub12", fg = "{{colors.mauve}}" }],
+  [{ token = "$sub13", fg = "{{colors.mauve}}" }],
   [{ token = "$sub_more", fg = "{{colors.mauve}}", dim = true }],
 ]
 

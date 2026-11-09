@@ -14,14 +14,18 @@ What herdr and the plugin marketplace do not cover reliably:
   first), `$wait_more` ("+2 en attente"), cleared when nobody waits, and
   `$count_<perso|pro|codex|other>`: agents and subagents per state for that
   account ("‼1 ◐2 ○1 ⑂●2✓1").
-- **Subagents** of each Claude agent active in the last 30 min, `$sub1`..`$sub3`
-  ("⑂ ● Security review") and `$sub_more`, from `<session>/subagents/` and the
+- **Agent rows**: `$agent_icon` (‼ ◐ ⑂ ✓, nothing when idle) and the name under
+  `$topic_<account>`, or `$topic_idle` (dim grey) for an idle agent.
+- **Subtasks** of each Claude agent, `$sub1`..`$sub13` ("⑂ ● Security review")
+  and `$sub_more`: one line each for the focused agent, one summary line
+  ("⑂ ●2 ✓3") for the others. Finished ones stay 30 min, unfinished ones up to
+  6 h (`/subtask` forks included). From `<session>/subagents/` and the
   main transcript's `<task-notification>` entries, read incrementally
   (`subagents.py`, same state rules as agent-panel). Also listed: workflow agents
   (`subagents/workflows/<run>/`, finished once `<session>/workflows/<run>.json`
-  reports a final status) and background Bash tasks (a result saying "running in
-  background with ID" or "moved to the background (ID: …)", finished by their
-  task notification).
+  reports a final status) and background Bash tasks (a Bash result starting with
+  "Command running in background with ID" or "Command did not complete … moved to
+  the background (ID: …)", finished by their task notification).
 - **"‼" on tabs waiting on you** (herdr's tab `agent_status` = blocked). A tab
   herdr.auto-title named gets its name cleared when the wait ends, so auto-title
   names it again; a tab you named gets your name back. Which kind a tab is comes
@@ -70,6 +74,20 @@ What herdr and the plugin marketplace do not cover reliably:
 - **Desktop notification** (`notify-send`, `osascript` on macOS) when an agent
   starts waiting on you: once per blocked state, not for the focused pane nor for
   agents already blocked when the daemon starts. `AGENT_INFO_NOTIFY=0` turns it off.
+- **Housekeeping on its own** (`tidy.py`, each action announced by a desktop
+  notification):
+  - a Claude agent idle for 24 h (`AGENT_INFO_TIDY_HOURS`, 0 = off), not in the
+    focused tab, with no subtask and an empty prompt (a dim suggestion does not
+    count) is quit with Ctrl+C twice: herdr does not resume it on restart, the
+    conversation stays (`claude --resume <id>`, logged in
+    `~/.local/state/chrysa.agent-info/closed.jsonl`);
+  - a tab whose only pane is an agent started in a git repo below its space's
+    folder moves to that repo's space, a new one if needed, sorted under its
+    parent (`AGENT_INFO_SORT_TABS=0` turns it off). Never the focused tab, nor an
+    agent waiting on you.
+- **agent-panel services** (`panel_services.py`, its `services-command`, written by cockpit
+  setup): every container and listener of the agent's project, one `up|down<TAB>name<TAB>url`
+  line each, for agent-panel's Apps tab.
 - **Services pane** (`prefix+ctrl+g`): containers of the tab's git project (compose
   working dir or bind mounts inside it) and processes listening on a port from
   inside it, with their URLs. `docker ps` and `ss` run in background threads.

@@ -2,6 +2,74 @@
 
 ## Unreleased
 
+- agent-panel pinned to chrysa/agent-panel#10 (Nerd Font pictograms).
+- agent-panel shows Nerd Font pictograms (setup writes its `icons` file):
+  tabs, Made/Apps/Refs rows by kind and file type, section headers; the
+  header follows (folder, git branch, services) through `AGENT_PANEL_ICONS`.
+- agent-panel pinned to chrysa/agent-panel#9: redrawn as soon as the transcript
+  changes, and two tabs: Made (published pages, GitHub PRs/releases/pushes,
+  files written) and Apps (project services, background commands, browser tabs,
+  herdr panes the agent drives).
+- agent-panel's Apps tab lists every service of the project: agent-info's
+  `panel_services.py` (same docker/ss snapshots as the header), written as the
+  panel's `services-command` by setup.
+- Tab bar in real time: plan windows and context come from the focused pane's
+  latest status line input (copied per pane on every message and every
+  refreshInterval; agent-info wakes on it), the bar refreshes every second (was
+  5 s), and the context no longer waits for the agent to finish.
+- Tab bar: quotas in words, `hebdo 82% (reset 3j20h)` instead of
+  `7j 82% ↻3j20h` (window and reset both read "…j"; herdr strips colors there).
+- Docs: the "What each surface shows" table covers the agents column icons,
+  idle grey and subtasks, agent-panel tab clicks and mouse resize, and the
+  housekeeping notifications.
+- agent-panel pinned to chrysa/agent-panel#8: clicks on its tab bar switch
+  tabs again (they only worked on row 1, above the fork's header lines).
+- Panes: tmux-style splitters (`pane_borders = "auto"`, no outer border,
+  no gaps): one thin divider between panes, which the mouse can drag to
+  resize agent-panel; still no frame and no title around panes.
+- Tab bar: the plan windows of the focused agent's account with % used and
+  time to reset (`7j 72% ↻4j14h`, and `5h …` when Claude reports it). The
+  cockpit status line now hands Claude Code's `rate_limits` to usagebar, so
+  its per-account cache is fresh (it read a `~/.claude.json` snapshot hours
+  old, and had nothing for the pro account).
+- herdr tidies up on its own, with a desktop notification each time: a
+  Claude agent idle for 24 h (empty prompt, not in the focused tab, no
+  subtask) is quit, its conversation kept (`claude --resume`, logged in
+  `closed.jsonl`); a tab whose agent was started in a repo below its
+  space's folder moves to that repo's space (created and sorted under its
+  parent). Agents column: full subtask list for the focused agent, one
+  summary line (`⑂ ●2 ✓3`) for the others. Space folders ignore plugin
+  panes (agent-panel's cwd is its checkout).
+- Agents column: an idle agent shows no icon and its name in dim grey
+  (`agent_icon`, `topic_idle`); the others get the space icons and colors
+  (‼ ◐ ⑂ ✓). Subtasks: up to 13 per agent (was 3), a /subtask fork or
+  subagent still running stays listed up to 6 h (was 30 min after its last
+  write), a background task too (it vanished 30 min after it started);
+  Claude Code's `finished` meta flag marks a subtask done. A background
+  task is only read from the start of a Bash result (a command printing
+  the phrase was listed), and a stopped one shows ⊘.
+- Linux only, declared: both manifests list `linux` alone (the services list
+  needs `ss` and `/proc`, `setup` installs systemd user units); the README
+  says so, and that account colors cover `perso`, `pro` and `codex`.
+- Release workflow: a release already published for the tag is kept
+  instead of failing the run.
+
+## v0.8.0 — spaces tree, real-time sidebar, herdr 0.9.5 (2026-11-08)
+
+- Portability: `setup` also wires the default `~/.claude` (not only
+  `~/.claude-<account>`); the config-reload unit calls the herdr found on
+  PATH instead of `~/.local/bin/herdr`; `agent-panel-hook` finds agent-panel
+  where herdr >= 0.9.5 installs it (`github-installations/…/checkout`, the
+  newest copy first; it was running a stale copy left in `github/`);
+  `herdr-logrotate` measures logs with `wc -c` (`stat -c` is GNU only).
+  agent-info's manifest describes what it publishes today.
+- Spaces: a child space's state icon comes after its name (`│ ├ GHA · ◐`,
+  token `child_icon`, same colors). In front, herdr's ` · ` after the icon
+  pushed the tree glyphs 4 columns right (`◐ · │ ├ GHA`). Roots keep
+  `◐ · chrysa`.
+- agent-panel pinned to chrysa/agent-panel#6: the panel keeps the width you
+  gave it (also after a server restart restores the split), and an empty
+  Subagents tab opens on To do or Messages instead.
 - Spaces: a blue `⑂` icon when only subagents, workflow agents or background
   tasks work (the main agent idle or done); such a space counts as active.
   agent-info now also lists workflow agents (`subagents/workflows/<run>/`,

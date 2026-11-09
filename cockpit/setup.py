@@ -43,6 +43,11 @@ UNITS = ("herdr-config-reload.path", "herdr-config-reload.service",
 ENABLE = ("herdr-config-reload.path", "herdr-logrotate.timer")
 
 
+def herdr_path(home):
+    """The herdr binary on PATH, else its installer's default (~/.local/bin/herdr)."""
+    return shutil.which("herdr") or os.path.join(home, ".local", "bin", "herdr")
+
+
 class Paths:
     def __init__(self, home=HOME):
         self.home = home
@@ -54,8 +59,9 @@ class Paths:
         self.backups = os.path.join(self.state, "backups", time.strftime("%Y%m%d-%H%M%S"))
 
     def claude_dirs(self):
-        return sorted({os.path.realpath(d) for d in glob.glob(os.path.join(self.home, ".claude-*"))
-                       if os.path.isfile(os.path.join(d, "settings.json"))})
+        """Claude config dirs: ~/.claude and every ~/.claude-<account> (symlinks counted once)."""
+        dirs = [os.path.join(self.home, ".claude"), *glob.glob(os.path.join(self.home, ".claude-*"))]
+        return sorted({os.path.realpath(d) for d in dirs if os.path.isfile(os.path.join(d, "settings.json"))})
 
 
 class Setup:
@@ -107,7 +113,8 @@ class Setup:
 
     def palette(self):
         palette = render.load_palette()
-        palette["paths"] = {"config": os.path.join(self.p.rendered, CONFIG), "bin": self.p.bin}
+        palette["paths"] = {"config": os.path.join(self.p.rendered, CONFIG), "bin": self.p.bin,
+                            "herdr": herdr_path(self.p.home)}
         return palette
 
     def render_templates(self, palette):
@@ -154,10 +161,14 @@ class Setup:
             self.update_settings(d, f"statusLine -> {script}", edit)
 
     def install_panel_header(self):
-        """agent-panel (chrysa fork) shows agent-info's header: account, model, folder, git, services."""
-        header = os.path.join(os.path.dirname(ROOT), "agent-info", "header.py")
-        self.write(os.path.join(self.p.home, DOT_CONFIG, "herdr", "plugins", "config", "agent-panel",
-                                "header-command"), header + "\n")
+        """agent-panel (chrysa fork) shows agent-info's header (account, model, folder, git,
+        services) and, in its Apps tab, every service of the project."""
+        agent_info = os.path.join(os.path.dirname(ROOT), "agent-info")
+        config = os.path.join(self.p.home, DOT_CONFIG, "herdr", "plugins", "config", "agent-panel")
+        self.write(os.path.join(config, "header-command"), os.path.join(agent_info, "header.py") + "\n")
+        self.write(os.path.join(config, "services-command"), os.path.join(agent_info, "panel_services.py") + "\n")
+        # Nerd Font pictograms in the panel and its header (the cockpit is Linux only, with a Nerd Font).
+        self.write(os.path.join(config, "icons"), "nerd\n")
 
     def install_codex_todo(self):
         """Codex has no SessionStart hook: agent-panel's To do tab needs its rule in AGENTS.md."""

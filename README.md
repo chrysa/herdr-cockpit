@@ -6,9 +6,13 @@ Most of it is native herdr or existing marketplace plugins (see `cockpit/plugins
 | Plugin | Id | What it does |
 |---|---|---|
 | [`cockpit`](cockpit/) | `chrysa.cockpit` | The whole setup: config templates and palette, `setup` / `status` / `validate`, plugin manifest, filters and sort for herdr's native Agents column, tab bar status, Claude Code status line |
-| [`agent-info`](agent-info/) | `chrysa.agent-info` | `$account` / `$model` tokens for the sidebar, and a services pane (containers, ports, URLs of the tab's project) |
+| [`agent-info`](agent-info/) | `chrysa.agent-info` | Sidebar tokens: per agent account, model, subject, last tool call, subagents; per space state icon, counts, waiting agents, tree name (nested, sorted). Tab bar line, agent-panel header, services pane (containers, ports, URLs of the tab's project) |
 
 Local reads only: herdr socket, Claude Code / Codex / opencode session files. No network, no telemetry.
+
+Linux only: the services list reads `ss` and `/proc`, and `setup` installs systemd user units
+(config auto-reload, log rotation). Account colors are set for the `perso`, `pro` and `codex`
+Claude config dirs (`~/.claude-<account>`); any other account shows in the `other` color.
 
 ## Develop
 
@@ -19,7 +23,7 @@ uv run pytest
 
 Specs and plans live in `work/` (`work/specs`, `work/plans`).
 
-Release: bump `version` in the three `herdr-plugin.toml`, merge, then push a
+Release: bump `version` in both `herdr-plugin.toml`, merge, then push a
 `vX.Y.Z` tag; the release workflow runs tests and `validate`, checks the
 versions match the tag, and publishes notes built from the commits.
 
