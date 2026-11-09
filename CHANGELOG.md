@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- agent-panel pinned to chrysa/agent-panel#9: redrawn as soon as the transcript
+  changes, and two tabs: Made (published pages, GitHub PRs/releases/pushes,
+  files written) and Apps (project services, background commands, browser tabs,
+  herdr panes the agent drives).
 - agent-panel's Apps tab lists every service of the project: agent-info's
   `panel_services.py` (same docker/ss snapshots as the header), written as the
   panel's `services-command` by setup.
