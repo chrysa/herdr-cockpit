@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Docs: the "What each surface shows" table covers the agents column icons,
+  idle grey and subtasks, agent-panel tab clicks and mouse resize, and the
+  housekeeping notifications.
 - agent-panel pinned to chrysa/agent-panel#8: clicks on its tab bar switch
   tabs again (they only worked on row 1, above the fork's header lines).
 - Panes: tmux-style splitters (`pane_borders = "auto"`, no outer border,

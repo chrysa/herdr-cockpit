@@ -57,9 +57,10 @@ One fact, one place:
 | Surface | Shows |
 |---|---|
 | Sidebar, Spaces | per space: a state icon only when an agent works, waits or has finished (‼ red, ◐ peach, ✓ mauve; ⑂ blue when only subagents, workflows or background tasks work), name bold in the color of its agents' account (dim grey when all idle), agent and subagent counts per state and account, idle ones included (`○2`), the agents waiting on you. A space inside another's folder (or named after it) is its child: spaces form a tree in alphabetical order (`├ GHA`, `└ simul`); siblings starting with the same word get a dim header (`└ plateform` over `├ charts`, `└ socle`) |
-| Sidebar, Agents | the selected space's agents: state, age, PR, name, last tool call, subagents |
+| Sidebar, Agents | the selected space's agents: a state icon only when the agent works, waits, has finished or only its subtasks run (same colors as spaces), age, PR, name in its account's color (dim grey when idle), last tool call; subtasks (subagents, `/subtask` forks, workflow agents, background tasks): one line each for the focused agent, one summary line (`⑂ ●2 ✓3`) for the others |
 | Tab bar | `‼` on tabs waiting on you; on the right, account · model · plan windows (% used, time to reset) · context of the focused agent |
-| agent-panel (right) | the focused conversation: header (folder in the account's color, git, services), Subagents, Messages, Refs, To do; an empty Subagents tab opens on To do or Messages |
+| agent-panel (right) | the focused conversation: header (folder in the account's color, git, services), Subagents, Messages, Refs, To do (click a tab, or Tab / ←→ / 1–4); an empty Subagents tab opens on To do or Messages; drag the thin divider on its left to resize it (the width is kept) |
+| Desktop notifications | an agent starts waiting on you; agent-info tidied up (idle agents quit after 24 h, tabs moved to their repo's space) |
 
 Claude Code's `mission-control` mod (a box under the prompt: context, cost,
 tool timeline, a Haiku comment after each turn) is left off: it repeated the
