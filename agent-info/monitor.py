@@ -229,17 +229,17 @@ TABBAR = os.path.join(STATE_DIR, "tabbar")
 CLOSED = os.path.join(STATE_DIR, "closed.jsonl")  # idle agents tidy.py quit: pane, space, session id
 
 
-QUOTA_WINDOWS = (("5h", "limit_5h"), ("7j", "limit_7d"))  # usagebar: "<% left> <reset in>" per band
+QUOTA_WINDOWS = (("5h", "limit_5h"), ("hebdo", "limit_7d"))  # usagebar: "<% left> <reset in>" per band
 
 
 def quota_parts(tokens):
-    """["5h 88% ↻2h", "7j 48% ↻5j"] from usagebar's per-window tokens."""
+    """["5h 88% (reset 2h)", "hebdo 48% (reset 5j)"] from usagebar's per-window tokens."""
     parts = []
     for label, prefix in QUOTA_WINDOWS:
         value = next((tokens[f"{prefix}_{band}"] for band in ("low", "mid", "high") if tokens.get(f"{prefix}_{band}")), "")
         left, _, reset = str(value).partition(" ")
         if left:
-            parts.append(f"{label} {left}" + (f" ↻{reset.replace('d', 'j')}" if reset else ""))
+            parts.append(f"{label} {left}" + (f" (reset {reset.replace('d', 'j')})" if reset else ""))
     return parts
 
 
@@ -256,7 +256,7 @@ def reset_label(seconds):
 
 
 def cached_quotas(account, now, home=HOME):
-    """["5h 12% ↻3h05", "7j 72% ↻4j14h"]: % used and time to reset of the account's plan
+    """["5h 12% (reset 3h05)", "hebdo 72% (reset 4j14h)"]: % used and time to reset of the account's plan
     windows, from usagebar's cache (cockpit's status line hands it Claude Code's
     rate_limits). Windows already reset are left out; [] without a cache."""
     folder = f".claude-{account}" if account and account != "default" else ".claude"
@@ -266,14 +266,14 @@ def cached_quotas(account, now, home=HOME):
     except (OSError, ValueError):
         return []
     parts = []
-    for label, key in (("5h", "fiveHour"), ("7j", "sevenDay")):
+    for label, key in (("5h", "fiveHour"), ("hebdo", "sevenDay")):
         window = data.get(key) if isinstance(data, dict) else None
         if not isinstance(window, dict) or window.get("usedPercentage") is None:
             continue
         reset = window.get("resetsAt")
         if reset and reset <= now:
             continue
-        parts.append(f"{label} {round(window['usedPercentage'])}%" + (f" ↻{reset_label(reset - now)}" if reset else ""))
+        parts.append(f"{label} {round(window['usedPercentage'])}%" + (f" (reset {reset_label(reset - now)})" if reset else ""))
     return parts
 
 

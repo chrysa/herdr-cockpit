@@ -565,8 +565,8 @@ def test_tabbar_line_shows_the_focused_agent(monkeypatch):
     assert monitor.tabbar_line([{"pane_id": "x", "focused": True, "tokens": {"context": "\x1b[2Jc"}}], {}) == "[2Jc"
     windows = {"limit_5h_high": "88% 2h", "limit_7d_mid": "48% 5d", "context_meter": "⛁ 43% (432k)", "context": "x"}
     assert monitor.tabbar_line([{"pane_id": "b", "focused": True, "tokens": windows}], accounts) == \
-        "perso  opus-5.5  5h 88% ↻2h · 7j 48% ↻5j  ⛁ 43% (432k)"
-    assert monitor.quota_parts({"limit_7d_low": "9%"}) == ["7j 9%"]  # no reset reported
+        "perso  opus-5.5  5h 88% (reset 2h) · hebdo 48% (reset 5j)  ⛁ 43% (432k)"
+    assert monitor.quota_parts({"limit_7d_low": "9%"}) == ["hebdo 9%"]  # no reset reported
 
 
 def test_cached_quotas_give_percent_used_and_exact_time_to_reset(tmp_path):
@@ -576,8 +576,8 @@ def test_cached_quotas_give_percent_used_and_exact_time_to_reset(tmp_path):
     cache.write_text(json.dumps({"fiveHour": {"usedPercentage": 12.4, "resetsAt": now + 3 * 3600 + 300},
                                  "sevenDay": {"usedPercentage": 72, "resetsAt": now + 4 * 86400 + 14 * 3600},
                                  "fetchedAtMs": now * 1000}))
-    assert monitor.cached_quotas("perso", now, home=str(tmp_path)) == ["5h 12% ↻3h05", "7j 72% ↻4j14h"]
-    assert monitor.cached_quotas("perso", now + 4 * 3600, home=str(tmp_path))[0] == "7j 72% ↻4j10h"  # 5h reset
+    assert monitor.cached_quotas("perso", now, home=str(tmp_path)) == ["5h 12% (reset 3h05)", "hebdo 72% (reset 4j14h)"]
+    assert monitor.cached_quotas("perso", now + 4 * 3600, home=str(tmp_path))[0] == "hebdo 72% (reset 4j10h)"  # 5h reset
     assert monitor.cached_quotas("pro", now, home=str(tmp_path)) == []
 
 

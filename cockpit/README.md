@@ -43,7 +43,7 @@ add it here and run setup.
 ## Tab bar
 
 `ui.tab_bar_right` runs `bin/herdr-tabbar` every 5 s: account · model · plan
-windows with % used and time to reset (`5h 12% ↻3h05 · 7j 72% ↻4j14h`) ·
+windows with % used and time to reset (`5h 12% (reset 3h05) · hebdo 72% (reset 4j14h)`) ·
 context of the focused agent. The windows come from usagebar's cache per
 Claude account, which the cockpit status line feeds with Claude Code's
 `rate_limits` (before it hides itself behind agent-panel). chrysa.agent-info writes that line to
