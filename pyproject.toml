@@ -14,3 +14,36 @@ addopts = "-q"
 
 [tool.uv]
 package = false
+
+[tool.ruff]
+extend-exclude = [".claude", "scripts/quality_gate.py"]
+
+[tool.ruff.lint]
+select = [
+    "C901",
+    "PERF203",
+    "PERF401",
+    "PLR0402",
+    "PLR0911",
+    "PLR0912",
+    "PLR0915",
+    "PLR1714",
+    "PLR1730",
+    "PLR5501",
+    "RUF005",
+    "RUF006",
+    "RUF007",
+    "RUF009",
+    "RUF012",
+    "RUF013",
+    "RUF022",
+    "RUF043",
+    "RUF059",
+    "RUF100",
+    "PLR2004",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["PLR2004"]
+"**/test_*.py" = ["PLR2004"]
+"**/conftest.py" = ["PLR2004"]

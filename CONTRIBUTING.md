@@ -1,0 +1,48 @@
+# Contributing to herdr-cockpit
+
+Thanks for contributing. This repo follows the chrysa
+[chrysa standards](https://github.com/chrysa/shared-standards/blob/main/standards/STANDARDS.chrysa.md).
+
+## Prerequisites
+
+Install dev dependencies and pre-commit hooks:
+
+```bash
+make install
+```
+
+## Workflow
+
+1. **Branch** from `main` using a typed prefix: `feat/`, `fix/`, `chore/`,
+   `docs/`, `ci/`, `refactor/`, `test/`, `perf/`. Direct commits to `main` are
+   blocked (`no-commit-to-branch`).
+2. **Develop** using the `make` targets only — never call `pytest` / `ruff` /
+   `mypy` directly on the host: `make test`, `make test-cov`, `make lint`,
+   `make format`, `make typecheck`.
+3. **Commit** using [Conventional Commits](https://www.conventionalcommits.org/):
+   `type(scope): subject` (allowed types: feat, fix, docs, style, refactor, test,
+   chore, perf, revert, ci). Commit messages are linted via `conventional-pre-commit`.
+4. **Verify** before pushing, then open a PR against `main`.
+5. **Link** the PR. On a public open-source repo: open an issue first, or reference an
+   existing one (`#123`, `closes #123`) in your PR — a Shortcut story is not required
+   (DEC-V3-006). On a private repo: reference the Shortcut story (`sc-1234`).
+
+Verification commands:
+
+```bash
+pre-commit run --all-files
+make test
+```
+
+CI (pre-commit, lint, test, sonar) must pass and one approval is required before merge.
+
+## Code standards
+
+- All committed files (code, comments, docs, config) are in **English**.
+- No hardcoded secrets — use env vars and keep `.env.example` in sync.
+- New behaviour ships with tests; keep coverage at or above the project threshold.
+
+## Reporting issues
+
+Use the issue templates under `.github/ISSUE_TEMPLATE/`. Include reproduction
+steps, expected vs actual behaviour, and environment details.

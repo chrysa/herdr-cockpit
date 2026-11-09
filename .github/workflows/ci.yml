@@ -1,0 +1,97 @@
+---
+# Canonical CI workflow for Python projects (chrysa ecosystem).
+#
+# Usage: copy to .github/workflows/ci.yml. The applier
+# (scripts/apply-repo-standard.sh) substitutes the ${...} placeholders:
+#   herdr_cockpit      import package / source dir       (e.g. django_pytest)
+#   herdr_cockpit tests      ruff sources, space-separated     (e.g. "django_pytest tests")
+#   tests        test dir                          (e.g. tests)
+#   herdr-cockpit    repo name                         (e.g. django-pytest)
+#   chrysa_herdr-cockpit  SonarCloud project key            (e.g. chrysa_django-pytest)
+#
+# ⚠️ This file lives in workflows/ (NOT .github/workflows/) — it is a copy-to-use
+#    template, not a reusable `uses:` workflow.
+#
+# NOTE: Lint (ruff/mypy/pre-commit) does NOT run here. It lives in pre-commit
+#       (local) and is replayed in CI only at release time via release.yml's
+#       lint gate (chrysa/github-actions/.github/workflows/lint-python.yml).
+#       This CI keeps only tests + sonar, to gate PRs without per-push lint billing.
+#
+# Job names (test / sonar) are the branch-protection required status checks —
+# keep them stable across repos.
+
+name: CI
+
+on:
+    pull_request:
+        branches: [develop, main]
+    push:
+        branches:
+            - develop
+            - main
+            - "feat/**"
+            - "fix/**"
+            - "chore/**"
+            - "ci/**"
+    workflow_dispatch:
+
+permissions:
+    checks: write
+    contents: read
+    pull-requests: write
+    statuses: write
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    test:
+        name: Docker tests
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@v6.0.3
+
+            - name: Run tests via Docker
+              run: make docker-test
+
+            # Coverage is generated inside the test job; the sonar job runs on a
+            # separate runner, so the report must travel as an artifact. The name
+            # MUST be test-results-<python-version> — that is exactly what
+            # sonar-scan-python downloads into reports/.
+            - name: Upload coverage report
+              if: always()
+              uses: actions/upload-artifact@v7
+              with:
+                  name: test-results-3.14
+                  path: coverage.xml
+                  if-no-files-found: warn
+
+    sonar:
+        name: SonarCloud
+        if: ${{ github.actor != 'dependabot[bot]' }}
+        needs: test
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        permissions:
+            contents: read
+            pull-requests: read
+        steps:
+            - uses: actions/checkout@v6.0.3
+              with:
+                  fetch-depth: 0
+
+            - uses: chrysa/github-actions/sonar-scan-python@v1.1.3
+              with:
+                  python-version: "3.14"
+                  sonar-token: ${{ secrets.SONAR_TOKEN }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  project-key: chrysa_herdr-cockpit
+                  organization: chrysa
+                  project-name: herdr-cockpit
+                  sources: herdr_cockpit
+                  tests: tests
+                  # Downloaded from the test-results-3.14 artifact into reports/
+                  # by the action; matches sonar-scan-python's default path.
+                  coverage-report: reports/coverage.xml
