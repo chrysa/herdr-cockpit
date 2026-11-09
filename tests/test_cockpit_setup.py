@@ -67,6 +67,7 @@ def test_first_run_installs_everything(tmp_path):
     assert header.read_text().strip().endswith("agent-info/header.py")
     services_command = tmp_path / ".config/herdr/plugins/config/agent-panel/services-command"
     assert services_command.read_text().strip().endswith("agent-info/panel_services.py")
+    assert (tmp_path / ".config/herdr/plugins/config/agent-panel/icons").read_text() == "nerd\n"
     unit = (tmp_path / ".config/systemd/user/herdr-config-reload.path").read_text()
     assert os.path.join(paths.rendered, "config.toml") in unit
     assert "{{" not in unit
