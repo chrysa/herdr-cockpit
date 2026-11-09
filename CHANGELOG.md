@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- agent-panel pinned to chrysa/agent-panel#10 (Nerd Font pictograms).
 - agent-panel shows Nerd Font pictograms (setup writes its `icons` file):
   tabs, Made/Apps/Refs rows by kind and file type, section headers; the
   header follows (folder, git branch, services) through `AGENT_PANEL_ICONS`.
