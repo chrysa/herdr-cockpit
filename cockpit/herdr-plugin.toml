@@ -48,6 +48,18 @@ contexts = ["global"]
 command = ["python3", "agent_view.py", "space"]
 
 [[actions]]
+id = "agents-collapse"
+title = "Agents: fold or unfold the focused space"
+contexts = ["global"]
+command = ["python3", "agent_view.py", "collapse"]
+
+[[actions]]
+id = "agents-attention"
+title = "Agents: focus the first agent waiting on you in this space"
+contexts = ["global"]
+command = ["python3", "agent_view.py", "attention"]
+
+[[actions]]
 id = "agents-sort"
 title = "Agents: sort by attention / by space order"
 contexts = ["global"]

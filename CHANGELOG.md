@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `prefix+ctrl+k` focuses the first agent waiting on you in the focused space (`agent.focus`); the sidebar `‼` lines stay non-clickable, herdr exposes no sidebar click to plugins.
+- Agents column: `prefix+ctrl+d` folds or unfolds the focused space (its agents leave the column; the label counts the folded spaces). herdr 0.9.5 has no native sidebar fold or space filter, so the sidebar rows stay as they are.
 - agent-panel pinned to chrysa/agent-panel#10 (Nerd Font pictograms).
 - agent-panel shows Nerd Font pictograms (setup writes its `icons` file):
   tabs, Made/Apps/Refs rows by kind and file type, section headers; the

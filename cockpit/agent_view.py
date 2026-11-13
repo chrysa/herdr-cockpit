@@ -6,11 +6,13 @@ Three independent filters, combined with "all":
   chrysa.agent-info), cycled through the accounts currently seen;
 - active: only agents working or blocked;
 - space: only agents of the space selected in herdr (on by default, so the
-  column follows the selected space; `reset` shows every agent).
+  column follows the selected space; `reset` shows every agent);
+- collapsed: agents of the spaces folded by `collapse` (a toggle per space)
+  are hidden from the column; the space rows stay in the sidebar.
 State lives in the plugin state dir and is re-applied at startup, since herdr
 drops the view when the server exits.
 
-Usage: agent_view.py profile | active | space | sort | reset | apply
+Usage: agent_view.py profile | active | space | collapse | attention | sort | reset | apply
 """
 import json
 import os
@@ -21,7 +23,7 @@ import time
 SOURCE = "plugin:chrysa.cockpit"
 STATE_DIR = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.expanduser("~/.local/state/chrysa.cockpit")
 STATE = os.path.join(STATE_DIR, "agent-view.json")
-NONE = {"profile": "", "active": False, "space": False, "attention": False}
+NONE = {"profile": "", "active": False, "space": False, "attention": False, "collapsed": []}
 # State before any key is pressed: the selected space, in herdr's "priority"
 # order (an active view replaces herdr's own sort, so the view carries it).
 DEFAULT = {**NONE, "space": True, "attention": True}
@@ -98,6 +100,8 @@ def build_filter(state):
         clauses.append({"op": "in", "field": "status", "values": ["working", "blocked"]})
     if state["space"]:
         clauses.append({"op": "eq", "field": "workspace_id", "value": {"context": "current_workspace_id"}})
+    if state.get("collapsed"):
+        clauses.append({"op": "not", "filter": {"op": "in", "field": "workspace_id", "values": list(state["collapsed"])}})
     if not clauses:
         return None
     return clauses[0] if len(clauses) == 1 else {"op": "all", "filters": clauses}
@@ -109,7 +113,29 @@ def label(state):
     parts += ["actifs"] if state["active"] else []
     parts += ["ce space"] if state["space"] else []
     parts += ["priorité"] if state.get("attention") else []
+    parts += [f"{len(state['collapsed'])} replié(s)"] if state.get("collapsed") else []
     return " · ".join(parts) or "tous"
+
+
+def focused_workspace_id():
+    spaces = call("workspace.list", {}).get("result", {}).get("workspaces", [])
+    return next((w.get("workspace_id") for w in spaces if w.get("focused")), None)
+
+
+def focus_attention():
+    """Focus the first agent waiting on you in the focused space (blocked, else none)."""
+    spaces = call("workspace.list", {}).get("result", {}).get("workspaces", [])
+    space = next((w.get("workspace_id") for w in spaces if w.get("focused")), None)
+    agents = call("agent.list", {}).get("result", {}).get("agents", [])
+    waiting = [a for a in agents if a.get("status") == "blocked" and a.get("workspace_id") == space]
+    if not waiting:
+        return notify_text("Aucun agent en attente dans ce space")
+    waiting.sort(key=lambda a: a.get("state_change_seq") or 0, reverse=True)
+    call("agent.focus", {"pane_id": waiting[0]["pane_id"]})
+
+
+def notify_text(text):
+    call("notification.show", {"title": text})
 
 
 def accounts():
@@ -149,6 +175,13 @@ def main():
         state["attention"] = not state.get("attention")
     elif command in ("active", "space"):
         state[command] = not state[command]
+    elif command == "collapse":
+        space = focused_workspace_id()
+        folded = state.get("collapsed", [])
+        if space:
+            state["collapsed"] = [s for s in folded if s != space] if space in folded else folded + [space]
+    elif command == "attention":
+        return focus_attention()
     elif command == "reset":
         state = dict(NONE)
     if command == "refresh":  # space switch: only after a server restart
