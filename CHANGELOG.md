@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Known gaps: PR #74 (review subagents on sonnet) has failing CI checks, not merged. `status.py` does not check the agent-panel `icons` file; a missing pictogram setting is only found on screen.
+- Open: agent-panel untracked files (`.claude/`, `AGENTS.md`) to decide; flowy11 bandeau proposal; Claude sessions to restart for the To do and progress hooks.
 - `prefix+ctrl+k` focuses the first agent waiting on you in the focused space (`agent.focus`); the sidebar `‼` lines stay non-clickable, herdr exposes no sidebar click to plugins.
 - Agents column: `prefix+ctrl+d` folds or unfolds the focused space (its agents leave the column; the label counts the folded spaces). herdr 0.9.5 has no native sidebar fold or space filter, so the sidebar rows stay as they are.
 - agent-panel pinned to chrysa/agent-panel#10 (Nerd Font pictograms).
