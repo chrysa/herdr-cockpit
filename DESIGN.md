@@ -39,7 +39,7 @@ the drift lines.
 
 - **J1 — Triage agents:** glance at the sidebar (state symbol, subject in the account colour,
   space dimmed) → `prefix+ctrl+a` active only or `prefix+ctrl+s` sort by attention → a herdr
-  toast names the current filter → `prefix+ctrl+z` shows every agent. Filters combine and are
+  toast names the current filter → `prefix+ctrl+k` focuses the first agent waiting on you in this space → `prefix+ctrl+d` folds the focused space out of the column → `prefix+ctrl+z` shows every agent. Filters combine and are
   re-applied at server start. **[implemented]** ([agent_view.py](cockpit/agent_view.py))
 - **J2 — Project services:** `prefix+ctrl+g` → split pane with containers and listening
   processes of the tab's git project and their URLs, refreshed every 2 s. Outside a git

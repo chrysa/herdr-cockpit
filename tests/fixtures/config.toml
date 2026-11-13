@@ -185,6 +185,18 @@ command = "chrysa.cockpit.agents-space"
 description = "agents: selected space only"
 
 [[keys.command]]
+key = "prefix+ctrl+d"
+type = "plugin_action"
+command = "chrysa.cockpit.agents-collapse"
+description = "agents: fold or unfold the focused space"
+
+[[keys.command]]
+key = "prefix+ctrl+k"
+type = "plugin_action"
+command = "chrysa.cockpit.agents-attention"
+description = "agents: focus the first agent waiting on you (this space)"
+
+[[keys.command]]
 key = "prefix+ctrl+s"
 type = "plugin_action"
 command = "chrysa.cockpit.agents-sort"
