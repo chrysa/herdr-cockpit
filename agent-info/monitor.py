@@ -34,9 +34,9 @@ import time
 import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import events  # noqa: E402
-import services  # noqa: E402
-import subagents  # noqa: E402
+import events
+import services
+import subagents
 import tidy
 import worktrees
 
@@ -798,6 +798,23 @@ def moves_to(current, wanted):
     return moves
 
 
+def worktree_spaces(listed):
+    """Worktree spaces: named by their branch behind worktrees.WORKTREE_MARK, under the space
+    of their main checkout (never by name or folder). Returns (listed, parents)."""
+    by_folder = {os.path.realpath(folder): ws for ws, _, folder in listed if folder}
+    renamed, forced = [], {}
+    for ws, label, folder in listed:
+        info = worktrees.worktree_of(folder) if folder and os.path.isdir(folder) else None
+        main = by_folder.get(os.path.realpath(info[0])) if info else None
+        if main and main != ws:
+            forced[ws] = main
+            label = f"{worktrees.WORKTREE_MARK} {info[1]}"
+        renamed.append((ws, label, folder))
+    parents = space_parents(renamed)
+    parents.update(forced)
+    return renamed, parents
+
+
 def short_name(label, parent_label):
     """label without the leading words it shares with its parent's label (case
     ignored), at least its last word kept: padam-av-GHA under padam-av -> GHA,
@@ -1085,7 +1102,7 @@ def tick(shown, state=None, now=None):
     folders = space_folders(workspaces, panes)
     listed = [(w["workspace_id"], label, folders.get(w["workspace_id"]))
               for w, label in zip(workspaces, labels) if w.get("workspace_id")]
-    parents = space_parents(listed)
+    listed, parents = worktree_spaces(listed)
     groups = sibling_groups(listed, parents)
     order, display, headers = space_tree(listed, parents, groups)
     accounts = {}

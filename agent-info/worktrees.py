@@ -56,3 +56,22 @@ def open_linked(panes, herdr, state):
         attempted.append(top)
         herdr("worktree", "open", "--cwd", top)
     del attempted[:-200]  # bounded memory
+
+
+WORKTREE_MARK = "⎇"  # branch glyph: a worktree space is named by its branch, under its repository
+
+
+def worktree_of(path):
+    """(main checkout top, branch) for a linked worktree at path, else None."""
+    top = checkout_of(path)
+    if not top:
+        return None
+    try:
+        out = subprocess.run(["git", "-C", top, "rev-parse", "--path-format=absolute", "--git-common-dir",
+                              "--abbrev-ref", "HEAD"], capture_output=True, text=True, timeout=5, check=True).stdout.split("\n")
+    except (OSError, subprocess.SubprocessError):
+        return None
+    common, branch = os.path.realpath(out[0]), (out[1] if len(out) > 1 else "")
+    if not branch or branch == "HEAD":
+        return None
+    return os.path.dirname(common), branch
