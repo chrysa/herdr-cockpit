@@ -76,3 +76,19 @@ def test_disabled_does_nothing(tmp_path, monkeypatch):
     monkeypatch.setattr(worktrees, "ENABLED", False)
     worktrees.open_linked([{"cwd": str(tmp_path)}], lambda *a: calls.append(a), {})
     assert calls == []
+
+
+def test_worktree_of_reports_main_checkout_and_branch(tmp_path):
+    repo, wt = make_repo(tmp_path)
+    main, branch = worktrees.worktree_of(str(wt))
+    assert main == os.path.realpath(repo) and branch == "feat"
+    assert worktrees.worktree_of(str(repo)) is None
+
+
+def test_worktree_space_is_named_by_branch_under_its_repository(tmp_path):
+    import monitor
+    repo, wt = make_repo(tmp_path)
+    listed = [("main", "chrysa", os.path.realpath(repo)), ("wt", "repo-wt", os.path.realpath(wt))]
+    renamed, parents = monitor.worktree_spaces(listed)
+    assert parents == {"wt": "main"}
+    assert dict((ws, label) for ws, label, _ in renamed)["wt"] == worktrees.WORKTREE_MARK + " feat"
