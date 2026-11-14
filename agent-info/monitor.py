@@ -38,6 +38,7 @@ import events  # noqa: E402
 import services  # noqa: E402
 import subagents  # noqa: E402
 import tidy
+import worktrees
 
 PLUGIN_ID = "chrysa.agent-info"
 SOURCE = f"plugin:{PLUGIN_ID}"
@@ -1112,6 +1113,7 @@ def tick(shown, state=None, now=None):
             except RuntimeError:
                 pass  # space closed meanwhile
     group_spaces([ws for ws, _, _ in listed], order, state)
+    worktrees.open_linked(panes, herdr, state)
     tidy.run(agents, panes, workspaces, folders, state["since"],
              {pane: info["subs"] for pane, info in details.items()}, names, state, now, herdr, herdr_text,
              lambda title, body: desktop_notify(title, body) if NOTIFY else None, CLOSED)
