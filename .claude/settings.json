@@ -49,7 +49,11 @@
       "Bash(rtk docker push *)",
       "Bash(rtk npm publish *)",
       "Bash(rtk twine upload *)",
-      "Bash(rtk rm -rf *)"
+      "Bash(rtk rm -rf *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(rtk git add *)",
+      "Bash(rtk git commit *)"
     ],
     "deny": [
       "Read(**/.env)",
@@ -98,7 +102,9 @@
       "Bash(rtk uv run pytest *)",
       "Bash(rtk uv run ruff *)",
       "Bash(rtk uv run mypy *)",
-      "Bash(rtk uv sync *)"
+      "Bash(rtk uv sync *)",
+      "Bash(python -m pytest *)",
+      "Bash(mypy *)"
     ]
   },
   "hooks": {
