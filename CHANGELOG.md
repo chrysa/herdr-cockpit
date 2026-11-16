@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- agent-info: a linked git worktree is opened once with `herdr worktree open --cwd` unless `herdr worktree list` already names it (`agent-info/worktrees.py`; `AGENT_INFO_WORKTREES=0` turns it off).
+- agent-info: a worktree space is named `⎇ <branch>` and sits under the space of its main checkout, not by name or folder (`worktree_spaces` in `monitor.py`).
+- `cockpit/shells.py`: lists herdr panes with no AI agent (space, pane id, cwd, terminal title); `--json` for scripts.
+- Known issue: the sidebar order is forced with `workspace.move` (`group_spaces`); a move that fails is not logged, and a daemon restart retries all moves. Pending fix: log errors and retry failed moves.
+- Known issue: `tick` raises when a pane vanishes between two ticks (`publish` → `RuntimeError`); the daemon exits after 10 failures in a row.
 - Known gaps: PR #74 (review subagents on sonnet) has failing CI checks, not merged. `status.py` does not check the agent-panel `icons` file; a missing pictogram setting is only found on screen.
 - Open: agent-panel untracked files (`.claude/`, `AGENTS.md`) to decide; flowy11 bandeau proposal; Claude sessions to restart for the To do and progress hooks.
 - `prefix+ctrl+k` focuses the first agent waiting on you in the focused space (`agent.focus`); the sidebar `‼` lines stay non-clickable, herdr exposes no sidebar click to plugins.

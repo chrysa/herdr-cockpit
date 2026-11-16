@@ -145,6 +145,7 @@ No fonts, icons or images are shipped. Repository code: [MIT](LICENSE).
   | --- | --- | --- | --- | --- |
   | 2026-11-08 | contract written from the code | source review | gaps listed in §11 | no terminal run: documentation-only change |
   | 2026-11-13 | PR #75 merged (`prefix+ctrl+d` fold, `prefix+ctrl+k` focus waiting agent) | `uv run pytest` (all pass), `validate.py` ok, `setup.py --dry-run`, manual secret/injection review | merged as 88295c9 | no live herdr session check of the two keys; sidebar `‼` lines not clickable (no herdr API) |
+  | 2026-11-16 | worktrees as herdr worktrees (PR #78), worktree spaces named by branch under their repo (PR #79), `shells.py` (PR #77) | `uv run pytest` (all pass), `ruff` on new files, real git worktree in tmp dirs | merged | live sidebar not verified: the daemon restart left spaces unsorted (130 pending `workspace.move`) and the daemon stopped twice; not fixed yet |
   | 2026-11-13 | agent-panel pictograms missing locally | `setup.py` applied, `icons` = `nerd`, `herdr server reload-config` applied, `status.py` exit 0 | config reloaded | visual check not done in this session; if still missing, restart herdr server |
 
 ## 11. Open choices, known gaps and maintenance
