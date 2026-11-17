@@ -31,6 +31,7 @@ import socket
 import subprocess
 import sys
 import time
+import tomllib
 import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -748,10 +749,22 @@ def inside(folder, parent):
     return bool(folder and parent) and folder != parent and folder.startswith(parent.rstrip("/") + "/")
 
 
-CONTAINERS = {os.path.normpath(p) for p in os.environ.get("AGENT_INFO_CONTAINERS", "").split(os.pathsep) if p}
-# Folders that hold other spaces' folders (AGENT_INFO_CONTAINERS, paths joined by os.pathsep).
-# A space's folder sits under a container's folder => child of that space. Any other folder
-# never makes a parent: a project folder that holds another project is not a container.
+CONFIG = os.environ.get("AGENT_INFO_CONFIG") or os.path.join(HOME, ".config", "chrysa.cockpit", "agent-info.toml")
+# Folders that hold other spaces' folders: `containers = [...]` in CONFIG (read at every tick),
+# plus AGENT_INFO_CONTAINERS (paths joined by os.pathsep). A space's folder under a container's
+# folder => child of that space. Any other folder never makes a parent.
+
+
+def load_containers():
+    """Container folders, normalised: from CONFIG and AGENT_INFO_CONTAINERS."""
+    found = {os.path.normpath(os.path.expanduser(p)) for p in os.environ.get("AGENT_INFO_CONTAINERS", "").split(os.pathsep) if p}
+    try:
+        with open(CONFIG, "rb") as fh:
+            listed = tomllib.load(fh).get("containers", [])
+    except (OSError, ValueError):
+        listed = []
+    found |= {os.path.normpath(os.path.expanduser(str(p))) for p in listed if p}
+    return found
 
 
 def space_parents(spaces, containers=None):
@@ -763,7 +776,7 @@ def space_parents(spaces, containers=None):
     container, not under the container's own space). A name link that would close a loop
     is skipped.
     """
-    containers = CONTAINERS if containers is None else containers
+    containers = load_containers() if containers is None else containers
     parents = {}
     for ws, _, folder in spaces:
         holders = [(len(other_folder), other) for other, _, other_folder in spaces
@@ -1224,10 +1237,41 @@ def stop():
         os.kill(pid, signal.SIGTERM)
 
 
+def write_containers(folders):
+    """Rewrite CONFIG with the given container folders (atomic replace)."""
+    os.makedirs(os.path.dirname(CONFIG), exist_ok=True)
+    body = "".join(f'  "{p}",\n' for p in sorted(folders))
+    text = ("# Folders that hold other projects: a space whose folder sits under one of them nests under its space.\n"
+            "# Managed by `monitor.py containers add|remove`; read at every tick, no restart needed.\n"
+            f"containers = [\n{body}]\n")
+    tmp = CONFIG + ".tmp"
+    with open(tmp, "w") as fh:
+        fh.write(text)
+    os.replace(tmp, CONFIG)
+
+
+def containers_command(args):
+    """containers list | add <folder> | remove <folder>: edits CONFIG; the daemon reads it next tick."""
+    action = args[0] if args else "list"
+    if action == "list":
+        print("\n".join(sorted(load_containers())))
+        return
+    if action not in ("add", "remove") or len(args) != 2:
+        sys.exit("usage: monitor.py containers list | add <folder> | remove <folder>")
+    folder = os.path.normpath(os.path.expanduser(args[1]))
+    if not os.path.isdir(folder):
+        sys.exit(f"not a directory: {folder}")
+    current = load_containers()
+    current.add(folder) if action == "add" else current.discard(folder)
+    write_containers(current)
+    print(f"{action} {folder}: {len(current)} container(s)")
+
+
 def main():
-    {"ensure": ensure, "daemon": daemon, "stop": stop, "tabs": mark_tabs_once}.get(
-        sys.argv[1] if len(sys.argv) > 1 else "ensure", ensure
-    )()
+    command = sys.argv[1] if len(sys.argv) > 1 else "ensure"
+    if command == "containers":
+        return containers_command(sys.argv[2:])
+    {"ensure": ensure, "daemon": daemon, "stop": stop, "tabs": mark_tabs_once}.get(command, ensure)()
 
 
 if __name__ == "__main__":

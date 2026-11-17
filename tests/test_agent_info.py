@@ -1,9 +1,8 @@
 import json
 import os
 
-import pytest
-
 import monitor
+import pytest
 
 
 @pytest.mark.parametrize("raw, short", [
@@ -432,7 +431,7 @@ def test_spaces_sorted_alphabetically_children_under_their_parent_as_a_tree():
 
 
 def test_tick_groups_spaces_by_folder(monkeypatch):
-    monkeypatch.setattr(monitor, "CONTAINERS", {FSW})
+    monkeypatch.setattr(monitor, "load_containers", lambda: {FSW})
     spaces, moved = [], []
     workspaces = [{"workspace_id": "w1", "label": "Forge-Stack-Workshop"}, {"workspace_id": "w2", "label": "padam-av"},
                   {"workspace_id": "w3", "label": "plateform_socle"}]
@@ -684,3 +683,44 @@ def test_header_uses_pictograms_only_when_the_panel_asks(monkeypatch):
     monkeypatch.delenv("AGENT_PANEL_ICONS")
     plain = importlib.reload(header)
     assert (plain.FOLDER, plain.BRANCH, plain.SERVER) == ("", "⑂ ", "")
+
+
+def test_containers_come_from_the_config_file(monkeypatch, tmp_path):
+    cfg = tmp_path / "agent-info.toml"
+    cfg.write_text('containers = ["/x/projects", "~/other"]\n')
+    monkeypatch.setattr(monitor, "CONFIG", str(cfg))
+    monkeypatch.delenv("AGENT_INFO_CONTAINERS", raising=False)
+    assert monitor.load_containers() == {"/x/projects", os.path.expanduser("~/other")}
+
+
+def test_missing_or_bad_config_means_no_containers(monkeypatch, tmp_path):
+    monkeypatch.setattr(monitor, "CONFIG", str(tmp_path / "absent.toml"))
+    monkeypatch.delenv("AGENT_INFO_CONTAINERS", raising=False)
+    assert monitor.load_containers() == set()
+    bad = tmp_path / "bad.toml"
+    bad.write_text("containers = [")
+    monkeypatch.setattr(monitor, "CONFIG", str(bad))
+    assert monitor.load_containers() == set()
+
+
+def test_containers_add_and_remove_rewrite_the_config(monkeypatch, tmp_path):
+    cfg = tmp_path / "agent-info.toml"
+    monkeypatch.setattr(monitor, "CONFIG", str(cfg))
+    monkeypatch.delenv("AGENT_INFO_CONTAINERS", raising=False)
+    folder = tmp_path / "projects"
+    folder.mkdir()
+    monitor.containers_command(["add", str(folder)])
+    assert monitor.load_containers() == {str(folder)}
+    monitor.containers_command(["remove", str(folder)])
+    assert monitor.load_containers() == set()
+    assert not (tmp_path / "agent-info.toml.tmp").exists()
+
+
+def test_containers_add_refuses_a_missing_folder(monkeypatch, tmp_path):
+    monkeypatch.setattr(monitor, "CONFIG", str(tmp_path / "agent-info.toml"))
+    try:
+        monitor.containers_command(["add", str(tmp_path / "nope")])
+    except SystemExit as error:
+        assert "not a directory" in str(error)
+    else:
+        raise AssertionError("expected refusal")
