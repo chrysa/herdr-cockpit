@@ -1,9 +1,8 @@
 import json
 import os
 
-import pytest
-
 import monitor
+import pytest
 
 
 @pytest.mark.parametrize("raw, short", [
@@ -383,14 +382,20 @@ SPACES = [("w1", "chrysa", "/p/chrysa"), ("w2", "Forge-Stack-Workshop", FSW), ("
 
 
 def test_space_parents_by_folder_then_by_name():
-    assert monitor.space_parents(SPACES) == {"w4": "w3", "w5": "w2", "w6": "w2", "w7": "w6", "w8": "w1"}
+    assert monitor.space_parents(SPACES, containers={FSW, f"{FSW}/platform-charts"}) == {"w4": "w3", "w5": "w2", "w6": "w2", "w7": "w6", "w8": "w1"}
+
+
+def test_a_folder_that_is_not_a_container_does_not_parent_its_subfolders():
+    spaces = [("w1", "audit", "/p"), ("w2", "herdr-cockpit", "/p/herdr-cockpit")]
+    assert monitor.space_parents(spaces, containers=set()) == {}
+    assert monitor.space_parents(spaces, containers={"/p"}) == {"w2": "w1"}
 
 
 def test_a_name_parent_inside_the_folder_parent_is_more_specific():
     spaces = [("w1", "padam-av-and-more", "/d/padam"), ("w2", "padam-av", "/d/padam/padam-av"),
               ("w3", "padam-av-GHA", "/d/padam/padam-av-GHA"), ("w4", "padam-k8s", "/d/padam/padam-k8s"),
               ("w5", "padam-av", "/d/padam/padam-av")]  # same name and folder as w2: w2, listed first, wins
-    parents = monitor.space_parents(spaces)
+    parents = monitor.space_parents(spaces, containers={"/d/padam"})
     assert parents == {"w2": "w1", "w3": "w2", "w4": "w1", "w5": "w1"}
     _, shown, headers = monitor.space_tree(spaces, parents, monitor.sibling_groups(spaces, parents))
     assert shown == {"w1": "padam-av-and-more", "w2": "├ av", "w5": "├ av", "w3": "│ └ GHA", "w4": "└ k8s"}
@@ -405,12 +410,12 @@ def test_short_name_drops_the_words_shared_with_the_parent():
 
 def test_space_parents_skip_a_name_link_that_closes_a_loop():
     spaces = [("w1", "a-b", "/x"), ("w2", "a", "/x/a")]  # w2 lives in w1's folder, w1 is named after w2
-    assert monitor.space_parents(spaces) == {"w2": "w1"}
+    assert monitor.space_parents(spaces, containers={"/x"}) == {"w2": "w1"}
 
 
 def test_spaces_sorted_alphabetically_children_under_their_parent_as_a_tree():
     ids = ["w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8"]
-    parents = monitor.space_parents(SPACES)
+    parents = monitor.space_parents(SPACES, containers={FSW, f"{FSW}/platform-charts"})
     wanted, shown, headers = monitor.space_tree(SPACES, parents, monitor.sibling_groups(SPACES, parents))
     assert wanted == ["w1", "w8", "w2", "w6", "w7", "w5", "w3", "w4"]
     assert shown == {"w1": "chrysa", "w8": "└ site", "w2": "Forge-Stack-Workshop", "w6": "├ charts",
@@ -426,6 +431,7 @@ def test_spaces_sorted_alphabetically_children_under_their_parent_as_a_tree():
 
 
 def test_tick_groups_spaces_by_folder(monkeypatch):
+    monkeypatch.setattr(monitor, "load_containers", lambda: {FSW})
     spaces, moved = [], []
     workspaces = [{"workspace_id": "w1", "label": "Forge-Stack-Workshop"}, {"workspace_id": "w2", "label": "padam-av"},
                   {"workspace_id": "w3", "label": "plateform_socle"}]
@@ -677,3 +683,44 @@ def test_header_uses_pictograms_only_when_the_panel_asks(monkeypatch):
     monkeypatch.delenv("AGENT_PANEL_ICONS")
     plain = importlib.reload(header)
     assert (plain.FOLDER, plain.BRANCH, plain.SERVER) == ("", "⑂ ", "")
+
+
+def test_containers_come_from_the_config_file(monkeypatch, tmp_path):
+    cfg = tmp_path / "agent-info.toml"
+    cfg.write_text('containers = ["/x/projects", "~/other"]\n')
+    monkeypatch.setattr(monitor, "CONFIG", str(cfg))
+    monkeypatch.delenv("AGENT_INFO_CONTAINERS", raising=False)
+    assert monitor.load_containers() == {"/x/projects", os.path.expanduser("~/other")}
+
+
+def test_missing_or_bad_config_means_no_containers(monkeypatch, tmp_path):
+    monkeypatch.setattr(monitor, "CONFIG", str(tmp_path / "absent.toml"))
+    monkeypatch.delenv("AGENT_INFO_CONTAINERS", raising=False)
+    assert monitor.load_containers() == set()
+    bad = tmp_path / "bad.toml"
+    bad.write_text("containers = [")
+    monkeypatch.setattr(monitor, "CONFIG", str(bad))
+    assert monitor.load_containers() == set()
+
+
+def test_containers_add_and_remove_rewrite_the_config(monkeypatch, tmp_path):
+    cfg = tmp_path / "agent-info.toml"
+    monkeypatch.setattr(monitor, "CONFIG", str(cfg))
+    monkeypatch.delenv("AGENT_INFO_CONTAINERS", raising=False)
+    folder = tmp_path / "projects"
+    folder.mkdir()
+    monitor.containers_command(["add", str(folder)])
+    assert monitor.load_containers() == {str(folder)}
+    monitor.containers_command(["remove", str(folder)])
+    assert monitor.load_containers() == set()
+    assert not (tmp_path / "agent-info.toml.tmp").exists()
+
+
+def test_containers_add_refuses_a_missing_folder(monkeypatch, tmp_path):
+    monkeypatch.setattr(monitor, "CONFIG", str(tmp_path / "agent-info.toml"))
+    try:
+        monitor.containers_command(["add", str(tmp_path / "nope")])
+    except SystemExit as error:
+        assert "not a directory" in str(error)
+    else:
+        raise AssertionError("expected refusal")
