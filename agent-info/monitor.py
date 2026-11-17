@@ -655,9 +655,9 @@ def agent_icon(agent, sub_statuses):
 # must be in the token name. The ecosystem is the account most of the space's
 # agents run under (pro or perso, any other grey); a space without agents keeps
 # the last one seen there, else takes its nearest parent's. A space is the child
-# of the space whose folder holds its own (plateform_socle in
-# Forge-Stack-Workshop/), else of the space whose name plus "-" starts its own
-# (padam-av-GHA next to padam-av): it shows its name without the parent's
+# of the space whose folder holds its own (platform_core in
+# workspace/), else of the space whose name plus "-" starts its own
+# (app-ci next to app): it shows its name without the parent's
 # prefix behind a tree prefix ("├ GHA", "└ simul"). Spaces are kept in
 # alphabetical order at every level, each child right after its parent; the
 # daemon moves them. Nothing is listed by hand: folders come from the panes'
@@ -684,7 +684,7 @@ AGENT_TOKENS = ("space_icon", *WAIT_TOKENS, *COUNT_TOKENS)
 # after every custom token, so an icon in front would push the tree glyphs right.
 CHILD_ICON = "child_icon"
 # Above line 1, on the first space of a sibling group only: the group's header
-# ("└ plateform" over "├ charts", "├ service_catalog", "└ socle"), one token per
+# ("└ platform" over "├ charts", "├ service_catalog", "└ socle"), one token per
 # ecosystem color like the names.
 GROUP_TOKENS = tuple(f"group_{eco}" for eco in ("pro", "perso", "other"))
 SPACE_TOKENS = (*AGENT_TOKENS, CHILD_ICON, *NAME_TOKENS, *GROUP_TOKENS)
@@ -748,18 +748,26 @@ def inside(folder, parent):
     return bool(folder and parent) and folder != parent and folder.startswith(parent.rstrip("/") + "/")
 
 
-def space_parents(spaces):
+CONTAINERS = {os.path.normpath(p) for p in os.environ.get("AGENT_INFO_CONTAINERS", "").split(os.pathsep) if p}
+# Folders that hold other spaces' folders (AGENT_INFO_CONTAINERS, paths joined by os.pathsep).
+# A space's folder sits under a container's folder => child of that space. Any other folder
+# never makes a parent: a project folder that holds another project is not a container.
+
+
+def space_parents(spaces, containers=None):
     """[(workspace_id, label, folder)] -> {workspace_id: parent workspace_id}.
 
-    The closest space whose folder holds this one's, else the longest label that plus
-    "-" starts this one's; the name wins when it is the more specific of the two
-    (padam-av-GHA in ~/padam/ goes under padam-av, itself in ~/padam/, not under the
-    space of ~/padam/). A name link that would close a loop is skipped.
+    The closest space whose folder is a container and holds this one's folder, else the
+    longest label that plus "-" starts this one's; the name wins when it is the more
+    specific of the two (app-ci in a container's folder goes under app, itself in that
+    container, not under the container's own space). A name link that would close a loop
+    is skipped.
     """
+    containers = CONTAINERS if containers is None else containers
     parents = {}
     for ws, _, folder in spaces:
         holders = [(len(other_folder), other) for other, _, other_folder in spaces
-                   if other != ws and inside(folder, other_folder)]
+                   if other != ws and other_folder in containers and inside(folder, other_folder)]
         if holders:
             parents[ws] = max(holders)[1]
 
@@ -817,9 +825,8 @@ def worktree_spaces(listed):
 
 def short_name(label, parent_label):
     """label without the leading words it shares with its parent's label (case
-    ignored), at least its last word kept: padam-av-GHA under padam-av -> GHA,
-    padam-k8s under padam-av-and-more -> k8s, plateform_socle under
-    Forge-Stack-Workshop unchanged."""
+    ignored), at least its last word kept: app-ci under app -> ci,
+    app-k8s under app-and-more -> k8s, a label with no shared word unchanged."""
     if parent_label is None:
         return label
     words, parent_words = WORDS.findall(label), WORDS.findall(parent_label)
@@ -830,7 +837,7 @@ def short_name(label, parent_label):
     return "".join(words[shared:])
 
 
-WORDS = re.compile(r"[^-_. ]+[-_. ]*")  # "plateform_socle" -> "plateform_", "socle"
+WORDS = re.compile(r"[^-_. ]+[-_. ]*")  # "platform_core" -> "platform_", "core"
 INDENT = "\u2800\u2800"  # a blank tree unit; herdr trims spaces around a token, not this blank
 
 
@@ -839,7 +846,7 @@ def word_key(word):
 
 
 def near(a, b):
-    """Same word, or (5+ letters) one letter added, dropped or changed: plateform ~ platform."""
+    """Same word, or (5+ letters) one letter added, dropped or changed: colour ~ color."""
     if a == b:
         return True
     if min(len(a), len(b)) < 5 or abs(len(a) - len(b)) > 1:
@@ -853,7 +860,7 @@ def near(a, b):
 def sibling_groups(spaces, parents):
     """Children of one parent whose names start with the same word (one letter of
     difference allowed) -> {workspace_id: (header, rest)}: header is the shared start
-    in its most common spelling ("plateform"), rest what each one keeps ("socle")."""
+    in its most common spelling ("colour"), rest what each one keeps ("dark")."""
     label_of = {ws: label for ws, label, _ in spaces}
     rests = {ws: short_name(label, label_of.get(parents.get(ws))) for ws, label, _ in spaces if ws in parents}
     clusters = {}
@@ -896,7 +903,7 @@ def space_tree(spaces, parents, groups):
     keeps its members together, alphabetically too.
     names: a root keeps its label; a child shows a tree prefix and its short name
     ("├ GHA", "└ supervision-interface", "⠀⠀├ socle").
-    headers: on a group's first member only, the group's own tree line ("└ plateform").
+    headers: on a group's first member only, the group's own tree line ("└ platform").
     That member's name is then its space's second row, which herdr indents by 2
     columns: its prefix drops its first unit.
     """
@@ -976,15 +983,21 @@ def request(method, params):
 
 
 def group_spaces(ids, wanted, state):
-    """Move spaces into the wanted order; an order herdr did not take is not retried."""
+    """Move spaces into the wanted order. A move that fails is logged and the order is retried
+    on the next tick (tried_order is set only when every move went through)."""
     if wanted == ids:
         state["tried_order"] = None
         return
     if state.get("tried_order") == wanted:
         return
-    state["tried_order"] = wanted
+    failed = 0
     for ws, index in moves_to(ids, wanted):
-        request("workspace.move", {"workspace_id": ws, "insert_index": index})
+        try:
+            request("workspace.move", {"workspace_id": ws, "insert_index": index})
+        except (OSError, RuntimeError) as error:
+            failed += 1
+            print(f"workspace.move {ws} -> {index} failed: {error}", file=sys.stderr)
+    state["tried_order"] = None if failed else wanted
 
 
 def background_only(agent, details):

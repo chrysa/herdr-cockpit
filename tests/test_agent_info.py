@@ -383,14 +383,20 @@ SPACES = [("w1", "chrysa", "/p/chrysa"), ("w2", "Forge-Stack-Workshop", FSW), ("
 
 
 def test_space_parents_by_folder_then_by_name():
-    assert monitor.space_parents(SPACES) == {"w4": "w3", "w5": "w2", "w6": "w2", "w7": "w6", "w8": "w1"}
+    assert monitor.space_parents(SPACES, containers={FSW, f"{FSW}/platform-charts"}) == {"w4": "w3", "w5": "w2", "w6": "w2", "w7": "w6", "w8": "w1"}
+
+
+def test_a_folder_that_is_not_a_container_does_not_parent_its_subfolders():
+    spaces = [("w1", "audit", "/p"), ("w2", "herdr-cockpit", "/p/herdr-cockpit")]
+    assert monitor.space_parents(spaces, containers=set()) == {}
+    assert monitor.space_parents(spaces, containers={"/p"}) == {"w2": "w1"}
 
 
 def test_a_name_parent_inside_the_folder_parent_is_more_specific():
     spaces = [("w1", "padam-av-and-more", "/d/padam"), ("w2", "padam-av", "/d/padam/padam-av"),
               ("w3", "padam-av-GHA", "/d/padam/padam-av-GHA"), ("w4", "padam-k8s", "/d/padam/padam-k8s"),
               ("w5", "padam-av", "/d/padam/padam-av")]  # same name and folder as w2: w2, listed first, wins
-    parents = monitor.space_parents(spaces)
+    parents = monitor.space_parents(spaces, containers={"/d/padam"})
     assert parents == {"w2": "w1", "w3": "w2", "w4": "w1", "w5": "w1"}
     _, shown, headers = monitor.space_tree(spaces, parents, monitor.sibling_groups(spaces, parents))
     assert shown == {"w1": "padam-av-and-more", "w2": "├ av", "w5": "├ av", "w3": "│ └ GHA", "w4": "└ k8s"}
@@ -405,12 +411,12 @@ def test_short_name_drops_the_words_shared_with_the_parent():
 
 def test_space_parents_skip_a_name_link_that_closes_a_loop():
     spaces = [("w1", "a-b", "/x"), ("w2", "a", "/x/a")]  # w2 lives in w1's folder, w1 is named after w2
-    assert monitor.space_parents(spaces) == {"w2": "w1"}
+    assert monitor.space_parents(spaces, containers={"/x"}) == {"w2": "w1"}
 
 
 def test_spaces_sorted_alphabetically_children_under_their_parent_as_a_tree():
     ids = ["w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8"]
-    parents = monitor.space_parents(SPACES)
+    parents = monitor.space_parents(SPACES, containers={FSW, f"{FSW}/platform-charts"})
     wanted, shown, headers = monitor.space_tree(SPACES, parents, monitor.sibling_groups(SPACES, parents))
     assert wanted == ["w1", "w8", "w2", "w6", "w7", "w5", "w3", "w4"]
     assert shown == {"w1": "chrysa", "w8": "└ site", "w2": "Forge-Stack-Workshop", "w6": "├ charts",
@@ -426,6 +432,7 @@ def test_spaces_sorted_alphabetically_children_under_their_parent_as_a_tree():
 
 
 def test_tick_groups_spaces_by_folder(monkeypatch):
+    monkeypatch.setattr(monitor, "CONTAINERS", {FSW})
     spaces, moved = [], []
     workspaces = [{"workspace_id": "w1", "label": "Forge-Stack-Workshop"}, {"workspace_id": "w2", "label": "padam-av"},
                   {"workspace_id": "w3", "label": "plateform_socle"}]

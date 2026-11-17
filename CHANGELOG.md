@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- agent-info: a space nests under another by folder only when that space's folder is listed in `AGENT_INFO_CONTAINERS` (paths joined by `:`). Before, any folder holding another made it a parent (a project holding a repo became its parent). Name-based nesting is unchanged.
 - agent-info: a linked git worktree is opened once with `herdr worktree open --cwd` unless `herdr worktree list` already names it (`agent-info/worktrees.py`; `AGENT_INFO_WORKTREES=0` turns it off).
 - agent-info: a worktree space is named `⎇ <branch>` and sits under the space of its main checkout, not by name or folder (`worktree_spaces` in `monitor.py`).
 - `cockpit/shells.py`: lists herdr panes with no AI agent (space, pane id, cwd, terminal title); `--json` for scripts.
