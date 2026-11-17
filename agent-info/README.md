@@ -74,6 +74,14 @@ What herdr and the plugin marketplace do not cover reliably:
 - **Desktop notification** (`notify-send`, `osascript` on macOS) when an agent
   starts waiting on you: once per blocked state, not for the focused pane nor for
   agents already blocked when the daemon starts. `AGENT_INFO_NOTIFY=0` turns it off.
+- **Space nesting by folder**: a space nests under another only when the other's folder is a
+  listed container. Containers are edited live, no restart (the daemon reads them every tick):
+  `python3 monitor.py containers list | add <folder> | remove <folder>`. Stored in
+  `~/.config/chrysa.cockpit/agent-info.toml` (`AGENT_INFO_CONFIG` overrides the path);
+  `AGENT_INFO_CONTAINERS` (paths joined by `:`) is also read. Name-based nesting needs no entry.
+- **Sort spaces now**: `python3 resort.py` applies the tree order once (`workspace.move`), same as the
+  daemon does each tick, and reports the moves left. Bind it to a herdr key if wanted.
+
 - **Housekeeping on its own** (`tidy.py`, each action announced by a desktop
   notification):
   - a Claude agent idle for 24 h (`AGENT_INFO_TIDY_HOURS`, 0 = off), not in the

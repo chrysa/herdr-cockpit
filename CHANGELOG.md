@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- agent-info: containers managed live: `monitor.py containers list | add | remove`, stored in `~/.config/chrysa.cockpit/agent-info.toml` (read every tick). `AGENT_INFO_CONTAINERS` still read.
+- agent-info: `resort.py` sorts the sidebar spaces once with `workspace.move` and reports moves left.
+- agent-info: `group_spaces` logs each failed `workspace.move` and retries the order on the next tick.
 - agent-info: a space nests under another by folder only when that space's folder is listed in `AGENT_INFO_CONTAINERS` (paths joined by `:`). Before, any folder holding another made it a parent (a project holding a repo became its parent). Name-based nesting is unchanged.
 - agent-info: a linked git worktree is opened once with `herdr worktree open --cwd` unless `herdr worktree list` already names it (`agent-info/worktrees.py`; `AGENT_INFO_WORKTREES=0` turns it off).
 - agent-info: a worktree space is named `⎇ <branch>` and sits under the space of its main checkout, not by name or folder (`worktree_spaces` in `monitor.py`).
